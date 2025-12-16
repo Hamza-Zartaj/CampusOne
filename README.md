@@ -1,2 +1,0 @@
-# CampusOne
-LMS FYP
