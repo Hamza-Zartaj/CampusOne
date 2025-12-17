@@ -134,7 +134,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 ### 1.3 Frontend Project Structure
   ```bash
-  npx create-react-app campusone-frontend
+  npm create vite@latest campusone-frontend
   cd campusone-frontend
   ```
   - Create folder structure:
@@ -154,23 +154,28 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 - [ ] **Install Frontend Dependencies**
   ```bash
   npm install axios react-router-dom
-  npm install -D tailwindcss postcss autoprefixer
-  npx tailwindcss init -p
+  npm install tailwindcss@latest @tailwindcss/vite
   ```
   - **axios**: HTTP client for API calls
   - **react-router-dom**: Routing
   - **tailwindcss**: Utility-first CSS framework for styling
   
 - [ ] **Configure Tailwind CSS**
-  - Update `tailwind.config.js`:
+  - Update `vite.config.js` to include Tailwind plugin:
     ```js
-    module.exports = {
-      content: ["./src/**/*.{js,jsx,ts,tsx}"],
-      theme: { extend: {} },
-      plugins: [],
-    }
+    import { defineConfig } from 'vite'
+    import react from '@vitejs/plugin-react'
+    import tailwindcss from '@tailwindcss/vite'
+    
+    export default defineConfig({
+      plugins: [react(), tailwindcss()],
+    })
     ```
   - Add to `src/index.css`:
+    ```css
+    @import "tailwindcss";
+    ```
+  - Or use the traditional approach in `src/index.css`:
     ```css
     @tailwind base;
     @tailwind components;
@@ -184,10 +189,12 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     MONGODB_URI=mongodb://localhost:27017/campusone_db
     JWT_SECRET=your_secret_key_here
     JWT_EXPIRE=7d
+    NODE_ENV=development
+    CLIENT_URL=http://localhost:5173
     ```
   - Create `.env` file in frontend:
     ```
-    REACT_APP_API_URL=http://localhost:5000/api
+    VITE_API_URL=http://localhost:5000/api
     ```
 
 - [ ] **Setup Git Repository**
