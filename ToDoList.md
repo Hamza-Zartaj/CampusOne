@@ -113,6 +113,21 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **jsonwebtoken**: JWT authentication
   - **nodemon**: Auto-restart server during development
 
+- [ ] **Configure ES6 Modules**
+  - Update `package.json` to use ES6 modules:
+    ```json
+    {
+      "type": "module"
+    }
+    ```
+  - Use ES6 import/export syntax instead of CommonJS require/module.exports
+  - Example:
+    ```javascript
+    import express from 'express';
+    import mongoose from 'mongoose';
+    export default someFunction;
+    ```
+
 - [ ] **Setup Environment Variables (Backend)**
   - Create `.env` file in backend:
     ```
