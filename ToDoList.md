@@ -210,30 +210,127 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 ## **PHASE 2: DATABASE DESIGN** 🗄️
 
+**Database Architecture Pattern:**
+- **User Model**: Base authentication model for all user types (login credentials, 2FA, role)
+- **Role-Specific Models**: Student, Teacher, TA, Admin models reference User via `userId`
+- **Benefits**: Cleaner schema, no nullable fields, easier to extend, better query performance
+- **Usage**: Always populate User when querying role-specific models (e.g., `Student.findOne().populate('userId')`)
+
 ### 2.1 Design Database Schema
 
-- [ ] **Create User Schema**
+- [ ] **Create User Schema (Base Authentication Model)**
   - File: `backend/models/User.js`
+  - **Purpose**: Handle authentication and basic account info only
   - Fields:
     - `_id`: ObjectId (auto-generated)
     - `name`: String (required)
-    - `email`: String (required, unique)
-    - `password`: String (required, hashed)
-    - `role`: String (enum: ['student', 'teacher', 'ta', 'admin'])
-    - `profilePicture`: String (URL)
-    - `enrollmentNumber`: String (for students)
-    - `employeeId`: String (for teachers/TAs)
-    - `department`: String
+    - `email`: String (required, unique, indexed)
+    - `password`: String (required, hashed with bcrypt)
+    - `role`: String (required, enum: ['student', 'teacher', 'ta', 'admin'])
+    - `profilePicture`: String (URL, optional)
     - `isActive`: Boolean (default: true)
     - `failedLoginAttempts`: Number (default: 0)
     - `accountLocked`: Boolean (default: false)
+    - `accountLockedUntil`: Date (optional, auto-unlock after time)
     - `twoFactorSecret`: String (for 2FA)
     - `twoFactorEnabled`: Boolean (default: false)
     - `trustedDevices`: [{
-        - `deviceId`: String
-        - `deviceName`: String
+        - `deviceId`: String (UUID)
+        - `deviceName`: String (browser + OS)
+        - `ipAddress`: String
         - `lastUsed`: Date
       }]
+    - `lastLogin`: Date
+    - `createdAt`: Date
+    - `updatedAt`: Date
+
+- [ ] **Create Student Schema**
+  - File: `backend/models/Student.js`
+  - **Purpose**: Store student-specific data
+  - Fields:
+    - `_id`: ObjectId
+    - `userId`: ObjectId (ref: 'User', required, unique)
+    - `enrollmentNumber`: String (required, unique, indexed)
+    - `department`: String (required)
+    - `batch`: String (e.g., "2021-2025")
+    - `currentSemester`: Number (required, default: 1)
+    - `enrolledCourses`: [{
+        - `courseId`: ObjectId (ref: 'Course')
+        - `enrolledAt`: Date
+        - `status`: String (enum: ['active', 'completed', 'dropped'])
+      }]
+    - `completedCourses`: [{
+        - `courseId`: ObjectId (ref: 'Course')
+        - `semester`: Number
+        - `grade`: String (A+, A, B+, etc.)
+        - `gpa`: Number
+        - `completedAt`: Date
+      }]
+    - `cgpa`: Number (cumulative GPA)
+    - `totalCredits`: Number (default: 0)
+    - `phone`: String (optional)
+    - `dateOfBirth`: Date (optional)
+    - `address`: String (optional)
+    - `guardianContact`: String (optional)
+    - `createdAt`: Date
+    - `updatedAt`: Date
+
+- [ ] **Create Teacher Schema**
+  - File: `backend/models/Teacher.js`
+  - **Purpose**: Store teacher-specific data
+  - Fields:
+    - `_id`: ObjectId
+    - `userId`: ObjectId (ref: 'User', required, unique)
+    - `employeeId`: String (required, unique, indexed)
+    - `department`: String (required)
+    - `designation`: String (e.g., "Professor", "Associate Professor", "Lecturer")
+    - `qualification`: String (e.g., "Ph.D. in Computer Science")
+    - `specialization`: [String] (e.g., ["AI", "Machine Learning", "Databases"])
+    - `officeRoom`: String (optional)
+    - `officeHours`: String (optional, e.g., "Mon-Wed 2-4 PM")
+    - `phone`: String (optional)
+    - `extensionNumber`: String (optional)
+    - `researchInterests`: [String] (optional)
+    - `teachingCourses`: [{
+        - `courseId`: ObjectId (ref: 'Course')
+        - `semester`: String
+        - `year`: Number
+      }]
+    - `createdAt`: Date
+    - `updatedAt`: Date
+
+- [ ] **Create TA Schema**
+  - File: `backend/models/TA.js`
+  - **Purpose**: Store TA-specific data
+  - Fields:
+    - `_id`: ObjectId
+    - `userId`: ObjectId (ref: 'User', required, unique)
+    - `studentId`: ObjectId (ref: 'Student', required) // TA is also a student
+    - `assignedCourses`: [{
+        - `courseId`: ObjectId (ref: 'Course')
+        - `teacherId`: ObjectId (ref: 'Teacher')
+        - `assignedAt`: Date
+        - `responsibilities`: [String] (e.g., ["Grading", "Lab Sessions", "Office Hours"])
+        - `hoursPerWeek`: Number
+      }]
+    - `totalHoursCompleted`: Number (default: 0)
+    - `performanceRating`: Number (1-5, optional, given by teacher)
+    - `status`: String (enum: ['active', 'inactive'], default: 'active')
+    - `createdAt`: Date
+    - `updatedAt`: Date
+
+- [ ] **Create Admin Schema**
+  - File: `backend/models/Admin.js`
+  - **Purpose**: Store admin-specific data
+  - Fields:
+    - `_id`: ObjectId
+    - `userId`: ObjectId (ref: 'User', required, unique)
+    - `employeeId`: String (required, unique, indexed)
+    - `department`: String (required)
+    - `designation`: String (e.g., "System Administrator", "Academic Officer")
+    - `permissions`: [String] (e.g., ["manage_users", "manage_courses", "view_reports", "system_config"])
+    - `phone`: String (optional)
+    - `officeRoom`: String (optional)
     - `createdAt`: Date
     - `updatedAt`: Date
 
@@ -244,16 +341,16 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `courseCode`: String (required, unique)
     - `courseName`: String (required)
     - `description`: String
-    - `teacher`: ObjectId (ref: 'User')
-    - `tas`: [ObjectId] (ref: 'User')
-    - `students`: [ObjectId] (ref: 'User')
+    - `teacher`: ObjectId (ref: 'Teacher') // References Teacher model
+    - `tas`: [ObjectId] (ref: 'TA') // References TA model
+    - `students`: [ObjectId] (ref: 'Student') // References Student model
     - `semester`: String
     - `creditHours`: Number
     - `materials`: [{
         - `title`: String
         - `type`: String (notes/slides/reading)
         - `fileUrl`: String
-        - `uploadedBy`: ObjectId
+        - `uploadedBy`: ObjectId (ref: 'User') // References base User model
         - `uploadedAt`: Date
       }]
     - `isActive`: Boolean
@@ -270,7 +367,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `totalMarks`: Number
     - `lateSubmissionAllowed`: Boolean (default: false)
     - `fileUrl`: String (assignment document)
-    - `createdBy`: ObjectId (ref: 'User')
+    - `createdBy`: ObjectId (ref: 'User') // Can be Teacher or TA user
     - `createdAt`: Date
 
 - [ ] **Create Submission Schema**
@@ -278,7 +375,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Fields:
     - `_id`: ObjectId
     - `assignmentId`: ObjectId (ref: 'Assignment')
-    - `studentId`: ObjectId (ref: 'User')
+    - `studentId`: ObjectId (ref: 'Student') // References Student model
     - `fileUrl`: String (required)
     - `submittedAt`: Date
     - `isLate`: Boolean
@@ -286,7 +383,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `feedback`: String
     - `similarityScore`: Number
     - `similarityStatus`: String (enum: ['pending', 'acceptable', 'suspicious'])
-    - `gradedBy`: ObjectId (ref: 'User')
+    - `gradedBy`: ObjectId (ref: 'User') // Can be Teacher or TA user
     - `gradedAt`: Date
 
 - [ ] **Create Attendance Schema**
@@ -296,10 +393,10 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `courseId`: ObjectId (ref: 'Course')
     - `date`: Date (required)
     - `records`: [{
-        - `studentId`: ObjectId
+        - `studentId`: ObjectId (ref: 'Student') // References Student model
         - `status`: String (enum: ['present', 'absent', 'late'])
       }]
-    - `markedBy`: ObjectId (ref: 'User')
+    - `markedBy`: ObjectId (ref: 'User') // Teacher or TA user
     - `createdAt`: Date
 
 - [ ] **Create Announcement Schema**
@@ -310,7 +407,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `title`: String (required)
     - `content`: String (required)
     - `priority`: String (enum: ['low', 'medium', 'high'])
-    - `createdBy`: ObjectId (ref: 'User')
+    - `createdBy`: ObjectId (ref: 'User') // Teacher, TA, or Admin user
     - `targetAudience`: String (enum: ['all', 'students', 'teachers', 'specific_course'])
     - `createdAt`: Date
 
@@ -318,7 +415,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - File: `backend/models/Notification.js`
   - Fields:
     - `_id`: ObjectId
-    - `userId`: ObjectId (ref: 'User')
+    - `userId`: ObjectId (ref: 'User') // References base User (notifications for all user types)
     - `type`: String (enum: ['announcement', 'deadline', 'grade', 'general'])
     - `title`: String
     - `message`: String
@@ -333,7 +430,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `courseId`: ObjectId (ref: 'Course')
     - `originalFileUrl`: String
     - `summaryText`: String
-    - `generatedBy`: ObjectId (ref: 'User')
+    - `generatedBy`: ObjectId (ref: 'User') // Can be any user type
     - `createdAt`: Date
 
 - [ ] **Create Quiz Schema**
@@ -361,7 +458,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `requireCamera`: Boolean (default: false)
     - `requireScreenShare`: Boolean (default: false)
     - `generatedByAI`: Boolean (default: false)
-    - `createdBy`: ObjectId (ref: 'User')
+    - `createdBy`: ObjectId (ref: 'User') // Teacher or TA user
     - `createdAt`: Date
 
 - [ ] **Create Quiz Attempt Schema**
@@ -369,7 +466,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Fields:
     - `_id`: ObjectId
     - `quizId`: ObjectId (ref: 'Quiz')
-    - `studentId`: ObjectId (ref: 'User')
+    - `studentId`: ObjectId (ref: 'Student') // References Student model
     - `answers`: [{
         - `questionId`: ObjectId
         - `answer`: String/[String]
@@ -396,8 +493,8 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - File: `backend/models/TAEligibility.js`
   - Fields:
     - `_id`: ObjectId
-    - `studentId`: ObjectId (ref: 'User')
-    - `teacherId`: ObjectId (ref: 'User')
+    - `studentId`: ObjectId (ref: 'Student') // References Student model
+    - `teacherId`: ObjectId (ref: 'Teacher') // References Teacher model
     - `completedCourses`: [{
         - `courseId`: ObjectId (ref: 'Course')
         - `semester`: Number
@@ -407,7 +504,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `currentSemester`: Number
     - `eligibleForSemesters`: [Number]
     - `isApproved`: Boolean (default: false)
-    - `approvedBy`: ObjectId (ref: 'User')
+    - `approvedBy`: ObjectId (ref: 'User') // Admin or Teacher user
     - `createdAt`: Date
 
 - [ ] **Create QNA (Question & Answer) Schema**
@@ -449,6 +546,12 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 > **Complete the entire authentication system (API + UI) in this phase**
 
+**Important Note on Database Schema:**
+- During registration, create both User record AND role-specific record (Student/Teacher/TA/Admin)
+- During login, populate role-specific data: `User.findOne().populate('role')` then query Student/Teacher/TA/Admin based on userId
+- Example: After User login, if role='student', query `Student.findOne({ userId: user._id })`
+- Return combined data to frontend: `{ ...user, roleData: studentData }`
+
 ---
 
 ### 3.1 BACKEND - Authentication API (REQ-UM-1 to REQ-UM-6)
@@ -470,10 +573,11 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 - [ ] **Create Auth Controller**
   - File: `backend/controllers/authController.js`
   - **Register Function** (POST /api/auth/register)
-    - Validate input data (name, email, password, role)
+    - Validate input data (name, email, password, role, + role-specific fields)
     - Check if user already exists
     - Hash password using bcryptjs
-    - Create user in database
+    - **Create User record in User model**
+    - **Create role-specific record** (Student/Teacher/TA/Admin) with userId reference
     - Return success message
   
   - **Login Function** (POST /api/auth/login)
@@ -484,20 +588,22 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - If attempts >= 5, lock account and return error
     - If valid, reset failed attempts to 0
     - **Check device fingerprint (browser + IP + user agent)**
+    - **Query role-specific data** (Student/Teacher/TA/Admin based on user.role)
     - If device not in trusted devices list:
       - Generate 2FA token
       - Send token to user (email/SMS)
       - Return status: "2FA_REQUIRED"
     - If device trusted or 2FA disabled:
       - Generate JWT token
-      - Return token and user data
+      - Return token, user data, and role-specific data
   
   - **Verify 2FA Token** (POST /api/auth/verify-2fa)
     - Validate 2FA token using speakeasy
     - If valid:
       - Add device to trusted devices list
       - Generate JWT token
-      - Return token and user data
+      - **Query and include role-specific data**
+      - Return token, user data, and role-specific data
     - If invalid:
       - Return error message
   
@@ -530,7 +636,8 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
   - **Get Current User** (GET /api/auth/me)
     - Verify JWT token
-    - Return current user data
+    - **Query role-specific data based on user.role**
+    - Return combined user data and role-specific data
 
 - [ ] **Create Auth Routes**
   - File: `backend/routes/authRoutes.js`
