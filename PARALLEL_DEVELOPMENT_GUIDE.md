@@ -31,8 +31,10 @@ This guide shows how to develop CampusOne with **Backend + Frontend together** f
 
 ### ✅ **Phase 4: Course & Material Management (COMPLETED IN README)**
 - ✅ 4.1 Backend - Course & Material API (CRUD, Upload, Download)
-- ✅ 4.2 Frontend - Course Pages & Material UI (List, Detail, Upload)
-- **Test:** Create Course → Upload Material → Download Material
+- ✅ 4.2 Backend - QNA (Question & Answer) Forum API ⭐ NEW
+- ✅ 4.3 Frontend - Course Pages & Material UI (List, Detail, Upload)
+- ✅ 4.4 Frontend - QNA Forum UI (Ask, Answer, Vote, Search) ⭐ NEW
+- **Test:** Create Course → Upload Material → Ask Question → Answer → Upvote → Mark Accepted
 
 ### ✅ **Phase 5: Assignment Management (COMPLETED IN README)**
 - ✅ 5.1 Backend - Assignment & Submission API (Create, Submit, Grade)

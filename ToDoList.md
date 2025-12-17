@@ -410,6 +410,39 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `approvedBy`: ObjectId (ref: 'User')
     - `createdAt`: Date
 
+- [ ] **Create QNA (Question & Answer) Schema**
+  - File: `backend/models/QNA.js`
+  - Fields:
+    - `_id`: ObjectId
+    - `courseId`: ObjectId (ref: 'Course', required)
+    - `askedBy`: ObjectId (ref: 'User', required)
+    - `question`: String (required, min: 10 characters)
+    - `description`: String (optional, detailed question body)
+    - `tags`: [String] (e.g., ['lecture-5', 'arrays', 'midterm'])
+    - `attachments`: [{
+        - `fileName`: String
+        - `fileUrl`: String
+        - `fileType`: String
+      }]
+    - `answers`: [{
+        - `answeredBy`: ObjectId (ref: 'User')
+        - `answer`: String (required)
+        - `attachments`: [{
+            - `fileName`: String
+            - `fileUrl`: String
+            - `fileType`: String
+          }]
+        - `isAccepted`: Boolean (default: false) // Marked as best answer
+        - `upvotes`: [ObjectId] (ref: 'User') // Users who upvoted
+        - `downvotes`: [ObjectId] (ref: 'User') // Users who downvoted
+        - `answeredAt`: Date
+      }]
+    - `views`: Number (default: 0)
+    - `isResolved`: Boolean (default: false)
+    - `isPinned`: Boolean (default: false) // Teachers can pin important Q&A
+    - `createdAt`: Date
+    - `updatedAt`: Date
+
 ---
 
 ## **PHASE 3: AUTHENTICATION & USER MANAGEMENT (Backend + Frontend)** 🔐
@@ -786,9 +819,89 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 ---
 
-### 4.2 FRONTEND - Course & Material UI
+### 4.2 QNA (Question & Answer) Forum - BACKEND
 
-#### 4.2.1 Course Management Pages
+- [ ] **Create QNA Controller**
+  - File: `backend/controllers/qnaController.js`
+  
+  - **Ask Question** (POST /api/courses/:courseId/qna) - Students/Teachers/TAs
+    - Validate question text (min 10 characters)
+    - Validate user is enrolled in course
+    - Upload attachments (if any) using multer
+    - Create QNA document
+    - Send notification to course teacher and TAs
+    - Return created question
+  
+  - **Get All Questions for Course** (GET /api/courses/:courseId/qna)
+    - Return all questions for a course
+    - Populate askedBy (user details)
+    - Populate answers with user details
+    - Sort by: newest, most viewed, most answered, resolved/unresolved
+    - Filter by tags
+    - Pagination support (10 questions per page)
+  
+  - **Get Single Question** (GET /api/qna/:id)
+    - Return question with all answers
+    - Increment view count
+    - Populate user details for question and answers
+  
+  - **Answer Question** (POST /api/qna/:id/answer) - Students/Teachers/TAs
+    - Validate user is enrolled in course
+    - Add answer to answers array
+    - Upload attachments (if any)
+    - Send notification to question asker
+    - Return updated question
+  
+  - **Edit Question** (PUT /api/qna/:id) - Question asker only (within 24 hours)
+    - Update question text and description
+    - Add/remove tags
+    - Return updated question
+  
+  - **Delete Question** (DELETE /api/qna/:id) - Question asker or Teacher/Admin
+    - Soft delete (or hard delete based on preference)
+    - Return success message
+  
+  - **Edit Answer** (PUT /api/qna/:questionId/answer/:answerId) - Answer author only
+    - Update answer text
+    - Return updated question
+  
+  - **Delete Answer** (DELETE /api/qna/:questionId/answer/:answerId) - Answer author or Teacher/Admin
+    - Remove answer from answers array
+    - Return success message
+  
+  - **Mark Answer as Accepted** (PUT /api/qna/:questionId/answer/:answerId/accept) - Question asker or Teacher
+    - Set isAccepted: true for selected answer
+    - Set isResolved: true for question
+    - Unmark previous accepted answer (if any)
+    - Send notification to answer author
+    - Return updated question
+  
+  - **Upvote/Downvote Answer** (POST /api/qna/:questionId/answer/:answerId/vote)
+    - Body: { voteType: 'upvote' or 'downvote' }
+    - Add/remove user from upvotes or downvotes array
+    - Toggle vote (if user changes from upvote to downvote)
+    - Return updated answer vote count
+  
+  - **Pin Question** (PUT /api/qna/:id/pin) - Teacher only
+    - Toggle isPinned status
+    - Pinned questions appear at top
+    - Return success message
+  
+  - **Search Questions** (GET /api/courses/:courseId/qna/search?q=searchTerm)
+    - Search in question text and description
+    - Return matching questions
+
+- [ ] **Create QNA Routes**
+  - File: `backend/routes/qnaRoutes.js`
+  - Define all QNA routes
+  - Apply authentication middleware
+  - Apply course enrollment verification middleware
+
+---
+
+### 4.3 FRONTEND - Course & Material UI
+
+#### 4.3.1 Course Management Pages
 
 - [ ] **Courses List Page** (REQ-CCM-1)
   - File: `frontend/src/pages/Courses.jsx`
@@ -812,7 +925,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - For teacher: Show edit/delete buttons
   - **Styling**: Tailwind tabs, clean layout
 
-#### 4.2.2 Material Management UI (REQ-CCM-2, REQ-CCM-3)
+#### 4.3.2 Material Management UI (REQ-CCM-2, REQ-CCM-3)
 
 - [ ] **Materials Tab Component** (REQ-CCM-3)
   - File: `frontend/src/components/MaterialsTab.jsx`
@@ -837,7 +950,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Use blob to download file
   - Handle download errors
 
-#### 4.2.3 Course Enrollment (Admin)
+#### 4.3.3 Course Enrollment (Admin)
 
 - [ ] **Enroll Students Page**
   - File: `frontend/src/pages/admin/EnrollStudents.jsx`
@@ -846,6 +959,145 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Bulk enroll button
   - Call enroll API
   - **Styling**: Tailwind select, checkboxes, responsive
+
+---
+
+### 4.4 FRONTEND - QNA (Question & Answer) Forum UI
+
+#### 4.4.1 QNA Tab in Course Detail
+
+- [ ] **QNA Tab Component**
+  - File: `frontend/src/components/QNATab.jsx`
+  - Display in Course Detail page as a tab
+  - Show "Ask Question" button (prominent)
+  - Search bar for questions
+  - Filter options:
+    - Sort by: Newest, Most Viewed, Most Answered, Unanswered
+    - Filter by: All, Resolved, Unresolved, My Questions
+  - Tags filter (show popular tags)
+  - **Styling**: Tailwind tabs, search input, filter dropdowns
+
+#### 4.4.2 Questions List
+
+- [ ] **Questions List Component**
+  - File: `frontend/src/components/QNAList.jsx`
+  - Display questions in card/list format
+  - Each question card shows:
+    - Question title (clickable)
+    - Asked by (name and role badge)
+    - Number of answers
+    - Number of views
+    - Tags (clickable)
+    - Timestamp ("asked 2 hours ago")
+    - Resolved badge (green) if isResolved: true
+    - Pinned badge (yellow) if isPinned: true
+  - Pagination (10 per page)
+  - Click on question → navigate to question detail page
+  - **Styling**: Tailwind cards, badges, hover effects, responsive grid
+
+#### 4.4.3 Ask Question
+
+- [ ] **Ask Question Modal/Page**
+  - File: `frontend/src/components/AskQuestionModal.jsx`
+  - Form fields:
+    - Question title (text input, required, min 10 chars)
+    - Description (textarea, optional, for detailed explanation)
+    - Tags (multi-select or comma-separated input)
+    - Attachments (file upload - images, PDFs, code files)
+  - Character counter for title
+  - Rich text editor for description (optional - use react-quill)
+  - Preview mode before submitting
+  - Submit button
+  - Call create question API
+  - Show success message and navigate to question page
+  - **Styling**: Tailwind modal/page, form validation, file upload
+
+#### 4.4.4 Question Detail Page
+
+- [ ] **Question Detail Component**
+  - File: `frontend/src/pages/QuestionDetail.jsx`
+  - Display full question:
+    - Title (large heading)
+    - Description (formatted text)
+    - Asked by (name, avatar, role, timestamp)
+    - Tags (clickable)
+    - View count
+    - Attachments (download links)
+    - Edit button (if question asker and within 24 hours)
+    - Delete button (if question asker or teacher)
+    - Pin button (if teacher)
+  
+  - **Answers Section:**
+    - Show count: "3 Answers"
+    - Sort answers by: Accepted first, then by upvotes, then newest
+    - Each answer shows:
+      - Answer text (formatted)
+      - Answered by (name, avatar, role, timestamp)
+      - Attachments
+      - Upvote/Downvote buttons with counts
+      - "Accept Answer" button (if question asker or teacher)
+      - Edit button (if answer author)
+      - Delete button (if answer author or teacher)
+      - Accepted badge (green checkmark) if isAccepted: true
+  
+  - **Answer Form:**
+    - Textarea for answer text (min 10 chars)
+    - File upload for attachments
+    - Preview mode
+    - Submit button
+    - Call add answer API
+  
+  - **Styling**: Tailwind layout, cards for answers, vote buttons, badges
+
+#### 4.4.5 Edit Question/Answer
+
+- [ ] **Edit Question Modal**
+  - File: `frontend/src/components/EditQuestionModal.jsx`
+  - Pre-fill form with existing question data
+  - Allow editing title, description, tags
+  - Save button calls update API
+  - **Styling**: Tailwind modal
+
+- [ ] **Edit Answer Modal**
+  - File: `frontend/src/components/EditAnswerModal.jsx`
+  - Pre-fill with existing answer text
+  - Save button calls update API
+  - **Styling**: Tailwind modal
+
+#### 4.4.6 Voting System
+
+- [ ] **Upvote/Downvote Component**
+  - File: `frontend/src/components/VoteButtons.jsx`
+  - Up arrow button (green when user upvoted)
+  - Vote count display (net score)
+  - Down arrow button (red when user downvoted)
+  - Click upvote → call vote API with 'upvote'
+  - Click downvote → call vote API with 'downvote'
+  - Click again → remove vote
+  - Update UI optimistically
+  - **Styling**: Tailwind buttons, icons, color states
+
+#### 4.4.7 My Questions Page
+
+- [ ] **My Questions Component**
+  - File: `frontend/src/pages/MyQuestions.jsx`
+  - Display all questions asked by logged-in user
+  - Show across all courses
+  - Include: course name, question title, answers count, resolved status
+  - Click to view question
+  - **Styling**: Tailwind table or cards
+
+#### 4.4.8 QNA Notifications
+
+- [ ] **Integrate QNA with Notification System**
+  - Send notification when:
+    - Someone answers your question
+    - Your answer is accepted
+    - Your answer gets upvoted (optional)
+    - Teacher pins a question
+    - New question is asked in course (for teachers/TAs)
+  - Show notification icon/badge
+  - Click notification → navigate to question
 
 ---
 
