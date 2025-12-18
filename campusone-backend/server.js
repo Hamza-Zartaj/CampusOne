@@ -8,6 +8,7 @@ dotenv.config();
 
 // Import routes
 import authRoutes from './routes/authRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 
 // Initialize Express app
 const app = express();
@@ -55,6 +56,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // API Routes
+app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 
 // 404 Handler - Route not found
