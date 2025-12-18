@@ -89,7 +89,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   ```
   - Create folder structure:
     ```
-    backend/
+    campusone-backend/
     ├── config/          # Database, environment configs
     ├── models/          # MongoDB schemas
     ├── routes/          # API routes
@@ -138,7 +138,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     ```
 
 - [x] **Create Basic Server**
-  - File: `backend/server.js`
+  - File: `campusone-backend/server.js`
   - Setup Express app
   - Connect to MongoDB
   - Configure CORS
@@ -154,7 +154,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   ```
   - Create folder structure:
     ```
-    frontend/
+    campusone-frontend/
     ├── public/
     ├── src/
     │   ├── components/      # Reusable components
@@ -241,7 +241,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 ### 2.1 Design Database Schema
 
 - [ ] **Create User Schema (Base Authentication Model)**
-  - File: `backend/models/User.js`
+  - File: `campusone-backend/models/User.js`
   - **Purpose**: Handle authentication and basic account info only
   - Fields:
     - `_id`: ObjectId (auto-generated)
@@ -267,7 +267,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `updatedAt`: Date
 
 - [ ] **Create Student Schema**
-  - File: `backend/models/Student.js`
+  - File: `campusone-backend/models/Student.js`
   - **Purpose**: Store student-specific data
   - Fields:
     - `_id`: ObjectId
@@ -298,7 +298,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `updatedAt`: Date
 
 - [ ] **Create Teacher Schema**
-  - File: `backend/models/Teacher.js`
+  - File: `campusone-backend/models/Teacher.js`
   - **Purpose**: Store teacher-specific data
   - Fields:
     - `_id`: ObjectId
@@ -322,7 +322,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `updatedAt`: Date
 
 - [ ] **Create TA Schema**
-  - File: `backend/models/TA.js`
+  - File: `campusone-backend/models/TA.js`
   - **Purpose**: Store TA-specific data
   - Fields:
     - `_id`: ObjectId
@@ -342,7 +342,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `updatedAt`: Date
 
 - [ ] **Create Admin Schema**
-  - File: `backend/models/Admin.js`
+  - File: `campusone-backend/models/Admin.js`
   - **Purpose**: Store admin-specific data
   - Fields:
     - `_id`: ObjectId
@@ -357,7 +357,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `updatedAt`: Date
 
 - [ ] **Create Course Schema**
-  - File: `backend/models/Course.js`
+  - File: `campusone-backend/models/Course.js`
   - Fields:
     - `_id`: ObjectId
     - `courseCode`: String (required, unique)
@@ -379,7 +379,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
 
 - [ ] **Create Assignment Schema**
-  - File: `backend/models/Assignment.js`
+  - File: `campusone-backend/models/Assignment.js`
   - Fields:
     - `_id`: ObjectId
     - `courseId`: ObjectId (ref: 'Course')
@@ -393,7 +393,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
 
 - [ ] **Create Submission Schema**
-  - File: `backend/models/Submission.js`
+  - File: `campusone-backend/models/Submission.js`
   - Fields:
     - `_id`: ObjectId
     - `assignmentId`: ObjectId (ref: 'Assignment')
@@ -409,7 +409,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `gradedAt`: Date
 
 - [ ] **Create Attendance Schema**
-  - File: `backend/models/Attendance.js`
+  - File: `campusone-backend/models/Attendance.js`
   - Fields:
     - `_id`: ObjectId
     - `courseId`: ObjectId (ref: 'Course')
@@ -422,7 +422,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
 
 - [ ] **Create Announcement Schema**
-  - File: `backend/models/Announcement.js`
+  - File: `campusone-backend/models/Announcement.js`
   - Fields:
     - `_id`: ObjectId
     - `courseId`: ObjectId (ref: 'Course') - null for general announcements
@@ -434,7 +434,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
 
 - [ ] **Create Notification Schema**
-  - File: `backend/models/Notification.js`
+  - File: `campusone-backend/models/Notification.js`
   - Fields:
     - `_id`: ObjectId
     - `userId`: ObjectId (ref: 'User') // References base User (notifications for all user types)
@@ -446,7 +446,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
 
 - [ ] **Create Summary Schema** (for AI-generated summaries)
-  - File: `backend/models/Summary.js`
+  - File: `campusone-backend/models/Summary.js`
   - Fields:
     - `_id`: ObjectId
     - `courseId`: ObjectId (ref: 'Course')
@@ -456,7 +456,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
 
 - [ ] **Create Quiz Schema**
-  - File: `backend/models/Quiz.js`
+  - File: `campusone-backend/models/Quiz.js`
   - Fields:
     - `_id`: ObjectId
     - `courseId`: ObjectId (ref: 'Course')
@@ -484,7 +484,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
 
 - [ ] **Create Quiz Attempt Schema**
-  - File: `backend/models/QuizAttempt.js`
+  - File: `campusone-backend/models/QuizAttempt.js`
   - Fields:
     - `_id`: ObjectId
     - `quizId`: ObjectId (ref: 'Quiz')
@@ -512,7 +512,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
       }
 
 - [ ] **Create TA Eligibility Schema**
-  - File: `backend/models/TAEligibility.js`
+  - File: `campusone-backend/models/TAEligibility.js`
   - Fields:
     - `_id`: ObjectId
     - `studentId`: ObjectId (ref: 'Student') // References Student model
@@ -530,7 +530,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
 
 - [ ] **Create QNA (Question & Answer) Schema**
-  - File: `backend/models/QNA.js`
+  - File: `campusone-backend/models/QNA.js`
   - Fields:
     - `_id`: ObjectId
     - `courseId`: ObjectId (ref: 'Course', required)
@@ -585,7 +585,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **uuid**: Generate unique device identifiers
 
 - [ ] **Create Authentication Middleware**
-  - File: `backend/middleware/auth.js`
+  - File: `campusone-backend/middleware/auth.js`
   - Implement JWT token verification
   - Create `protect` middleware to verify user is logged in
   - Create `authorize` middleware to check user roles
@@ -593,7 +593,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Create `checkDeviceTrust` middleware to verify trusted devices
   
 - [ ] **Create Auth Controller**
-  - File: `backend/controllers/authController.js`
+  - File: `campusone-backend/controllers/authController.js`
   - **Register Function** (POST /api/auth/register)
     - Validate input data (name, email, password, role, + role-specific fields)
     - Check if user already exists
@@ -662,7 +662,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Return combined user data and role-specific data
 
 - [ ] **Create Auth Routes**
-  - File: `backend/routes/authRoutes.js`
+  - File: `campusone-backend/routes/authRoutes.js`
   - Define routes for register, login, logout, get current user
   - Add routes for 2FA: setup, enable, disable, verify
   - Add routes for device management
@@ -677,7 +677,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 ### 3.2 User Management (Admin) (REQ-UM-2 to REQ-UM-5)
 
 - [ ] **Create User Controller**
-  - File: `backend/controllers/userController.js`
+  - File: `campusone-backend/controllers/userController.js`
   
   - **Get All Users** (GET /api/users)
     - Admin only
@@ -706,12 +706,12 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Set `accountLocked` to false
 
 - [ ] **Create User Routes**
-  - File: `backend/routes/userRoutes.js`
+  - File: `campusone-backend/routes/userRoutes.js`
   - Define all user management routes
   - Apply `protect` and `authorize` middleware
 
 - [ ] **Input Validation Middleware** (REQ-UM-5)
-  - File: `backend/middleware/validation.js`
+  - File: `campusone-backend/middleware/validation.js`
   - Validate email format
   - Validate password strength (min 8 characters, etc.)
   - Validate required fields
@@ -724,7 +724,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 3.3.1 Setup Authentication Service
 
 - [ ] **Create Auth Context**
-  - File: `frontend/src/context/AuthContext.js`
+  - File: `campusone-frontend/src/context/AuthContext.js`
   - Create context for auth state
   - Store user data, token, loading state
   - Create login, logout, register functions
@@ -732,7 +732,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Auto-fetch user on app load if token exists
 
 - [ ] **Create API Service**
-  - File: `frontend/src/services/api.js`
+  - File: `campusone-frontend/src/services/api.js`
   - Setup axios instance with base URL
   - Add request interceptor to attach JWT token
   - Add response interceptor to handle errors (401, 403)
@@ -740,7 +740,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 3.3.2 Auth Pages with 2FA Support
 
 - [ ] **Login Page** (REQ-UM-1)
-  - File: `frontend/src/pages/Login.jsx`
+  - File: `campusone-frontend/src/pages/Login.jsx`
   - Create login form (email, password) with Tailwind CSS
   - Handle submit → call API
   - If response is "2FA_REQUIRED":
@@ -754,7 +754,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Use Tailwind utility classes for forms, buttons, alerts
 
 - [ ] **Register Page** (REQ-UM-1)
-  - File: `frontend/src/pages/Register.jsx`
+  - File: `campusone-frontend/src/pages/Register.jsx`
   - Create registration form (name, email, password, confirmPassword)
   - Validate passwords match
   - Call register API
@@ -763,7 +763,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind forms with validation states
 
 - [ ] **2FA Setup Page** (REQ-UM-1)
-  - File: `frontend/src/pages/Setup2FA.jsx`
+  - File: `campusone-frontend/src/pages/Setup2FA.jsx`
   - Call setup-2fa API to get QR code
   - Display QR code for user to scan
   - User enters code from authenticator app
@@ -772,7 +772,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Center QR code, add instructions with Tailwind
 
 - [ ] **Trusted Devices Page** (REQ-UM-1)
-  - File: `frontend/src/pages/TrustedDevices.jsx`
+  - File: `campusone-frontend/src/pages/TrustedDevices.jsx`
   - Fetch and display list of trusted devices
   - Show device name, browser, IP, last used date
   - Add "Remove" button for each device
@@ -782,7 +782,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 3.3.3 Role-Based Dashboards (REQ-UM-2)
 
 - [ ] **Student Dashboard** (REQ-UM-2)
-  - File: `frontend/src/pages/StudentDashboard.jsx`
+  - File: `campusone-frontend/src/pages/StudentDashboard.jsx`
   - Display enrolled courses
   - Show upcoming assignments
   - Show recent announcements
@@ -790,7 +790,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind grid layout, cards with shadows, icons
 
 - [ ] **Teacher Dashboard** (REQ-UM-2)
-  - File: `frontend/src/pages/TeacherDashboard.jsx`
+  - File: `campusone-frontend/src/pages/TeacherDashboard.jsx`
   - Display teaching courses
   - Show pending submissions
   - Show TA approval requests
@@ -798,14 +798,14 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Stats cards with Tailwind, responsive layout
 
 - [ ] **TA Dashboard** (REQ-UM-2)
-  - File: `frontend/src/pages/TADashboard.jsx`
+  - File: `campusone-frontend/src/pages/TADashboard.jsx`
   - Display assigned courses
   - Show grading queue
   - Show material upload permissions
   - **Styling**: Similar to Teacher dashboard with Tailwind
 
 - [ ] **Admin Dashboard** (REQ-UM-2)
-  - File: `frontend/src/pages/AdminDashboard.jsx`
+  - File: `campusone-frontend/src/pages/AdminDashboard.jsx`
   - System statistics (users, courses, activity)
   - Recent user activity
   - Quick links to user management, course management
@@ -814,7 +814,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 3.3.4 Protected Routes
 
 - [ ] **Setup Protected Routes**
-  - File: `frontend/src/components/ProtectedRoute.jsx`
+  - File: `campusone-frontend/src/components/ProtectedRoute.jsx`
   - Check if user is authenticated
   - Redirect to login if not authenticated
   - Check user role for role-based routes
@@ -827,7 +827,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 3.3.5 User Management UI (Admin Only) (REQ-UM-4)
 
 - [ ] **User Management Page**
-  - File: `frontend/src/pages/admin/UserManagement.jsx`
+  - File: `campusone-frontend/src/pages/admin/UserManagement.jsx`
   - Display table of all users with filters (role, active status)
   - Search by name/email
   - Add "Create User" button
@@ -835,7 +835,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind table, filter dropdowns, search input
 
 - [ ] **Create/Edit User Modal**
-  - File: `frontend/src/components/UserModal.jsx`
+  - File: `campusone-frontend/src/components/UserModal.jsx`
   - Form for creating/editing users
   - Fields: name, email, password (only for create), role
   - Call create/update API
@@ -845,7 +845,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 3.3.6 Profile & Settings (REQ-UM-3)
 
 - [ ] **Profile Page** (REQ-UM-3)
-  - File: `frontend/src/pages/Profile.jsx`
+  - File: `campusone-frontend/src/pages/Profile.jsx`
   - Display user information
   - Allow user to update name, email (password change separate)
   - Show enrolled courses (students)
@@ -853,7 +853,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind profile layout
 
 - [ ] **Settings Page** (REQ-UM-3)
-  - File: `frontend/src/pages/Settings.jsx`
+  - File: `campusone-frontend/src/pages/Settings.jsx`
   - Link to 2FA setup page
   - Link to trusted devices page
   - Password change form
@@ -872,7 +872,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 ### 4.1 Course Management (REQ-CCM-1)
 
 - [ ] **Create Course Controller**
-  - File: `backend/controllers/courseController.js`
+  - File: `campusone-backend/controllers/courseController.js`
   
   - **Create Course** (POST /api/courses) - Teacher/Admin only
     - Validate course code, name, description
@@ -902,7 +902,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Return updated course
 
 - [ ] **Create Course Routes**
-  - File: `backend/routes/courseRoutes.js`
+  - File: `campusone-backend/routes/courseRoutes.js`
   - Define all course routes with proper middleware
 
 ---
@@ -911,14 +911,14 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 - [ ] **Setup File Upload**
   - Install multer: `npm install multer`
-  - File: `backend/middleware/upload.js`
+  - File: `campusone-backend/middleware/upload.js`
   - Configure multer for file uploads
   - Set file size limit (e.g., 50MB) (REQ-CCM-5)
   - Validate file types (PDF, PPT, DOC, DOCX) (REQ-CCM-4)
   - Store files in `/uploads` folder or cloud storage (AWS S3)
 
 - [ ] **Create Material Controller**
-  - File: `backend/controllers/materialController.js`
+  - File: `campusone-backend/controllers/materialController.js`
   
   - **Upload Material** (POST /api/courses/:courseId/materials) - Teacher/TA only (REQ-CCM-2)
     - Validate file type and size
@@ -938,7 +938,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Delete file from storage
 
 - [ ] **Create Material Routes**
-  - File: `backend/routes/materialRoutes.js`
+  - File: `campusone-backend/routes/materialRoutes.js`
   - Define material upload/download routes
 
 - [ ] **Error Handling for File Upload** (REQ-CCM-5)
@@ -951,7 +951,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 ### 4.2 QNA (Question & Answer) Forum - BACKEND
 
 - [ ] **Create QNA Controller**
-  - File: `backend/controllers/qnaController.js`
+  - File: `campusone-backend/controllers/qnaController.js`
   
   - **Ask Question** (POST /api/courses/:courseId/qna) - Students/Teachers/TAs
     - Validate question text (min 10 characters)
@@ -1021,7 +1021,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Return matching questions
 
 - [ ] **Create QNA Routes**
-  - File: `backend/routes/qnaRoutes.js`
+  - File: `campusone-backend/routes/qnaRoutes.js`
   - Define all QNA routes
   - Apply authentication middleware
   - Apply course enrollment verification middleware
@@ -1033,7 +1033,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 4.3.1 Course Management Pages
 
 - [ ] **Courses List Page** (REQ-CCM-1)
-  - File: `frontend/src/pages/Courses.jsx`
+  - File: `campusone-frontend/src/pages/Courses.jsx`
   - Display enrolled/teaching courses in grid
   - For teachers/admin: Add "Create Course" button
   - Show course cards with: code, name, teacher, semester
@@ -1041,14 +1041,14 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind grid, hover effects, responsive cards
 
 - [ ] **Create/Edit Course Modal** (REQ-CCM-1)
-  - File: `frontend/src/components/CourseModal.jsx`
+  - File: `campusone-frontend/src/components/CourseModal.jsx`
   - Form: course code, name, description, semester, year
   - For edit: pre-fill existing data
   - Call create/update course API
   - **Styling**: Tailwind modal, form validation
 
 - [ ] **Course Detail Page** (REQ-CCM-1)
-  - File: `frontend/src/pages/CourseDetail.jsx`
+  - File: `campusone-frontend/src/pages/CourseDetail.jsx`
   - Display course information (code, name, description, teacher)
   - Show tabs: Materials, Assignments, Attendance, Announcements
   - For teacher: Show edit/delete buttons
@@ -1057,7 +1057,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 4.3.2 Material Management UI (REQ-CCM-2, REQ-CCM-3)
 
 - [ ] **Materials Tab Component** (REQ-CCM-3)
-  - File: `frontend/src/components/MaterialsTab.jsx`
+  - File: `campusone-frontend/src/components/MaterialsTab.jsx`
   - Display all course materials in list
   - Show: title, type (notes/slides/reading), uploaded by, date
   - For teacher/TA: Show "Upload Material" button
@@ -1065,7 +1065,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind table or card list, icons
 
 - [ ] **Upload Material Modal** (REQ-CCM-2)
-  - File: `frontend/src/components/UploadMaterialModal.jsx`
+  - File: `campusone-frontend/src/components/UploadMaterialModal.jsx`
   - Form: title, type dropdown (notes/slides/reading), file input
   - Validate file type (PDF, PPT, DOC, DOCX) (REQ-CCM-4)
   - Validate file size (max 50MB) (REQ-CCM-5)
@@ -1082,7 +1082,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 4.3.3 Course Enrollment (Admin)
 
 - [ ] **Enroll Students Page**
-  - File: `frontend/src/pages/admin/EnrollStudents.jsx`
+  - File: `campusone-frontend/src/pages/admin/EnrollStudents.jsx`
   - Select course dropdown
   - Multi-select students list
   - Bulk enroll button
@@ -1096,7 +1096,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 4.4.1 QNA Tab in Course Detail
 
 - [ ] **QNA Tab Component**
-  - File: `frontend/src/components/QNATab.jsx`
+  - File: `campusone-frontend/src/components/QNATab.jsx`
   - Display in Course Detail page as a tab
   - Show "Ask Question" button (prominent)
   - Search bar for questions
@@ -1109,7 +1109,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 4.4.2 Questions List
 
 - [ ] **Questions List Component**
-  - File: `frontend/src/components/QNAList.jsx`
+  - File: `campusone-frontend/src/components/QNAList.jsx`
   - Display questions in card/list format
   - Each question card shows:
     - Question title (clickable)
@@ -1127,7 +1127,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 4.4.3 Ask Question
 
 - [ ] **Ask Question Modal/Page**
-  - File: `frontend/src/components/AskQuestionModal.jsx`
+  - File: `campusone-frontend/src/components/AskQuestionModal.jsx`
   - Form fields:
     - Question title (text input, required, min 10 chars)
     - Description (textarea, optional, for detailed explanation)
@@ -1144,7 +1144,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 4.4.4 Question Detail Page
 
 - [ ] **Question Detail Component**
-  - File: `frontend/src/pages/QuestionDetail.jsx`
+  - File: `campusone-frontend/src/pages/QuestionDetail.jsx`
   - Display full question:
     - Title (large heading)
     - Description (formatted text)
@@ -1181,14 +1181,14 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 4.4.5 Edit Question/Answer
 
 - [ ] **Edit Question Modal**
-  - File: `frontend/src/components/EditQuestionModal.jsx`
+  - File: `campusone-frontend/src/components/EditQuestionModal.jsx`
   - Pre-fill form with existing question data
   - Allow editing title, description, tags
   - Save button calls update API
   - **Styling**: Tailwind modal
 
 - [ ] **Edit Answer Modal**
-  - File: `frontend/src/components/EditAnswerModal.jsx`
+  - File: `campusone-frontend/src/components/EditAnswerModal.jsx`
   - Pre-fill with existing answer text
   - Save button calls update API
   - **Styling**: Tailwind modal
@@ -1196,7 +1196,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 4.4.6 Voting System
 
 - [ ] **Upvote/Downvote Component**
-  - File: `frontend/src/components/VoteButtons.jsx`
+  - File: `campusone-frontend/src/components/VoteButtons.jsx`
   - Up arrow button (green when user upvoted)
   - Vote count display (net score)
   - Down arrow button (red when user downvoted)
@@ -1209,7 +1209,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 4.4.7 My Questions Page
 
 - [ ] **My Questions Component**
-  - File: `frontend/src/pages/MyQuestions.jsx`
+  - File: `campusone-frontend/src/pages/MyQuestions.jsx`
   - Display all questions asked by logged-in user
   - Show across all courses
   - Include: course name, question title, answers count, resolved status
@@ -1241,7 +1241,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 ### 5.1 Assignment Creation & Management (REQ-AM-1)
 
 - [ ] **Create Assignment Controller**
-  - File: `backend/controllers/assignmentController.js`
+  - File: `campusone-backend/controllers/assignmentController.js`
   
   - **Create Assignment** (POST /api/assignments) - Teacher only
     - Validate title, description, due date, total marks
@@ -1267,7 +1267,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Delete assignment and all submissions
 
 - [ ] **Create Assignment Routes**
-  - File: `backend/routes/assignmentRoutes.js`
+  - File: `campusone-backend/routes/assignmentRoutes.js`
   - Define assignment routes
 
 ---
@@ -1275,7 +1275,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 ### 5.2 Submission Workflow (REQ-AM-2 to REQ-AM-6)
 
 - [ ] **Create Submission Controller**
-  - File: `backend/controllers/submissionController.js`
+  - File: `campusone-backend/controllers/submissionController.js`
   
   - **Submit Assignment** (POST /api/assignments/:id/submit) - Student only (REQ-AM-2)
     - Check if deadline has passed
@@ -1304,11 +1304,11 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Return updated submission
 
 - [ ] **Create Submission Routes**
-  - File: `backend/routes/submissionRoutes.js`
+  - File: `campusone-backend/routes/submissionRoutes.js`
   - Define submission routes
 
 - [ ] **Deadline Notification System** (REQ-AM-4)
-  - File: `backend/services/notificationService.js`
+  - File: `campusone-backend/services/notificationService.js`
   - Create function to check upcoming deadlines
   - Send notifications 3 days before, 1 day before deadline
   - Use node-cron for scheduled tasks: `npm install node-cron`
@@ -1321,7 +1321,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 5.2.1 Assignment Pages (REQ-AM-1)
 
 - [ ] **Assignments Tab in Course Detail**
-  - File: `frontend/src/components/AssignmentsTab.jsx`
+  - File: `campusone-frontend/src/components/AssignmentsTab.jsx`
   - Display list of assignments for course
   - Show: title, due date, total marks, status (submitted/pending)
   - For teacher: "Create Assignment" button
@@ -1329,14 +1329,14 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind table/cards, status badges
 
 - [ ] **Create Assignment Modal** (REQ-AM-1)
-  - File: `frontend/src/components/CreateAssignmentModal.jsx`
+  - File: `campusone-frontend/src/components/CreateAssignmentModal.jsx`
   - Form: title, description, due date, total marks, file (optional)
   - Call create assignment API
   - Display success message
   - **Styling**: Tailwind modal, date picker, file input
 
 - [ ] **Assignment Detail Page** (REQ-AM-1)
-  - File: `frontend/src/pages/AssignmentDetail.jsx`
+  - File: `campusone-frontend/src/pages/AssignmentDetail.jsx`
   - Display assignment details
   - Show submission form for students
   - Show submissions list for teacher
@@ -1345,7 +1345,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 5.2.2 Student Submission (REQ-AM-2, REQ-AM-3)
 
 - [ ] **Submit Assignment Form** (REQ-AM-2)
-  - File: `frontend/src/components/SubmitAssignmentForm.jsx`
+  - File: `campusone-frontend/src/components/SubmitAssignmentForm.jsx`
   - File upload input (validate PDF, DOC, DOCX)
   - Optional text submission field
   - Check file size limit (REQ-AM-3)
@@ -1355,7 +1355,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind form, countdown timer, progress bar
 
 - [ ] **My Submissions Page** (REQ-AM-2)
-  - File: `frontend/src/pages/MySubmissions.jsx`
+  - File: `campusone-frontend/src/pages/MySubmissions.jsx`
   - Display all student's submissions across courses
   - Show: assignment name, course, submitted date, marks, feedback
   - Download submitted file
@@ -1364,7 +1364,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 5.2.3 Grading Interface (Teacher) (REQ-AM-5, REQ-AM-6)
 
 - [ ] **Submissions List Page** (REQ-AM-5)
-  - File: `frontend/src/pages/teacher/Submissions.jsx`
+  - File: `campusone-frontend/src/pages/teacher/Submissions.jsx`
   - Display all submissions for assignment
   - Show: student name, submitted date, file, status (graded/ungraded)
   - Download submission button
@@ -1372,7 +1372,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind table, filters (graded/ungraded)
 
 - [ ] **Grade Submission Modal** (REQ-AM-6)
-  - File: `frontend/src/components/GradeSubmissionModal.jsx`
+  - File: `campusone-frontend/src/components/GradeSubmissionModal.jsx`
   - Show student name, submission date
   - Display/download submitted file
   - Input: marks obtained (validate <= total marks)
@@ -1384,7 +1384,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 5.2.4 Deadline Notifications (REQ-AM-4)
 
 - [ ] **Notification Bell Component**
-  - File: `frontend/src/components/NotificationBell.jsx`
+  - File: `campusone-frontend/src/components/NotificationBell.jsx`
   - Display bell icon in navbar
   - Show red badge if unread notifications
   - Click to show dropdown with recent notifications
@@ -1412,7 +1412,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Install dependencies
   
 - [ ] **Create Similarity Service**
-  - File: `backend/services/similarityService.js`
+  - File: `campusone-backend/services/similarityService.js`
   
   - **Extract Text from Document**
     - Install pdf-parse: `npm install pdf-parse`
@@ -1426,7 +1426,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Return similarity score and matching submissions
   
 - [ ] **Create Similarity Controller**
-  - File: `backend/controllers/similarityController.js`
+  - File: `campusone-backend/controllers/similarityController.js`
   
   - **Check Similarity** (POST /api/assignments/:id/check-similarity) - Teacher only
     - Get all submissions for assignment
@@ -1439,7 +1439,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Return updated submission
 
 - [ ] **Create Similarity Routes**
-  - File: `backend/routes/similarityRoutes.js`
+  - File: `campusone-backend/routes/similarityRoutes.js`
   - Define similarity checking routes
 
 ---
@@ -1454,7 +1454,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Install dependencies
   
 - [ ] **Create Summarization Service**
-  - File: `backend/services/summarizationService.js`
+  - File: `campusone-backend/services/summarizationService.js`
   
   - **Extract Text from Files**
     - Use pdf-parse for PDFs
@@ -1468,7 +1468,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Return generated summary
 
 - [ ] **Create Summary Controller**
-  - File: `backend/controllers/summaryController.js`
+  - File: `campusone-backend/controllers/summaryController.js`
   
   - **Generate Summary** (POST /api/materials/:id/summarize) - Teacher only
     - Get material file
@@ -1481,7 +1481,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Return saved summary for a material
 
 - [ ] **Create Summary Routes**
-  - File: `backend/routes/summaryRoutes.js`
+  - File: `campusone-backend/routes/summaryRoutes.js`
   - Define summarization routes
 
 ---
@@ -1491,7 +1491,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 6.2.1 Similarity Checker UI (REQ-AI-SC-1, REQ-AI-SC-2)
 
 - [ ] **Similarity Checker Page** (REQ-AI-SC-1)
-  - File: `frontend/src/pages/teacher/SimilarityChecker.jsx`
+  - File: `campusone-frontend/src/pages/teacher/SimilarityChecker.jsx`
   - For teachers only
   - Display assignment selector dropdown
   - Show list of submissions for selected assignment
@@ -1501,7 +1501,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind dropdowns, buttons, loader
 
 - [ ] **Similarity Results Component** (REQ-AI-SC-2)
-  - File: `frontend/src/components/SimilarityResults.jsx`
+  - File: `campusone-frontend/src/components/SimilarityResults.jsx`
   - Display results in table/cards
   - Show: student names, similarity percentage, detailed report link
   - Highlight high similarity (>70%) in red, medium (40-70%) in yellow
@@ -1517,7 +1517,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Display success message when done
 
 - [ ] **View Summary Component** (REQ-AI-SUM-2, REQ-AI-SUM-4)
-  - File: `frontend/src/components/SummaryViewer.jsx`
+  - File: `campusone-frontend/src/components/SummaryViewer.jsx`
   - Add "View Summary" button for all users
   - Fetch summary from API (REQ-AI-SUM-4)
   - Display summary in modal or side panel
@@ -1539,7 +1539,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 ### 7.1 Attendance Tracking (REQ-AT-1 to REQ-AT-5)
 
 - [ ] **Create Attendance Controller**
-  - File: `backend/controllers/attendanceController.js`
+  - File: `campusone-backend/controllers/attendanceController.js`
   
   - **Mark Attendance** (POST /api/attendance) - Teacher/TA only (REQ-AT-1)
     - Validate course and date
@@ -1562,7 +1562,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Generate warnings (REQ-AT-5)
 
 - [ ] **Create Attendance Routes**
-  - File: `backend/routes/attendanceRoutes.js`
+  - File: `campusone-backend/routes/attendanceRoutes.js`
   - Define attendance routes
 
 - [ ] **Low Attendance Warning System** (REQ-AT-5)
@@ -1577,7 +1577,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 7.2.1 Attendance Marking (Teacher/TA) (REQ-AT-1)
 
 - [ ] **Mark Attendance Page**
-  - File: `frontend/src/pages/teacher/MarkAttendance.jsx`
+  - File: `campusone-frontend/src/pages/teacher/MarkAttendance.jsx`
   - Select course and date
   - Display enrolled students list
   - Checkboxes for each student: Present / Absent / Late
@@ -1589,7 +1589,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 7.2.2 View Attendance (Students) (REQ-AT-4)
 
 - [ ] **My Attendance Page** (REQ-AT-4)
-  - File: `frontend/src/pages/student/MyAttendance.jsx`
+  - File: `campusone-frontend/src/pages/student/MyAttendance.jsx`
   - Display attendance records by course
   - Show: date, status (Present/Absent/Late)
   - Calculate and display attendance percentage (REQ-AT-3)
@@ -1600,7 +1600,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 7.2.3 Attendance Analytics (Teacher)
 
 - [ ] **Course Attendance Analytics Page**
-  - File: `frontend/src/pages/teacher/AttendanceAnalytics.jsx`
+  - File: `campusone-frontend/src/pages/teacher/AttendanceAnalytics.jsx`
   - Display overall attendance stats for course
   - List students with attendance < 75%
   - Show charts/graphs (bar chart, pie chart)
@@ -1620,7 +1620,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 ### 8.1 Announcement System (REQ-AN-1 to REQ-AN-3)
 
 - [ ] **Create Announcement Controller**
-  - File: `backend/controllers/announcementController.js`
+  - File: `campusone-backend/controllers/announcementController.js`
   
   - **Create Announcement** (POST /api/announcements) - Teacher/TA/Admin (REQ-AN-1)
     - Validate title, content, priority
@@ -1645,7 +1645,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Delete announcement
 
 - [ ] **Create Announcement Routes**
-  - File: `backend/routes/announcementRoutes.js`
+  - File: `campusone-backend/routes/announcementRoutes.js`
   - Define announcement routes
 
 ---
@@ -1653,7 +1653,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 ### 8.2 Notification System (REQ-AN-2, REQ-AN-3)
 
 - [ ] **Create Notification Service**
-  - File: `backend/services/notificationService.js`
+  - File: `campusone-backend/services/notificationService.js`
   
   - **Create Notification Function**
     - Accept userId, type, title, message, relatedId
@@ -1670,7 +1670,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Send email for high-priority notifications
 
 - [ ] **Create Notification Controller**
-  - File: `backend/controllers/notificationController.js`
+  - File: `campusone-backend/controllers/notificationController.js`
   
   - **Get User Notifications** (GET /api/notifications)
     - Return all notifications for logged-in user
@@ -1687,7 +1687,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Delete notification
 
 - [ ] **Create Notification Routes**
-  - File: `backend/routes/notificationRoutes.js`
+  - File: `campusone-backend/routes/notificationRoutes.js`
   - Define notification routes
 
 - [ ] **Automated Notification Triggers** (REQ-AN-3)
@@ -1704,7 +1704,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 8.2.1 Announcements Pages (REQ-AN-1)
 
 - [ ] **Announcements List Page** (REQ-AN-1)
-  - File: `frontend/src/pages/Announcements.jsx`
+  - File: `campusone-frontend/src/pages/Announcements.jsx`
   - Display all announcements in reverse chronological order
   - Filter by priority (high/medium/low)
   - Show: title, content preview, author, date, priority badge
@@ -1713,7 +1713,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind cards, priority badges (red/yellow/blue)
 
 - [ ] **Create/Edit Announcement Modal** (REQ-AN-1)
-  - File: `frontend/src/components/AnnouncementModal.jsx`
+  - File: `campusone-frontend/src/components/AnnouncementModal.jsx`
   - Form: title, content (textarea), priority dropdown, target audience
   - For course-specific: select course
   - Call create/update API
@@ -1721,7 +1721,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind modal, form fields
 
 - [ ] **Announcement Detail Page**
-  - File: `frontend/src/pages/AnnouncementDetail.jsx`
+  - File: `campusone-frontend/src/pages/AnnouncementDetail.jsx`
   - Display full announcement content
   - Show author, date, priority
   - For creator: Edit/Delete buttons
@@ -1730,7 +1730,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 8.2.2 Notification System UI (REQ-AN-2, REQ-AN-3)
 
 - [ ] **Notification Bell Component** (REQ-AN-2)
-  - File: `frontend/src/components/NotificationBell.jsx`
+  - File: `campusone-frontend/src/components/NotificationBell.jsx`
   - Display bell icon in navbar
   - Show red badge with unread count
   - Click to open dropdown
@@ -1741,7 +1741,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind dropdown, badges, hover effects
 
 - [ ] **Notifications Page** (REQ-AN-2)
-  - File: `frontend/src/pages/Notifications.jsx`
+  - File: `campusone-frontend/src/pages/Notifications.jsx`
   - Display all notifications
   - Tab filters: All / Unread / Read
   - Click notification → mark as read and navigate
@@ -1766,7 +1766,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **xlsx**: Parse Excel files for quiz import
 
 - [ ] **Create Quiz Controller**
-  - File: `backend/controllers/quizController.js`
+  - File: `campusone-backend/controllers/quizController.js`
   
   - **Create Quiz (Manual)** (POST /api/quizzes) - Teacher only
     - Validate quiz details (title, duration, dates, marks)
@@ -1810,7 +1810,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Delete quiz and all attempts
 
 - [ ] **Create Quiz Routes**
-  - File: `backend/routes/quizRoutes.js`
+  - File: `campusone-backend/routes/quizRoutes.js`
   - Define all quiz management routes
 
 ---
@@ -1825,7 +1825,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Install dependencies (e.g., `npm install openai`)
 
 - [ ] **Create Quiz Generation Service**
-  - File: `backend/services/quizGenerationService.js`
+  - File: `campusone-backend/services/quizGenerationService.js`
   
   - **Generate Questions Function**
     - Accept: subject/topic, difficulty level, number of questions
@@ -1845,7 +1845,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 ### 9.3 Quiz Attempt & Proctoring
 
 - [ ] **Create Quiz Attempt Controller**
-  - File: `backend/controllers/quizAttemptController.js`
+  - File: `campusone-backend/controllers/quizAttemptController.js`
   
   - **Start Quiz** (POST /api/quizzes/:id/start) - Student only
     - Check if quiz is active (within time range)
@@ -1892,7 +1892,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Return student's quiz attempts with results
 
 - [ ] **Create Quiz Attempt Routes**
-  - File: `backend/routes/quizAttemptRoutes.js`
+  - File: `campusone-backend/routes/quizAttemptRoutes.js`
   - Define quiz attempt routes
 
 ---
@@ -1905,7 +1905,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **simple-peer**: WebRTC peer connection
 
 - [ ] **Create Proctoring Service**
-  - File: `backend/services/proctoringService.js`
+  - File: `campusone-backend/services/proctoringService.js`
   
   - **Initialize Socket.IO**
     - Setup Socket.IO server
@@ -1928,7 +1928,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Log any disconnections or issues
 
 - [ ] **Create Proctoring Routes**
-  - File: `backend/routes/proctoringRoutes.js`
+  - File: `campusone-backend/routes/proctoringRoutes.js`
   - Define proctoring routes for monitoring
 
 ---
@@ -1938,7 +1938,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 9.5.1 Quiz Creation Pages (Teacher)
 
 - [ ] **Quiz List Page**
-  - File: `frontend/src/pages/teacher/QuizList.jsx`
+  - File: `campusone-frontend/src/pages/teacher/QuizList.jsx`
   - Display all quizzes for teacher's courses
   - Show: title, course, questions count, duration, date range, status
   - "Create Quiz" button with dropdown: Manual / Upload Excel / Generate with AI
@@ -1946,7 +1946,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind cards, dropdown menu, badges
 
 - [ ] **Create Quiz Manually**
-  - File: `frontend/src/pages/teacher/CreateQuizManual.jsx`
+  - File: `campusone-frontend/src/pages/teacher/CreateQuizManual.jsx`
   - Form: quiz title, course selector, duration (minutes), start/end date-time, total marks
   - Add questions section:
     - Question text (textarea)
@@ -1960,7 +1960,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind form, dynamic question fields, validation
 
 - [ ] **Upload Excel Quiz**
-  - File: `frontend/src/pages/teacher/UploadExcelQuiz.jsx`
+  - File: `campusone-frontend/src/pages/teacher/UploadExcelQuiz.jsx`
   - Download template button (Excel format)
   - File upload input (accept .xlsx, .xls)
   - Preview parsed questions before creating
@@ -1969,7 +1969,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind file upload, preview table
 
 - [ ] **Generate Quiz with AI**
-  - File: `frontend/src/pages/teacher/GenerateQuizAI.jsx`
+  - File: `campusone-frontend/src/pages/teacher/GenerateQuizAI.jsx`
   - Form inputs:
     - Subject/Topic (text)
     - Number of questions (number input)
@@ -1987,7 +1987,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 9.5.2 Quiz Taking Interface (Student)
 
 - [ ] **Available Quizzes Page**
-  - File: `frontend/src/pages/student/AvailableQuizzes.jsx`
+  - File: `campusone-frontend/src/pages/student/AvailableQuizzes.jsx`
   - Display quizzes by course
   - Show: title, duration, start/end time, total marks, attempt status
   - "Start Quiz" button (only if within time range and not attempted)
@@ -1995,7 +1995,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind cards, status badges (Available/Completed/Missed)
 
 - [ ] **Quiz Taking Page**
-  - File: `frontend/src/pages/student/TakeQuiz.jsx`
+  - File: `campusone-frontend/src/pages/student/TakeQuiz.jsx`
   - Display quiz title, duration, remaining time (countdown timer)
   - Show questions one by one or all at once (configurable)
   - For MCQ: Radio buttons for options
@@ -2012,7 +2012,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind quiz interface, timer, progress bar
 
 - [ ] **Quiz Results Page**
-  - File: `frontend/src/pages/student/QuizResults.jsx`
+  - File: `campusone-frontend/src/pages/student/QuizResults.jsx`
   - Show: quiz title, obtained marks, total marks, percentage
   - Display all questions with:
     - Student's answer
@@ -2024,7 +2024,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 9.5.3 Quiz Proctoring Interface (Teacher/TA)
 
 - [ ] **Quiz Monitoring Dashboard**
-  - File: `frontend/src/pages/teacher/QuizMonitoring.jsx`
+  - File: `campusone-frontend/src/pages/teacher/QuizMonitoring.jsx`
   - Select quiz to monitor
   - Display list of students currently taking quiz
   - Show for each student:
@@ -2042,7 +2042,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind dashboard, video grid, status indicators
 
 - [ ] **Student Detail Monitoring**
-  - File: `frontend/src/components/StudentMonitoringModal.jsx`
+  - File: `campusone-frontend/src/components/StudentMonitoringModal.jsx`
   - Full screen modal showing:
     - Student name and photo
     - Large camera feed
@@ -2064,7 +2064,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 9.5.4 Quiz Results & Analytics (Teacher)
 
 - [ ] **Quiz Results Dashboard**
-  - File: `frontend/src/pages/teacher/QuizResults.jsx`
+  - File: `campusone-frontend/src/pages/teacher/QuizResults.jsx`
   - Select quiz
   - Display statistics:
     - Average marks
@@ -2091,7 +2091,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 ### 10.1 TA Eligibility Management
 
 - [ ] **Create TA Eligibility Controller**
-  - File: `backend/controllers/taEligibilityController.js`
+  - File: `campusone-backend/controllers/taEligibilityController.js`
   
   - **Check TA Eligibility** (POST /api/ta-eligibility/check) - Student
     - Get student's completed courses
@@ -2132,7 +2132,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Include teacher and course details
 
 - [ ] **Create TA Eligibility Routes**
-  - File: `backend/routes/taEligibilityRoutes.js`
+  - File: `campusone-backend/routes/taEligibilityRoutes.js`
   - Define TA eligibility routes
 
 - [ ] **Update User Management**
@@ -2146,7 +2146,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 10.2.1 Student: Check Eligibility & Apply
 
 - [ ] **TA Opportunities Page**
-  - File: `frontend/src/pages/student/TAOpportunities.jsx`
+  - File: `campusone-frontend/src/pages/student/TAOpportunities.jsx`
   - Button: "Check My Eligibility"
   - On click → call eligibility check API
   - Display eligible courses in cards:
@@ -2159,7 +2159,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind cards, grid layout, apply button
 
 - [ ] **Apply for TA Position**
-  - File: `frontend/src/components/ApplyTAModal.jsx`
+  - File: `campusone-frontend/src/components/ApplyTAModal.jsx`
   - Modal opens when "Apply as TA" clicked
   - Show course and teacher details
   - Optional: Add statement of interest (textarea)
@@ -2169,7 +2169,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind modal, form fields
 
 - [ ] **My TA Applications Page**
-  - File: `frontend/src/pages/student/MyTAApplications.jsx`
+  - File: `campusone-frontend/src/pages/student/MyTAApplications.jsx`
   - Display all submitted applications
   - Show: course, teacher, application date, status (Pending/Approved/Rejected)
   - If rejected, show reason
@@ -2178,7 +2178,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 10.2.2 Teacher: Approve TA Applications
 
 - [ ] **TA Applications Page**
-  - File: `frontend/src/pages/teacher/TAApplications.jsx`
+  - File: `campusone-frontend/src/pages/teacher/TAApplications.jsx`
   - Display pending TA applications for teacher's courses
   - Show in cards:
     - Student name and ID
@@ -2190,7 +2190,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind cards, grid layout
 
 - [ ] **Application Detail Modal**
-  - File: `frontend/src/components/TAApplicationDetail.jsx`
+  - File: `campusone-frontend/src/components/TAApplicationDetail.jsx`
   - Show full student information:
     - Name, email, student ID
     - Current semester
@@ -2206,7 +2206,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 10.2.3 TA: View Assigned Courses
 
 - [ ] **My TA Courses Page**
-  - File: `frontend/src/pages/ta/MyTACourses.jsx`
+  - File: `campusone-frontend/src/pages/ta/MyTACourses.jsx`
   - Display courses where user is approved as TA
   - Show: course code, name, teacher, semester
   - Click on course → navigate to course detail page (with TA permissions)
@@ -2229,7 +2229,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 ### 9.1 Admin System Configuration (REQ-ADM-1 to REQ-ADM-3)
 
 - [ ] **Create Admin Controller**
-  - File: `backend/controllers/adminController.js`
+  - File: `campusone-backend/controllers/adminController.js`
   
   - **Create and Assign Course** (POST /api/admin/courses) (REQ-ADM-1)
     - Create course
@@ -2259,12 +2259,12 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Return import summary
 
 - [ ] **Create Admin Routes**
-  - File: `backend/routes/adminRoutes.js`
+  - File: `campusone-backend/routes/adminRoutes.js`
   - Define admin routes
   - Apply admin-only authorization
 
 - [ ] **Create Configuration Schema**
-  - File: `backend/models/Configuration.js`
+  - File: `campusone-backend/models/Configuration.js`
   - Store system-wide settings
   - Semester information
   - Academic calendar
@@ -2276,7 +2276,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 11.2.1 Admin Dashboard
 
 - [ ] **Admin Dashboard Page** (REQ-ADM-1, REQ-ADM-2, REQ-ADM-3)
-  - File: `frontend/src/pages/admin/AdminDashboard.jsx`
+  - File: `campusone-frontend/src/pages/admin/AdminDashboard.jsx`
   - Display system statistics:
     - Total users (students, teachers, TAs, admins)
     - Total courses
@@ -2294,7 +2294,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 11.2.2 User Management (Admin)
 
 - [ ] **Enhanced User Management Page** (REQ-ADM-2, REQ-ADM-4)
-  - File: `frontend/src/pages/admin/UserManagement.jsx`
+  - File: `campusone-frontend/src/pages/admin/UserManagement.jsx`
   - Display all users in table
   - Filters: Role (All/Student/Teacher/TA/Admin), Status (Active/Inactive)
   - Search by name, email, ID
@@ -2311,7 +2311,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind table, filters, bulk action toolbar
 
 - [ ] **Bulk User Import**
-  - File: `frontend/src/components/BulkUserImport.jsx`
+  - File: `campusone-frontend/src/components/BulkUserImport.jsx`
   - Download CSV template button
   - File upload (CSV)
   - Preview imported users before creating
@@ -2322,7 +2322,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 11.2.3 Course Management (Admin)
 
 - [ ] **Course Management Page** (REQ-ADM-1)
-  - File: `frontend/src/pages/admin/CourseManagement.jsx`
+  - File: `campusone-frontend/src/pages/admin/CourseManagement.jsx`
   - Display all courses in table
   - Columns: Code, Name, Teacher, TAs, Enrolled Students, Semester, Status
   - Actions:
@@ -2335,14 +2335,14 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind table, action buttons
 
 - [ ] **Assign Teacher to Course**
-  - File: `frontend/src/components/AssignTeacherModal.jsx`
+  - File: `campusone-frontend/src/components/AssignTeacherModal.jsx`
   - Search and select teacher from dropdown
   - Show current teacher (if any)
   - Confirm assignment
   - **Styling**: Tailwind modal, searchable select
 
 - [ ] **Enroll Students Bulk**
-  - File: `frontend/src/components/EnrollStudentsBulk.jsx`
+  - File: `campusone-frontend/src/components/EnrollStudentsBulk.jsx`
   - Select course
   - Upload CSV with student IDs/emails
   - Or multi-select from student list
@@ -2353,7 +2353,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 11.2.4 System Configuration (Admin)
 
 - [ ] **System Configuration Page** (REQ-ADM-3)
-  - File: `frontend/src/pages/admin/SystemConfig.jsx`
+  - File: `campusone-frontend/src/pages/admin/SystemConfig.jsx`
   - Tabs:
     - Semester Settings
     - Academic Calendar
@@ -2385,7 +2385,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 #### 11.2.5 Reports & Analytics (Admin)
 
 - [ ] **System Reports Page**
-  - File: `frontend/src/pages/admin/Reports.jsx`
+  - File: `campusone-frontend/src/pages/admin/Reports.jsx`
   - Generate reports:
     - User activity report (date range)
     - Course enrollment report
@@ -2396,7 +2396,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - **Styling**: Tailwind report cards, charts, export buttons
 
 - [ ] **Audit Logs Page**
-  - File: `frontend/src/pages/admin/AuditLogs.jsx`
+  - File: `campusone-frontend/src/pages/admin/AuditLogs.jsx`
   - Display system audit logs:
     - User actions (login, logout, create, update, delete)
     - Timestamp, user, action, details
@@ -2420,7 +2420,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Setup test database (separate from development)
 
 - [ ] **Write API Tests**
-  - File: `backend/tests/` directory
+  - File: `campusone-backend/tests/` directory
   
   **Authentication Tests**
   - Test user registration
@@ -2464,7 +2464,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Configure React Testing Library
 
 - [ ] **Write Component Tests**
-  - File: `frontend/src/tests/` directory
+  - File: `campusone-frontend/src/tests/` directory
   
   **Component Tests**
   - Test login form submission
