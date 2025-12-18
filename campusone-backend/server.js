@@ -6,6 +6,9 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
+// Import routes
+import authRoutes from './routes/authRoutes.js';
+
 // Initialize Express app
 const app = express();
 
@@ -19,6 +22,9 @@ const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI, {
       // Options removed as they are deprecated in Mongoose 6+
+      // Adding SSL/TLS options to fix connection issues
+      tls: true,
+      tlsAllowInvalidCertificates: true
     });
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
@@ -47,6 +53,9 @@ app.get('/api/health', (req, res) => {
     uptime: process.uptime()
   });
 });
+
+// API Routes
+app.use('/api/auth', authRoutes);
 
 // 404 Handler - Route not found
 app.use((req, res, next) => {
