@@ -1,80 +1,35 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Setup2FA from './pages/Setup2FA';
-import TrustedDevices from './pages/TrustedDevices';
-import StudentDashboard from './pages/StudentDashboard';
-import TeacherDashboard from './pages/TeacherDashboard';
-import TADashboard from './pages/TADashboard';
-import AdminDashboard from './pages/AdminDashboard';
-import './App.css';
-
-// Dashboard Router Component
-const DashboardRouter = () => {
-  const { user } = useAuth();
-  
-  if (!user) return <Navigate to="/login" replace />;
-  
-  switch (user.role) {
-    case 'student':
-      return <StudentDashboard />;
-    case 'teacher':
-      return <TeacherDashboard />;
-    case 'ta':
-      return <TADashboard />;
-    case 'admin':
-      return <AdminDashboard />;
-    default:
-      return <Navigate to="/login" replace />;
-  }
-};
+import { useState } from 'react'
+import reactLogo from './assets/react.svg'
+import viteLogo from '/vite.svg'
+import './App.css'
 
 function App() {
+  const [count, setCount] = useState(0)
+
   return (
-    <Router>
-      <AuthProvider>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          
-          {/* Protected Routes */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <DashboardRouter />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/setup-2fa"
-            element={
-              <ProtectedRoute>
-                <Setup2FA />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/trusted-devices"
-            element={
-              <ProtectedRoute>
-                <TrustedDevices />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* Default Route */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </AuthProvider>
-    </Router>
-  );
+    <>
+      <div>
+        <a href="https://vite.dev" target="_blank">
+          <img src={viteLogo} className="logo" alt="Vite logo" />
+        </a>
+        <a href="https://react.dev" target="_blank">
+          <img src={reactLogo} className="logo react" alt="React logo" />
+        </a>
+      </div>
+      <h1>Vite + React</h1>
+      <div className="card">
+        <button onClick={() => setCount((count) => count + 1)}>
+          count is {count}
+        </button>
+        <p>
+          Edit <code>src/App.jsx</code> and save to test HMR
+        </p>
+      </div>
+      <p className="read-the-docs">
+        Click on the Vite and React logos to learn more
+      </p>
+    </>
+  )
 }
 
-export default App;
+export default App
