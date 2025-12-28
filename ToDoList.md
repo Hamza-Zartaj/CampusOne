@@ -676,7 +676,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 ### 3.2 User Management (Admin) (REQ-UM-2 to REQ-UM-5)
 
-- [x] **Create User Controller**
+- [ ] **Create User Controller**
   - File: `campusone-backend/controllers/userController.js`
   
   - **Get All Users** (GET /api/users)
@@ -705,12 +705,12 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - Reset failed login attempts to 0
     - Set `accountLocked` to false
 
-- [x] **Create User Routes**
+- [ ] **Create User Routes**
   - File: `campusone-backend/routes/userRoutes.js`
   - Define all user management routes
   - Apply `protect` and `authorize` middleware
 
-- [x] **Input Validation Middleware** (REQ-UM-5)
+- [ ] **Input Validation Middleware** (REQ-UM-5)
   - File: `campusone-backend/middleware/validation.js`
   - Validate email format
   - Validate password strength (min 8 characters, etc.)
