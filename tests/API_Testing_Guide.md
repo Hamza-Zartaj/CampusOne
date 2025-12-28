@@ -366,7 +366,7 @@ Authorization: Bearer {{YOUR_TOKEN_HERE}}
 }
 ```
 
-**📝 Note:** JWT tokens remain valid until expiration (7 days). Client must remove token manually.
+**📝 Note:** JWT tokens remain valid until expiration (1 hour). Client must remove token manually.
 
 ---
 

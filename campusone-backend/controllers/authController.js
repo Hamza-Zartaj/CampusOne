@@ -344,7 +344,8 @@ export const verify2FAToken = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId);
+    // Fetch user with twoFactorSecret (since it has select: false in model)
+    const user = await User.findById(userId).select('+twoFactorSecret');
 
     if (!user) {
       return res.status(404).json({
@@ -439,7 +440,8 @@ export const verify2FAToken = async (req, res) => {
  */
 export const setup2FA = async (req, res) => {
   try {
-    const user = req.user;
+    // Fetch user with twoFactorSecret field (since it has select: false in model)
+    const user = await User.findById(req.user._id).select('+twoFactorSecret');
 
     // Generate secret
     const secret = speakeasy.generateSecret({
@@ -479,7 +481,8 @@ export const setup2FA = async (req, res) => {
 export const enable2FA = async (req, res) => {
   try {
     const { token } = req.body;
-    const user = req.user;
+    // Fetch user with twoFactorSecret (since it has select: false in model)
+    const user = await User.findById(req.user._id).select('+twoFactorSecret');
 
     if (!token) {
       return res.status(400).json({
@@ -535,7 +538,8 @@ export const enable2FA = async (req, res) => {
 export const disable2FA = async (req, res) => {
   try {
     const { password, token } = req.body;
-    const user = await User.findById(req.user._id).select('+password');
+    // Fetch user with password and twoFactorSecret (both have select: false in model)
+    const user = await User.findById(req.user._id).select('+password +twoFactorSecret');
 
     if (!password || !token) {
       return res.status(400).json({
