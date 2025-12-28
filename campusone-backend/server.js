@@ -3,6 +3,9 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
+// Import routes
+import authRoutes from './routes/authRoutes.js';
+
 // Load environment variables
 dotenv.config();
 
@@ -47,6 +50,9 @@ app.get('/api/health', (req, res) => {
     uptime: process.uptime()
   });
 });
+
+// Mount routes
+app.use('/api/auth', authRoutes);
 
 // 404 Handler - Route not found
 app.use((req, res, next) => {
