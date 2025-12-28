@@ -3,6 +3,7 @@ import Student from '../models/Student.js';
 import Teacher from '../models/Teacher.js';
 import TA from '../models/TA.js';
 import Admin from '../models/Admin.js';
+import Course from '../models/Course.js';
 
 /**
  * Get role-specific data based on user role
