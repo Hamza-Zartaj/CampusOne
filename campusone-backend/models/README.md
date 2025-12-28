@@ -2,21 +2,6 @@
 
 This directory contains all MongoDB schema definitions for the CampusOne LMS.
 
-## Important: ES6 Module Syntax
-
-This project uses **ES6 modules** (`type: "module"` in package.json). All imports/exports use ES6 syntax:
-
-```javascript
-// Import
-import mongoose from 'mongoose';
-import User from './User.js';
-
-// Export
-export default mongoose.model('User', userSchema);
-```
-
-**Note**: When importing local files, always include the `.js` extension!
-
 ## Database Architecture
 
 The database follows a **role-based architecture** with separation of concerns:
