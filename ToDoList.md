@@ -578,13 +578,13 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 ### 3.1 BACKEND - Authentication API (REQ-UM-1 to REQ-UM-6)
 
-- [x] **Setup Two-Factor Authentication**
+- [ ] **Setup Two-Factor Authentication**
   - Install dependencies: `npm install speakeasy qrcode uuid`
   - **speakeasy**: Generate and verify TOTP tokens
   - **qrcode**: Generate QR codes for 2FA setup
   - **uuid**: Generate unique device identifiers
 
-- [x] **Create Authentication Middleware**
+- [ ] **Create Authentication Middleware**
   - File: `campusone-backend/middleware/auth.js`
   - Implement JWT token verification
   - Create `protect` middleware to verify user is logged in
@@ -592,7 +592,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Create `verify2FA` middleware to check 2FA token
   - Create `checkDeviceTrust` middleware to verify trusted devices
   
-- [x] **Create Auth Controller**
+- [ ] **Create Auth Controller**
   - File: `campusone-backend/controllers/authController.js`
   - **Register Function** (POST /api/auth/register)
     - Validate input data (name, email, password, role, + role-specific fields)
@@ -661,7 +661,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - **Query role-specific data based on user.role**
     - Return combined user data and role-specific data
 
-- [x] **Create Auth Routes**
+- [ ] **Create Auth Routes**
   - File: `campusone-backend/routes/authRoutes.js`
   - Define routes for register, login, logout, get current user
   - Add routes for 2FA: setup, enable, disable, verify
