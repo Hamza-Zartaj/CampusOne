@@ -11,12 +11,11 @@ import {
   logout,
   getMe
 } from '../controllers/authController.js';
-import { protect } from '../middleware/auth.js';
+import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Public routes
-router.post('/register', register);
 router.post('/login', login);
 router.post('/verify-2fa', verify2FAToken);
 
@@ -25,6 +24,9 @@ router.use(protect); // All routes below require authentication
 
 router.get('/me', getMe);
 router.post('/logout', logout);
+
+// Admin-only routes
+router.post('/register', authorize('admin'), register); // Only admins can register new users
 
 // 2FA Management
 router.post('/setup-2fa', setup2FA);

@@ -41,9 +41,9 @@ const getRoleSpecificData = async (userId, role) => {
 };
 
 /**
- * @desc    Register a new user
+ * @desc    Register a new user (Admin only)
  * @route   POST /api/auth/register
- * @access  Public
+ * @access  Private/Admin
  */
 export const register = async (req, res) => {
   try {
