@@ -78,6 +78,15 @@ export const authAPI = {
   
   verifyEmailOTP: (userId, otp, rememberDevice = true) => 
     api.post('/auth/verify-email-otp', { userId, otp, rememberDevice }),
+  
+  forgotPassword: (email) => 
+    api.post('/auth/forgot-password', { email }),
+  
+  verifyResetCode: (userId, code) => 
+    api.post('/auth/verify-reset-code', { userId, code }),
+  
+  resetPassword: (resetToken, newPassword) => 
+    api.post('/auth/reset-password', { resetToken, newPassword }),
 };
 
 export default api;

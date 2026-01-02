@@ -1274,6 +1274,298 @@ export const verifyEmailOTP = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Request password reset - sends OTP based on user's 2FA method
+ * @route   POST /api/auth/forgot-password
+ * @access  Public
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide your email address'
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      // Don't reveal if user exists for security
+      return res.status(200).json({
+        success: true,
+        message: 'If an account exists with this email, you will receive verification instructions'
+      });
+    }
+
+    // Check if user has 2FA enabled
+    if (!user.twoFactorEnabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please contact administrator to reset your password'
+      });
+    }
+
+    // Generate OTP for password reset
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    user.emailOTP = {
+      code: otp,
+      expiresAt,
+      attempts: 0
+    };
+    await user.save();
+
+    // Send OTP based on user's 2FA method
+    if (user.twoFactorMethod === 'email') {
+      await sendOTPEmail(user.email, user.name, otp);
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Verification code sent to your email',
+        data: {
+          userId: user._id,
+          method: 'email',
+          email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3')
+        }
+      });
+    } else {
+      // For authenticator method
+      return res.status(200).json({
+        success: true,
+        message: 'Please enter the code from your authenticator app',
+        data: {
+          userId: user._id,
+          method: 'authenticator'
+        }
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error processing password reset request',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Verify 2FA code for password reset
+ * @route   POST /api/auth/verify-reset-code
+ * @access  Public
+ */
+export const verifyResetCode = async (req, res) => {
+  try {
+    const { userId, code } = req.body;
+
+    if (!userId || !code) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide user ID and verification code'
+      });
+    }
+
+    const user = await User.findById(userId).select('+emailOTP.code +emailOTP.expiresAt +twoFactorSecret');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    let isValid = false;
+
+    // Verify based on method
+    if (user.twoFactorMethod === 'email') {
+      // Check if OTP exists
+      if (!user.emailOTP || !user.emailOTP.code) {
+        return res.status(400).json({
+          success: false,
+          message: 'No verification code found. Please request a new one.'
+        });
+      }
+
+      // Check attempts
+      if (user.emailOTP.attempts >= 5) {
+        user.emailOTP = {
+          code: null,
+          expiresAt: null,
+          attempts: 0
+        };
+        await user.save();
+        
+        return res.status(429).json({
+          success: false,
+          message: 'Too many failed attempts. Please request a new code.'
+        });
+      }
+
+      // Check if OTP expired
+      if (new Date() > user.emailOTP.expiresAt) {
+        user.emailOTP = {
+          code: null,
+          expiresAt: null,
+          attempts: 0
+        };
+        await user.save();
+
+        return res.status(400).json({
+          success: false,
+          message: 'Verification code has expired. Please request a new one.'
+        });
+      }
+
+      // Verify OTP
+      if (user.emailOTP.code !== code) {
+        user.emailOTP.attempts += 1;
+        await user.save();
+
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid verification code',
+          attemptsRemaining: 5 - user.emailOTP.attempts
+        });
+      }
+
+      isValid = true;
+    } else {
+      // Verify authenticator code
+      if (!user.twoFactorSecret) {
+        return res.status(400).json({
+          success: false,
+          message: '2FA not properly configured'
+        });
+      }
+
+      isValid = speakeasy.totp.verify({
+        secret: user.twoFactorSecret,
+        encoding: 'base32',
+        token: code,
+        window: 2
+      });
+    }
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid verification code'
+      });
+    }
+
+    // Generate reset token
+    const resetToken = jwt.sign(
+      { userId: user._id, purpose: 'password-reset' },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    // Clear OTP if email method
+    if (user.twoFactorMethod === 'email') {
+      user.emailOTP = {
+        code: null,
+        expiresAt: null,
+        attempts: 0
+      };
+      await user.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification successful',
+      data: {
+        resetToken
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying code',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Reset password with verified token
+ * @route   POST /api/auth/reset-password
+ * @access  Public
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { resetToken, newPassword } = req.body;
+
+    if (!resetToken || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide reset token and new password'
+      });
+    }
+
+    // Validate password strength
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters long'
+      });
+    }
+
+    // Verify reset token
+    let decoded;
+    try {
+      decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+      
+      if (decoded.purpose !== 'password-reset') {
+        throw new Error('Invalid token purpose');
+      }
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token'
+      });
+    }
+
+    // Find user
+    const user = await User.findById(decoded.userId).select('+password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if new password is different from current
+    const isSamePassword = await user.comparePassword(newPassword);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be different from current password'
+      });
+    }
+
+    // Update password
+    user.password = newPassword;
+    user.passwordChangedAt = Date.now();
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successfully. You can now login with your new password.'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error resetting password',
+      error: error.message
+    });
+  }
+};
+
 // Helper functions
 const extractDeviceName = (userAgent) => {
   if (!userAgent) return 'Unknown Device';

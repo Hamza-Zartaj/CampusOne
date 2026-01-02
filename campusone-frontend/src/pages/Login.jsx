@@ -3,6 +3,8 @@ import { authAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 import FirstTimeSetup from '../components/FirstTimeSetup';
 import TwoFactorVerification from '../components/TwoFactorVerification';
+import ForgotPassword from '../components/ForgotPassword';
+import PasswordReset from '../components/PasswordReset';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -15,6 +17,9 @@ export default function Login() {
   const [show2FAVerification, setShow2FAVerification] = useState(false);
   const [twoFactorInfo, setTwoFactorInfo] = useState(null);
   const [userData, setUserData] = useState(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [resetData, setResetData] = useState(null);
 
   const handleChange = (e) => {
     setFormData({
@@ -152,6 +157,25 @@ export default function Login() {
     setTwoFactorInfo(null);
   };
 
+  const handleForgotPasswordClick = (e) => {
+    e.preventDefault();
+    setShowForgotPassword(true);
+  };
+
+  const handleForgotPasswordClose = () => {
+    setShowForgotPassword(false);
+  };
+
+  const handleVerificationNeeded = (data) => {
+    setResetData(data);
+    setShowPasswordReset(true);
+  };
+
+  const handlePasswordResetClose = () => {
+    setShowPasswordReset(false);
+    setResetData(null);
+  };
+
   return (
     <>
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 p-4 relative overflow-hidden">
@@ -256,7 +280,11 @@ export default function Login() {
                   Remember me
                 </label>
               </div>
-              <a href="#" className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+              <a 
+                href="#" 
+                onClick={handleForgotPasswordClick}
+                className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+              >
                 Forgot password?
               </a>
             </div>
@@ -342,6 +370,24 @@ export default function Login() {
           email={twoFactorInfo.email}
           onComplete={handle2FAComplete}
           onCancel={handle2FACancel}
+        />
+      )}
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <ForgotPassword
+          isOpen={showForgotPassword}
+          onClose={handleForgotPasswordClose}
+          onVerificationNeeded={handleVerificationNeeded}
+        />
+      )}
+
+      {/* Password Reset Modal */}
+      {showPasswordReset && resetData && (
+        <PasswordReset
+          isOpen={showPasswordReset}
+          onClose={handlePasswordResetClose}
+          resetData={resetData}
         />
       )}
     </>

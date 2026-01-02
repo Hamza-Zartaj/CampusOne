@@ -15,7 +15,10 @@ import {
   setupEmail2FA,
   enableEmail2FA,
   sendLoginOTP,
-  verifyEmailOTP
+  verifyEmailOTP,
+  forgotPassword,
+  verifyResetCode,
+  resetPassword
 } from '../controllers/authController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -26,6 +29,11 @@ router.post('/login', login);
 router.post('/verify-2fa', verify2FAToken);
 router.post('/send-login-otp', sendLoginOTP);
 router.post('/verify-email-otp', verifyEmailOTP);
+
+// Password reset routes (public)
+router.post('/forgot-password', forgotPassword);
+router.post('/verify-reset-code', verifyResetCode);
+router.post('/reset-password', resetPassword);
 
 // Protected routes (require authentication)
 router.use(protect); // All routes below require authentication
