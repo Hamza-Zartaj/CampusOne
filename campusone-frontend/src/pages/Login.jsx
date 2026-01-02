@@ -1,14 +1,12 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../utils/api';
+import toast from 'react-hot-toast';
 
 export default function Login() {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
-  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -17,40 +15,47 @@ export default function Login() {
       ...formData,
       [e.target.name]: e.target.value,
     });
-    setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
 
     try {
       const response = await authAPI.login(formData.email, formData.password);
       const data = response.data;
 
-      // Check if 2FA is required
-      if (data.requires2FA) {
-        localStorage.setItem('tempUser', JSON.stringify({
-          email: formData.email,
-          userId: data.userId,
-          requires2FA: true
-        }));
-        navigate('/verify-2fa');
-      } else {
-        // No 2FA required, login successful
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify({
-          email: data.data.user.email,
-          name: data.data.user.name,
-          userType: data.data.user.role,
-          authenticated: true
-        }));
-        navigate('/dashboard');
-      }
+      // Store user data
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify({
+        email: data.data.user.email,
+        name: data.data.user.name,
+        userType: data.data.user.role,
+        authenticated: true
+      }));
+
+      // Show success toast
+      toast.success(`Welcome back, ${data.data.user.name}! Login successful.`, {
+        duration: 4000,
+        style: {
+          background: '#10b981',
+          color: '#fff',
+          fontWeight: '600',
+        },
+      });
+
+      // Clear form
+      setFormData({ email: '', password: '' });
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Login failed. Please check your credentials.';
-      setError(errorMessage);
+      toast.error(errorMessage, {
+        duration: 4000,
+        style: {
+          background: '#ef4444',
+          color: '#fff',
+          fontWeight: '600',
+        },
+      });
     } finally {
       setIsLoading(false);
     }
@@ -80,18 +85,6 @@ export default function Login() {
             </h1>
             <p className="text-slate-600 text-sm">Welcome back! Please sign in to continue</p>
           </div>
-
-          {/* Error Message with animation */}
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg animate-shake">
-              <div className="flex items-start">
-                <svg className="w-5 h-5 text-red-500 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-                <p className="text-sm text-red-700 font-medium">{error}</p>
-              </div>
-            </div>
-          )}
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-5">

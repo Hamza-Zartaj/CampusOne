@@ -1,16 +1,14 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
-import Verify2FA from './pages/Verify2FA';
-import Dashboard from './pages/Dashboard';
+import { Toaster } from 'react-hot-toast';
 
 function App() {
   return (
     <Router>
+      <Toaster position="top-center" />
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/verify-2fa" element={<Verify2FA />} />
-        <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
     </Router>
   );
