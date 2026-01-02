@@ -60,6 +60,12 @@ export const authAPI = {
   
   disable2FA: (password, token) => 
     api.post('/auth/disable-2fa', { password, token }),
+  
+  completeFirstTimeSetup: (data) => 
+    api.post('/auth/first-time-setup', data),
+  
+  skip2FASetup: () => 
+    api.post('/auth/skip-2fa-setup'),
 };
 
 export default api;

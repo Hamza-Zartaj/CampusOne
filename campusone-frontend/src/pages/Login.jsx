@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { authAPI } from '../utils/api';
 import toast from 'react-hot-toast';
+import FirstTimeSetup from '../components/FirstTimeSetup';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -9,6 +10,8 @@ export default function Login() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
+  const [userData, setUserData] = useState(null);
 
   const handleChange = (e) => {
     setFormData({
@@ -25,27 +28,46 @@ export default function Login() {
       const response = await authAPI.login(formData.email, formData.password);
       const data = response.data;
 
-      // Store user data
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify({
-        email: data.data.user.email,
-        name: data.data.user.name,
-        userType: data.data.user.role,
-        authenticated: true
-      }));
+      // Check if this is first-time login
+      if (data.isFirstLogin) {
+        // Store token temporarily
+        localStorage.setItem('token', data.token);
+        
+        // Show first-time setup modal
+        setUserData(data.data);
+        setShowFirstTimeSetup(true);
 
-      // Show success toast
-      toast.success(`Welcome back, ${data.data.user.name}! Login successful.`, {
-        duration: 4000,
-        style: {
-          background: '#10b981',
-          color: '#fff',
-          fontWeight: '600',
-        },
-      });
+        toast.success('Please complete your account setup', {
+          duration: 3000,
+          style: {
+            background: '#3b82f6',
+            color: '#fff',
+            fontWeight: '600',
+          },
+        });
+      } else {
+        // Normal login flow
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify({
+          email: data.data.user.email,
+          name: data.data.user.name,
+          userType: data.data.user.role,
+          authenticated: true
+        }));
 
-      // Clear form
-      setFormData({ email: '', password: '' });
+        // Show success toast
+        toast.success(`Welcome back, ${data.data.user.name}! Login successful.`, {
+          duration: 4000,
+          style: {
+            background: '#10b981',
+            color: '#fff',
+            fontWeight: '600',
+          },
+        });
+
+        // Clear form
+        setFormData({ email: '', password: '' });
+      }
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Login failed. Please check your credentials.';
       toast.error(errorMessage, {
@@ -61,8 +83,48 @@ export default function Login() {
     }
   };
 
+  const handleFirstTimeSetupComplete = () => {
+    setShowFirstTimeSetup(false);
+    
+    // Store user data
+    if (userData) {
+      localStorage.setItem('user', JSON.stringify({
+        email: userData.user.email,
+        name: userData.user.name,
+        userType: userData.user.role,
+        authenticated: true
+      }));
+
+      toast.success(`Welcome, ${userData.user.name}! Your account is now secured.`, {
+        duration: 4000,
+        style: {
+          background: '#10b981',
+          color: '#fff',
+          fontWeight: '600',
+        },
+      });
+
+      // Clear form
+      setFormData({ email: '', password: '' });
+      
+      // Optionally redirect or reload
+      setTimeout(() => {
+        window.location.href = '/'; // Redirect to dashboard or home
+      }, 1000);
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 p-4 relative overflow-hidden">
+    <>
+      {showFirstTimeSetup && userData && (
+        <FirstTimeSetup 
+          user={userData.user} 
+          token={localStorage.getItem('token')}
+          onComplete={handleFirstTimeSetupComplete}
+        />
+      )}
+      
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 p-4 relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
@@ -231,6 +293,7 @@ export default function Login() {
           animation-delay: 1000ms;
         }
       `}</style>
-    </div>
+      </div>
+    </>
   );
 }

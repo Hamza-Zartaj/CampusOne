@@ -73,6 +73,14 @@ const userSchema = new mongoose.Schema({
   lastLogin: {
     type: Date,
     default: null
+  },
+  isFirstLogin: {
+    type: Boolean,
+    default: true
+  },
+  passwordChangedAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true

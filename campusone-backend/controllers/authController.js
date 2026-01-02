@@ -80,7 +80,8 @@ export const register = async (req, res) => {
       name,
       email: email.toLowerCase(),
       password, // Will be hashed by pre-save hook in User model
-      role
+      role,
+      isFirstLogin: true // Set to true for first-time login flow
     });
 
     // Create role-specific record
@@ -302,6 +303,28 @@ export const login = async (req, res) => {
 
     // Remove password from response
     user.password = undefined;
+
+    // Check if this is first login
+    if (user.isFirstLogin) {
+      return res.status(200).json({
+        success: true,
+        isFirstLogin: true,
+        message: 'First time login - password change required',
+        token,
+        data: {
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            profilePicture: user.profilePicture,
+            twoFactorEnabled: user.twoFactorEnabled,
+            isFirstLogin: user.isFirstLogin
+          },
+          roleData
+        }
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -701,6 +724,137 @@ export const getMe = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Complete first-time setup (change password and optionally enable 2FA)
+ * @route   POST /api/auth/first-time-setup
+ * @access  Private
+ */
+export const completeFirstTimeSetup = async (req, res) => {
+  try {
+    const { currentPassword, newPassword, enable2FA } = req.body;
+    const userId = req.user.id;
+
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide current password and new password'
+      });
+    }
+
+    // Validate new password strength
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 8 characters long'
+      });
+    }
+
+    // Find user with password
+    const user = await User.findById(userId).select('+password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Verify current password
+    const isPasswordMatch = await user.comparePassword(currentPassword);
+    if (!isPasswordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Check if new password is different from current
+    const isSamePassword = await user.comparePassword(newPassword);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be different from current password'
+      });
+    }
+
+    // Update password
+    user.password = newPassword;
+    user.isFirstLogin = false;
+    user.passwordChangedAt = Date.now();
+    await user.save();
+
+    // If 2FA setup is requested, generate secret
+    let twoFactorData = null;
+    if (enable2FA) {
+      const secret = speakeasy.generateSecret({
+        name: `CampusOne (${user.email})`,
+        length: 32
+      });
+
+      user.twoFactorSecret = secret.base32;
+      await user.save();
+
+      // Generate QR code
+      const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
+
+      twoFactorData = {
+        secret: secret.base32,
+        qrCode: qrCodeUrl
+      };
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'First-time setup completed successfully',
+      data: {
+        passwordChanged: true,
+        twoFactorSetup: enable2FA ? twoFactorData : null
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error completing first-time setup',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Skip 2FA setup during first-time login
+ * @route   POST /api/auth/skip-2fa-setup
+ * @access  Private
+ */
+export const skip2FASetup = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Mark first login as complete
+    user.isFirstLogin = false;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: '2FA setup skipped successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error skipping 2FA setup',
+      error: error.message
+    });
+  }
+};
+
 // Helper functions
 const extractDeviceName = (userAgent) => {
   if (!userAgent) return 'Unknown Device';
@@ -738,5 +892,7 @@ export default {
   getTrustedDevices,
   removeTrustedDevice,
   logout,
-  getMe
+  getMe,
+  completeFirstTimeSetup,
+  skip2FASetup
 };

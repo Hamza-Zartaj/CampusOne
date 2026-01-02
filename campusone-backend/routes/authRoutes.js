@@ -9,7 +9,9 @@ import {
   getTrustedDevices,
   removeTrustedDevice,
   logout,
-  getMe
+  getMe,
+  completeFirstTimeSetup,
+  skip2FASetup
 } from '../controllers/authController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -24,6 +26,10 @@ router.use(protect); // All routes below require authentication
 
 router.get('/me', getMe);
 router.post('/logout', logout);
+
+// First-time setup routes
+router.post('/first-time-setup', completeFirstTimeSetup);
+router.post('/skip-2fa-setup', skip2FASetup);
 
 // Admin-only routes
 router.post('/register', authorize('admin'), register); // Only admins can register new users
