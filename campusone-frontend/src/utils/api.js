@@ -66,6 +66,18 @@ export const authAPI = {
   
   skip2FASetup: () => 
     api.post('/auth/skip-2fa-setup'),
+  
+  setupEmail2FA: () => 
+    api.post('/auth/setup-email-2fa'),
+  
+  enableEmail2FA: (otp) => 
+    api.post('/auth/enable-email-2fa', { otp }),
+  
+  sendLoginOTP: (userId) => 
+    api.post('/auth/send-login-otp', { userId }),
+  
+  verifyEmailOTP: (userId, otp, rememberDevice = true) => 
+    api.post('/auth/verify-email-otp', { userId, otp, rememberDevice }),
 };
 
 export default api;

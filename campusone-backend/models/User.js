@@ -55,6 +55,25 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  twoFactorMethod: {
+    type: String,
+    enum: ['authenticator', 'email', 'none'],
+    default: 'none'
+  },
+  emailOTP: {
+    code: {
+      type: String,
+      select: false
+    },
+    expiresAt: {
+      type: Date,
+      select: false
+    },
+    attempts: {
+      type: Number,
+      default: 0
+    }
+  },
   trustedDevices: [{
     deviceId: {
       type: String,

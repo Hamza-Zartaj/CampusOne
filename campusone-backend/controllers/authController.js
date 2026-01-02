@@ -6,6 +6,7 @@ import Admin from '../models/Admin.js';
 import jwt from 'jsonwebtoken';
 import speakeasy from 'speakeasy';
 import qrcode from 'qrcode';
+import { generateOTP, sendOTPEmail, send2FAEnabledEmail } from '../services/emailService.js';
 
 /**
  * Generate JWT Token
@@ -276,9 +277,35 @@ export const login = async (req, res) => {
 
     // Check if 2FA is enabled and device is not trusted
     if (user.twoFactorEnabled && !isTrusted) {
+      // If email 2FA, send OTP automatically
+      if (user.twoFactorMethod === 'email') {
+        const otp = generateOTP();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+        user.emailOTP = {
+          code: otp,
+          expiresAt,
+          attempts: 0
+        };
+        await user.save();
+
+        await sendOTPEmail(user.email, user.name, otp);
+
+        return res.status(200).json({
+          success: true,
+          requires2FA: true,
+          twoFactorMethod: 'email',
+          message: 'OTP sent to your email',
+          userId: user._id,
+          email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3')
+        });
+      }
+
+      // For authenticator app
       return res.status(200).json({
         success: true,
         requires2FA: true,
+        twoFactorMethod: 'authenticator',
         message: '2FA verification required',
         userId: user._id
       });
@@ -731,7 +758,7 @@ export const getMe = async (req, res) => {
  */
 export const completeFirstTimeSetup = async (req, res) => {
   try {
-    const { currentPassword, newPassword, enable2FA } = req.body;
+    const { currentPassword, newPassword, enable2FA, twoFactorMethod } = req.body;
     const userId = req.user.id;
 
     // Validate input
@@ -784,24 +811,49 @@ export const completeFirstTimeSetup = async (req, res) => {
     user.passwordChangedAt = Date.now();
     await user.save();
 
-    // If 2FA setup is requested, generate secret
+    // If 2FA setup is requested
     let twoFactorData = null;
     if (enable2FA) {
-      const secret = speakeasy.generateSecret({
-        name: `CampusOne (${user.email})`,
-        length: 32
-      });
+      const method = twoFactorMethod || 'authenticator';
+      
+      if (method === 'email') {
+        // Generate and send OTP for email verification
+        const otp = generateOTP();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      user.twoFactorSecret = secret.base32;
-      await user.save();
+        user.emailOTP = {
+          code: otp,
+          expiresAt,
+          attempts: 0
+        };
+        await user.save();
 
-      // Generate QR code
-      const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
+        await sendOTPEmail(user.email, user.name, otp);
 
-      twoFactorData = {
-        secret: secret.base32,
-        qrCode: qrCodeUrl
-      };
+        twoFactorData = {
+          method: 'email',
+          email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'),
+          message: 'OTP sent to your email'
+        };
+      } else {
+        // Generate authenticator secret
+        const secret = speakeasy.generateSecret({
+          name: `CampusOne (${user.email})`,
+          length: 32
+        });
+
+        user.twoFactorSecret = secret.base32;
+        await user.save();
+
+        // Generate QR code
+        const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
+
+        twoFactorData = {
+          method: 'authenticator',
+          secret: secret.base32,
+          qrCode: qrCodeUrl
+        };
+      }
     }
 
     res.status(200).json({
@@ -855,6 +907,373 @@ export const skip2FASetup = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Setup 2FA with Email OTP
+ * @route   POST /api/auth/setup-email-2fa
+ * @access  Private
+ */
+export const setupEmail2FA = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Save OTP to user
+    user.emailOTP = {
+      code: otp,
+      expiresAt,
+      attempts: 0
+    };
+    await user.save();
+
+    // Send OTP email
+    const emailResult = await sendOTPEmail(user.email, user.name, otp);
+    
+    if (!emailResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP email. Please try again.'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP sent to your email address',
+      data: {
+        email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'), // Mask email
+        expiresIn: 600 // seconds
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error setting up email 2FA',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Verify and enable Email OTP 2FA
+ * @route   POST /api/auth/enable-email-2fa
+ * @access  Private
+ */
+export const enableEmail2FA = async (req, res) => {
+  try {
+    const { otp } = req.body;
+    const userId = req.user.id;
+
+    if (!otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide OTP code'
+      });
+    }
+
+    // Find user with email OTP data
+    const user = await User.findById(userId).select('+emailOTP.code +emailOTP.expiresAt');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if OTP exists
+    if (!user.emailOTP || !user.emailOTP.code) {
+      return res.status(400).json({
+        success: false,
+        message: 'No OTP found. Please request a new one.'
+      });
+    }
+
+    // Check attempts
+    if (user.emailOTP.attempts >= 5) {
+      user.emailOTP = {
+        code: null,
+        expiresAt: null,
+        attempts: 0
+      };
+      await user.save();
+      
+      return res.status(429).json({
+        success: false,
+        message: 'Too many failed attempts. Please request a new OTP.'
+      });
+    }
+
+    // Check if OTP expired
+    if (new Date() > user.emailOTP.expiresAt) {
+      user.emailOTP = {
+        code: null,
+        expiresAt: null,
+        attempts: 0
+      };
+      await user.save();
+
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired. Please request a new one.'
+      });
+    }
+
+    // Verify OTP
+    if (user.emailOTP.code !== otp) {
+      user.emailOTP.attempts += 1;
+      await user.save();
+
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP code',
+        attemptsRemaining: 5 - user.emailOTP.attempts
+      });
+    }
+
+    // Enable 2FA
+    user.twoFactorEnabled = true;
+    user.twoFactorMethod = 'email';
+    user.emailOTP = {
+      code: null,
+      expiresAt: null,
+      attempts: 0
+    };
+    user.isFirstLogin = false;
+    await user.save();
+
+    // Send confirmation email
+    await send2FAEnabledEmail(user.email, user.name, 'email');
+
+    res.status(200).json({
+      success: true,
+      message: 'Email 2FA enabled successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error enabling email 2FA',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Send OTP for login verification
+ * @route   POST /api/auth/send-login-otp
+ * @access  Public
+ */
+export const sendLoginOTP = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.twoFactorMethod !== 'email') {
+      return res.status(400).json({
+        success: false,
+        message: 'Email 2FA is not enabled for this account'
+      });
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Save OTP to user
+    user.emailOTP = {
+      code: otp,
+      expiresAt,
+      attempts: 0
+    };
+    await user.save();
+
+    // Send OTP email
+    const emailResult = await sendOTPEmail(user.email, user.name, otp);
+    
+    if (!emailResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP email. Please try again.'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP sent to your email address',
+      data: {
+        email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'), // Mask email
+        expiresIn: 600
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error sending login OTP',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Verify email OTP for login
+ * @route   POST /api/auth/verify-email-otp
+ * @access  Public
+ */
+export const verifyEmailOTP = async (req, res) => {
+  try {
+    const { userId, otp, rememberDevice } = req.body;
+
+    if (!userId || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and OTP are required'
+      });
+    }
+
+    // Find user with email OTP data
+    const user = await User.findById(userId).select('+emailOTP.code +emailOTP.expiresAt');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if OTP exists
+    if (!user.emailOTP || !user.emailOTP.code) {
+      return res.status(400).json({
+        success: false,
+        message: 'No OTP found. Please request a new one.'
+      });
+    }
+
+    // Check attempts
+    if (user.emailOTP.attempts >= 5) {
+      user.emailOTP = {
+        code: null,
+        expiresAt: null,
+        attempts: 0
+      };
+      await user.save();
+      
+      return res.status(429).json({
+        success: false,
+        message: 'Too many failed attempts. Please request a new OTP.'
+      });
+    }
+
+    // Check if OTP expired
+    if (new Date() > user.emailOTP.expiresAt) {
+      user.emailOTP = {
+        code: null,
+        expiresAt: null,
+        attempts: 0
+      };
+      await user.save();
+
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired. Please request a new one.'
+      });
+    }
+
+    // Verify OTP
+    if (user.emailOTP.code !== otp) {
+      user.emailOTP.attempts += 1;
+      await user.save();
+
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP code',
+        attemptsRemaining: 5 - user.emailOTP.attempts
+      });
+    }
+
+    // Clear OTP
+    user.emailOTP = {
+      code: null,
+      expiresAt: null,
+      attempts: 0
+    };
+
+    // Add device to trusted devices if requested
+    if (rememberDevice) {
+      const deviceFingerprint = {
+        userAgent: req.headers['user-agent'],
+        ipAddress: req.ip || req.connection.remoteAddress,
+        deviceName: extractDeviceName(req.headers['user-agent'])
+      };
+
+      const deviceId = generateDeviceId(deviceFingerprint);
+
+      const trustedDevice = user.trustedDevices.find(d => d.deviceId === deviceId);
+      if (!trustedDevice) {
+        user.trustedDevices.push({
+          deviceId,
+          deviceName: deviceFingerprint.deviceName,
+          ipAddress: deviceFingerprint.ipAddress,
+          lastUsed: Date.now()
+        });
+      }
+    }
+
+    await user.save();
+
+    // Generate token
+    const token = generateToken(user._id);
+
+    // Get role-specific data
+    const roleData = await getRoleSpecificData(user._id, user.role);
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      token,
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          profilePicture: user.profilePicture,
+          twoFactorEnabled: user.twoFactorEnabled
+        },
+        roleData
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying email OTP',
+      error: error.message
+    });
+  }
+};
+
 // Helper functions
 const extractDeviceName = (userAgent) => {
   if (!userAgent) return 'Unknown Device';
@@ -894,5 +1313,9 @@ export default {
   logout,
   getMe,
   completeFirstTimeSetup,
-  skip2FASetup
+  skip2FASetup,
+  setupEmail2FA,
+  enableEmail2FA,
+  sendLoginOTP,
+  verifyEmailOTP
 };

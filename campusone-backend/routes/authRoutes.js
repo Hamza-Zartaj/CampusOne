@@ -11,7 +11,11 @@ import {
   logout,
   getMe,
   completeFirstTimeSetup,
-  skip2FASetup
+  skip2FASetup,
+  setupEmail2FA,
+  enableEmail2FA,
+  sendLoginOTP,
+  verifyEmailOTP
 } from '../controllers/authController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -20,6 +24,8 @@ const router = express.Router();
 // Public routes
 router.post('/login', login);
 router.post('/verify-2fa', verify2FAToken);
+router.post('/send-login-otp', sendLoginOTP);
+router.post('/verify-email-otp', verifyEmailOTP);
 
 // Protected routes (require authentication)
 router.use(protect); // All routes below require authentication
@@ -38,6 +44,8 @@ router.post('/register', authorize('admin'), register); // Only admins can regis
 router.post('/setup-2fa', setup2FA);
 router.post('/enable-2fa', enable2FA);
 router.post('/disable-2fa', disable2FA);
+router.post('/setup-email-2fa', setupEmail2FA);
+router.post('/enable-email-2fa', enableEmail2FA);
 
 // Trusted Devices Management
 router.get('/trusted-devices', getTrustedDevices);

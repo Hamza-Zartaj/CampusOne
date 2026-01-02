@@ -3,7 +3,7 @@ import { authAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 
 export default function FirstTimeSetup({ user, token, onComplete }) {
-  const [step, setStep] = useState(1); // 1: password change, 2: 2FA setup
+  const [step, setStep] = useState(1); // 1: password change, 2: 2FA method selection, 3: 2FA setup
   const [formData, setFormData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -15,6 +15,7 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
     confirm: false,
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [twoFactorMethod, setTwoFactorMethod] = useState(null); // 'authenticator' or 'email'
   const [twoFactorData, setTwoFactorData] = useState(null);
   const [verificationCode, setVerificationCode] = useState('');
 
@@ -79,21 +80,37 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
     }
   };
 
-  const handleEnable2FA = async () => {
+  const handleEnable2FA = async (method) => {
     setIsLoading(true);
+    setTwoFactorMethod(method);
 
     try {
-      const response = await authAPI.setup2FA();
-      setTwoFactorData(response.data.data);
-      
-      toast.success('Scan the QR code with your authenticator app', {
-        duration: 4000,
-        style: {
-          background: '#10b981',
-          color: '#fff',
-          fontWeight: '600',
-        },
-      });
+      if (method === 'email') {
+        const response = await authAPI.setupEmail2FA();
+        setTwoFactorData(response.data.data);
+        
+        toast.success('OTP sent to your email!', {
+          duration: 4000,
+          style: {
+            background: '#10b981',
+            color: '#fff',
+            fontWeight: '600',
+          },
+        });
+      } else {
+        const response = await authAPI.setup2FA();
+        setTwoFactorData(response.data.data);
+        
+        toast.success('Scan the QR code with your authenticator app', {
+          duration: 4000,
+          style: {
+            background: '#10b981',
+            color: '#fff',
+            fontWeight: '600',
+          },
+        });
+      }
+      setStep(3);
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to setup 2FA';
       toast.error(errorMessage);
@@ -107,7 +124,11 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
     setIsLoading(true);
 
     try {
-      await authAPI.enable2FA(verificationCode);
+      if (twoFactorMethod === 'email') {
+        await authAPI.enableEmail2FA(verificationCode);
+      } else {
+        await authAPI.enable2FA(verificationCode);
+      }
       
       toast.success('2FA enabled successfully!', {
         duration: 3000,
@@ -158,12 +179,14 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-cyan-500 p-6 text-white">
           <h2 className="text-2xl font-bold mb-2">
-            {step === 1 ? 'First Time Setup' : 'Enable Two-Factor Authentication'}
+            {step === 1 ? 'First Time Setup' : step === 2 ? 'Choose 2FA Method' : 'Enable Two-Factor Authentication'}
           </h2>
           <p className="text-blue-100 text-sm">
             {step === 1 
               ? 'Please change your password to secure your account'
-              : 'Add an extra layer of security to your account'}
+              : step === 2
+              ? 'Select your preferred authentication method'
+              : 'Complete the setup to secure your account'}
           </p>
         </div>
 
@@ -310,69 +333,100 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
                 )}
               </button>
             </form>
-          ) : (
-            // 2FA Setup Step
+          ) : step === 2 ? (
+            // 2FA Method Selection Step
             <div className="space-y-6">
-              {!twoFactorData ? (
-                <div className="text-center space-y-4">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-start">
-                      <svg className="w-6 h-6 text-blue-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
-                      <div className="text-left">
-                        <h3 className="font-semibold text-blue-800 text-sm mb-1">Recommended: Enable 2FA</h3>
-                        <p className="text-blue-700 text-sm">
-                          Two-factor authentication adds an extra layer of security to your account by requiring a code from your phone in addition to your password.
-                        </p>
-                      </div>
-                    </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <svg className="w-6 h-6 text-blue-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <div className="text-left">
+                    <h3 className="font-semibold text-blue-800 text-sm mb-1">Recommended: Enable 2FA</h3>
+                    <p className="text-blue-700 text-sm">
+                      Choose your preferred authentication method to add an extra layer of security.
+                    </p>
                   </div>
-
-                  <div className="flex flex-col gap-3">
-                    <button
-                      onClick={handleEnable2FA}
-                      disabled={isLoading}
-                      className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-3 px-6 rounded-lg hover:from-blue-700 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                    >
-                      {isLoading ? (
-                        <div className="flex items-center justify-center">
-                          <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          Setting up...
-                        </div>
-                      ) : (
-                        <span className="flex items-center justify-center">
-                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                          </svg>
-                          Enable Two-Factor Authentication
-                        </span>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={handleSkip2FA}
-                      disabled={isLoading}
-                      className="w-full bg-slate-100 text-slate-700 font-semibold py-3 px-6 rounded-lg hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Skip for Now
-                    </button>
-                  </div>
-
-                  <p className="text-xs text-slate-500 mt-4">
-                    You can enable 2FA later from your account settings
-                  </p>
                 </div>
-              ) : (
+              </div>
+
+              <div className="grid gap-3">
+                {/* Authenticator App Option */}
+                <button
+                  onClick={() => handleEnable2FA('authenticator')}
+                  disabled={isLoading}
+                  className="w-full p-4 border-2 border-slate-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed group"
+                >
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center mr-4">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">
+                        Authenticator App
+                      </h4>
+                      <p className="text-sm text-slate-600">
+                        Use Google Authenticator, Authy, or similar apps to generate verification codes
+                      </p>
+                    </div>
+                    <svg className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-colors flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+
+                {/* Email OTP Option */}
+                <button
+                  onClick={() => handleEnable2FA('email')}
+                  disabled={isLoading}
+                  className="w-full p-4 border-2 border-slate-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed group"
+                >
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center mr-4">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">
+                        Email OTP
+                      </h4>
+                      <p className="text-sm text-slate-600">
+                        Receive one-time passwords via email for verification
+                      </p>
+                    </div>
+                    <svg className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-colors flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+              </div>
+
+              <button
+                onClick={handleSkip2FA}
+                disabled={isLoading}
+                className="w-full bg-slate-100 text-slate-700 font-semibold py-3 px-6 rounded-lg hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Skip for Now
+              </button>
+
+              <p className="text-xs text-slate-500 text-center mt-4">
+                You can enable 2FA later from your account settings
+              </p>
+            </div>
+          ) : (
+            // 2FA Verification Step (step 3)
+            <div className="space-y-6">
+              {twoFactorMethod === 'authenticator' ? (
+                // Authenticator QR Code
                 <form onSubmit={handleVerify2FA} className="space-y-4">
                   <div className="text-center">
                     <h3 className="font-semibold text-slate-800 mb-4">Scan QR Code</h3>
                     <div className="bg-white p-4 rounded-lg inline-block border-2 border-slate-200">
                       <img 
-                        src={twoFactorData.qrCode} 
+                        src={twoFactorData?.qrCode} 
                         alt="2FA QR Code" 
                         className="w-48 h-48"
                       />
@@ -384,8 +438,8 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
 
                   <div className="bg-slate-50 p-4 rounded-lg">
                     <p className="text-xs text-slate-600 mb-2 font-semibold">Manual Entry Code:</p>
-                    <code className="text-sm font-mono bg-white px-3 py-2 rounded border border-slate-200 block text-center select-all">
-                      {twoFactorData.secret}
+                    <code className="text-sm font-mono bg-white px-3 py-2 rounded border border-slate-200 block text-center select-all break-all">
+                      {twoFactorData?.secret}
                     </code>
                   </div>
 
@@ -397,13 +451,67 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
                       type="text"
                       id="verificationCode"
                       value={verificationCode}
-                      onChange={(e) => setVerificationCode(e.target.value)}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
                       className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-center text-lg tracking-widest font-mono"
                       placeholder="000000"
                       required
                       maxLength={6}
-                      pattern="[0-9]{6}"
                     />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading || verificationCode.length !== 6}
+                    className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-3 px-6 rounded-lg hover:from-blue-700 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center justify-center">
+                        <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Verifying...
+                      </div>
+                    ) : (
+                      'Verify & Complete Setup'
+                    )}
+                  </button>
+                </form>
+              ) : (
+                // Email OTP Verification
+                <form onSubmit={handleVerify2FA} className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <svg className="w-6 h-6 text-blue-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      <div className="text-left">
+                        <h3 className="font-semibold text-blue-800 text-sm mb-1">Check Your Email</h3>
+                        <p className="text-blue-700 text-sm">
+                          We've sent a 6-digit code to <strong>{twoFactorData?.email}</strong>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="emailOtpCode" className="block text-sm font-semibold text-slate-700 mb-2">
+                      Enter Verification Code
+                    </label>
+                    <input
+                      type="text"
+                      id="emailOtpCode"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                      className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-center text-lg tracking-widest font-mono"
+                      placeholder="000000"
+                      required
+                      maxLength={6}
+                      autoFocus
+                    />
+                    <p className="text-xs text-slate-500 mt-2 text-center">
+                      Code expires in 10 minutes
+                    </p>
                   </div>
 
                   <button

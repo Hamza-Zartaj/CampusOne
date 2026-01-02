@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { authAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 import FirstTimeSetup from '../components/FirstTimeSetup';
+import TwoFactorVerification from '../components/TwoFactorVerification';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -11,6 +12,8 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
+  const [show2FAVerification, setShow2FAVerification] = useState(false);
+  const [twoFactorInfo, setTwoFactorInfo] = useState(null);
   const [userData, setUserData] = useState(null);
 
   const handleChange = (e) => {
@@ -27,6 +30,26 @@ export default function Login() {
     try {
       const response = await authAPI.login(formData.email, formData.password);
       const data = response.data;
+
+      // Check if 2FA is required
+      if (data.requires2FA) {
+        setTwoFactorInfo({
+          userId: data.userId,
+          method: data.twoFactorMethod,
+          email: data.email
+        });
+        setShow2FAVerification(true);
+        
+        toast.success(data.message || '2FA verification required', {
+          duration: 3000,
+          style: {
+            background: '#3b82f6',
+            color: '#fff',
+            fontWeight: '600',
+          },
+        });
+        return;
+      }
 
       // Check if this is first-time login
       if (data.isFirstLogin) {
@@ -114,16 +137,23 @@ export default function Login() {
     }
   };
 
+  const handle2FAComplete = () => {
+    setShow2FAVerification(false);
+    setFormData({ email: '', password: '' });
+    
+    // Optionally redirect
+    setTimeout(() => {
+      window.location.href = '/'; // Redirect to dashboard or home
+    }, 1000);
+  };
+
+  const handle2FACancel = () => {
+    setShow2FAVerification(false);
+    setTwoFactorInfo(null);
+  };
+
   return (
     <>
-      {showFirstTimeSetup && userData && (
-        <FirstTimeSetup 
-          user={userData.user} 
-          token={localStorage.getItem('token')}
-          onComplete={handleFirstTimeSetupComplete}
-        />
-      )}
-      
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 p-4 relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
@@ -294,6 +324,26 @@ export default function Login() {
         }
       `}</style>
       </div>
+
+      {/* First Time Setup Modal */}
+      {showFirstTimeSetup && userData && (
+        <FirstTimeSetup 
+          user={userData.user}
+          token={localStorage.getItem('token')}
+          onComplete={handleFirstTimeSetupComplete}
+        />
+      )}
+
+      {/* 2FA Verification Modal */}
+      {show2FAVerification && twoFactorInfo && (
+        <TwoFactorVerification
+          userId={twoFactorInfo.userId}
+          method={twoFactorInfo.method}
+          email={twoFactorInfo.email}
+          onComplete={handle2FAComplete}
+          onCancel={handle2FACancel}
+        />
+      )}
     </>
   );
 }
