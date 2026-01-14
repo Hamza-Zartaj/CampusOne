@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 import FirstTimeSetup from '../components/FirstTimeSetup';
@@ -7,6 +8,7 @@ import ForgotPassword from '../components/ForgotPassword';
 import PasswordReset from '../components/PasswordReset';
 
 export default function Login() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -36,6 +38,8 @@ export default function Login() {
       const response = await authAPI.login(formData.email, formData.password);
       const data = response.data;
 
+      console.log('Login response:', data);
+
       // Check if 2FA is required
       if (data.requires2FA) {
         setTwoFactorInfo({
@@ -53,6 +57,7 @@ export default function Login() {
             fontWeight: '600',
           },
         });
+        setIsLoading(false);
         return;
       }
 
@@ -73,19 +78,27 @@ export default function Login() {
             fontWeight: '600',
           },
         });
+        setIsLoading(false);
       } else {
         // Normal login flow
         localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify({
+        
+        const userData = {
+          id: data.data.user.id,
           email: data.data.user.email,
           name: data.data.user.name,
-          userType: data.data.user.role,
+          role: data.data.user.role,
+          profilePicture: data.data.user.profilePicture,
           authenticated: true
-        }));
+        };
+        
+        localStorage.setItem('user', JSON.stringify(userData));
+
+        console.log('Stored user data:', userData);
 
         // Show success toast
         toast.success(`Welcome back, ${data.data.user.name}! Login successful.`, {
-          duration: 4000,
+          duration: 2000,
           style: {
             background: '#10b981',
             color: '#fff',
@@ -95,6 +108,10 @@ export default function Login() {
 
         // Clear form
         setFormData({ email: '', password: '' });
+        
+        // Navigate to dashboard immediately
+        console.log('Navigating to dashboard...');
+        navigate('/dashboard');
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Login failed. Please check your credentials.';
@@ -119,6 +136,7 @@ export default function Login() {
       localStorage.setItem('user', JSON.stringify({
         email: userData.user.email,
         name: userData.user.name,
+        role: userData.user.role,
         userType: userData.user.role,
         authenticated: true
       }));
@@ -135,9 +153,9 @@ export default function Login() {
       // Clear form
       setFormData({ email: '', password: '' });
       
-      // Optionally redirect or reload
+      // Navigate to dashboard
       setTimeout(() => {
-        window.location.href = '/'; // Redirect to dashboard or home
+        navigate('/dashboard');
       }, 1000);
     }
   };
@@ -146,8 +164,9 @@ export default function Login() {
     setShow2FAVerification(false);
     setFormData({ email: '', password: '' });
     
-    // Optionally redirect
+    // Navigate to dashboard
     setTimeout(() => {
+      navigate('/dashboard');
       window.location.href = '/'; // Redirect to dashboard or home
     }, 1000);
   };
