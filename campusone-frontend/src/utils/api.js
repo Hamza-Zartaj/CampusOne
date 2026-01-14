@@ -29,10 +29,17 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Unauthorized - clear token and redirect to login
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Only redirect to login if we're not already on the login page
+      // and if the error is due to an invalid/expired token (not wrong credentials)
+      const currentPath = window.location.pathname;
+      const isLoginError = error.config?.url?.includes('/auth/login');
+      
+      if (currentPath !== '/login' && !isLoginError) {
+        // Unauthorized - clear token and redirect to login
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

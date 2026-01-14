@@ -32,6 +32,8 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    e.stopPropagation();
+    
     setIsLoading(true);
 
     try {
@@ -114,7 +116,22 @@ export default function Login() {
         navigate('/dashboard');
       }
     } catch (err) {
-      const errorMessage = err.response?.data?.message || 'Login failed. Please check your credentials.';
+      console.error('Login error:', err);
+      
+      let errorMessage = 'Login failed. Please check your credentials.';
+      
+      // Handle different error types
+      if (err.response) {
+        // Server responded with error status
+        errorMessage = err.response.data?.message || errorMessage;
+      } else if (err.request) {
+        // Request was made but no response
+        errorMessage = 'Cannot connect to server. Please check your connection.';
+      } else {
+        // Something else happened
+        errorMessage = err.message || errorMessage;
+      }
+      
       toast.error(errorMessage, {
         duration: 4000,
         style: {
@@ -123,7 +140,7 @@ export default function Login() {
           fontWeight: '600',
         },
       });
-    } finally {
+      
       setIsLoading(false);
     }
   };
