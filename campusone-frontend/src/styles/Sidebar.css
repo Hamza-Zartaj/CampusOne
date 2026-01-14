@@ -2,19 +2,13 @@
   width: var(--sidebar-width);
   background: var(--bg-primary);
   box-shadow: var(--shadow-sm);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow-y: auto;
-  overflow-x: hidden;
+  transition: width 0.3s ease;
+  overflow: hidden;
   z-index: var(--z-sidebar);
 }
 
 .sidebar.open {
   transform: translateX(0);
-}
-
-.sidebar.closed {
-  transform: translateX(-100%);
-  width: 0;
 }
 
 .sidebar-nav {
@@ -34,7 +28,7 @@
   padding: 14px 24px;
   color: var(--text-secondary);
   text-decoration: none;
-  transition: all var(--transition-fast);
+  transition: background-color 0.2s ease, color 0.2s ease;
   font-size: 15px;
   font-weight: 500;
   position: relative;
@@ -75,13 +69,15 @@
 }
 
 .nav-icon {
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
-  transition: color var(--transition-fast);
+  transition: color 0.2s ease;
 }
 
 .nav-label {
   white-space: nowrap;
-  transition: opacity 0.15s ease-in-out;
+  transition: opacity 0.15s ease, width 0.15s ease;
 }
 
 /* Scrollbar styling */
@@ -127,19 +123,9 @@
   .sidebar.closed .nav-label {
     opacity: 0;
     width: 0;
-    overflow: hidden;
-    transition: opacity 0.1s ease-in-out;
-  }
-
-  .sidebar.closed .nav-item {
-    justify-content: center;
-    align-items: center;
-    padding: 16px;
-    gap: 0;
-  }
-
-  .sidebar.closed .nav-icon {
     margin: 0;
+    overflow: hidden;
+    transition: opacity 0.15s ease, width 0.15s ease;
   }
 
   .sidebar.closed .nav-item::before {
