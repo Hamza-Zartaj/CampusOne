@@ -102,8 +102,9 @@ export const validateRegistration = (req, res, next) => {
 
   // Role-specific validation
   if (role === 'student') {
-    const { enrollmentNumber, department } = req.body;
-    if (!enrollmentNumber) errors.push('Enrollment number is required for students');
+    const { studentId, enrollmentYear, department } = req.body;
+    if (!studentId) errors.push('Student ID is required for students');
+    if (!enrollmentYear) errors.push('Enrollment year is required for students');
     if (!department) errors.push('Department is required for students');
   } else if (role === 'teacher') {
     const { employeeId, department } = req.body;

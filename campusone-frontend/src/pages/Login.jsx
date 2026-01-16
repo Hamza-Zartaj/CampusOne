@@ -10,7 +10,7 @@ import PasswordReset from '../components/PasswordReset';
 export default function Login() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    email: '',
+    username: '',
     password: '',
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -37,7 +37,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const response = await authAPI.login(formData.email, formData.password);
+      const response = await authAPI.login(formData.username, formData.password);
       const data = response.data;
 
       console.log('Login response:', data);
@@ -109,7 +109,7 @@ export default function Login() {
         });
 
         // Clear form
-        setFormData({ email: '', password: '' });
+        setFormData({ username: '', password: '' });
         
         // Navigate to dashboard immediately
         console.log('Navigating to dashboard...');
@@ -168,7 +168,7 @@ export default function Login() {
       });
 
       // Clear form
-      setFormData({ email: '', password: '' });
+      setFormData({ username: '', password: '' });
       
       // Navigate to dashboard
       setTimeout(() => {
@@ -179,7 +179,7 @@ export default function Login() {
 
   const handle2FAComplete = () => {
     setShow2FAVerification(false);
-    setFormData({ email: '', password: '' });
+    setFormData({ username: '', password: '' });
     
     // Navigate to dashboard
     setTimeout(() => {
@@ -240,25 +240,25 @@ export default function Login() {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email Field */}
+            {/* Username Field */}
             <div className="group">
-              <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-2">
-                Email Address
+              <label htmlFor="username" className="block text-sm font-semibold text-slate-700 mb-2">
+                Username
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <svg className="w-5 h-5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 </div>
                 <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
+                  type="text"
+                  id="username"
+                  name="username"
+                  value={formData.username}
                   onChange={handleChange}
                   className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-900 placeholder-slate-400 hover:border-slate-300"
-                  placeholder="student@campusone.edu"
+                  placeholder="Enter your username"
                   required
                 />
               </div>

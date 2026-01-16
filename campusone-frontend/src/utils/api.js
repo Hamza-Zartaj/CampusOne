@@ -47,8 +47,8 @@ api.interceptors.response.use(
 
 // Auth endpoints
 export const authAPI = {
-  login: (email, password) => 
-    api.post('/auth/login', { email, password }),
+  login: (username, password) => 
+    api.post('/auth/login', { username, password }),
   
   verify2FA: (userId, token, rememberDevice = true) => 
     api.post('/auth/verify-2fa', { userId, token, rememberDevice }),

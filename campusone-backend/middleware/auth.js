@@ -105,6 +105,48 @@ export const authorize = (...roles) => {
 };
 
 /**
+ * Middleware to authorize Super Admin only
+ * Only Super Admins can create/delete admin accounts
+ */
+export const authorizeSuperAdmin = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized. Please login first.'
+      });
+    }
+
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Only Super Admins can perform this action.'
+      });
+    }
+
+    // Import Admin model dynamically to avoid circular dependencies
+    const Admin = (await import('../models/Admin.js')).default;
+    const adminRecord = await Admin.findOne({ userId: req.user._id });
+
+    if (!adminRecord || !adminRecord.isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Only Super Admins can perform this action.'
+      });
+    }
+
+    req.adminRecord = adminRecord;
+    next();
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Error verifying Super Admin status',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Middleware to verify 2FA token
  * Used during login when 2FA is enabled
  */
@@ -262,4 +304,4 @@ export const addTrustedDevice = async (req, res, next) => {
   }
 };
 
-export default { protect, authorize, verify2FA, checkDeviceTrust, addTrustedDevice };
+export default { protect, authorize, authorizeSuperAdmin, verify2FA, checkDeviceTrust, addTrustedDevice };

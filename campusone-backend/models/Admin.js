@@ -20,8 +20,12 @@ const adminSchema = new mongoose.Schema({
   },
   designation: {
     type: String,
-    enum: ['System Administrator', 'Academic Officer', 'HOD', 'Dean', 'Administrator'],
+    enum: ['System Administrator', 'Academic Officer', 'HOD', 'Dean', 'Administrator', 'Super Administrator'],
     default: 'Administrator'
+  },
+  isSuperAdmin: {
+    type: Boolean,
+    default: false
   },
   permissions: [{
     type: String,

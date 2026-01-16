@@ -7,11 +7,17 @@ const studentSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  enrollmentNumber: {
+  studentId: {
     type: String,
-    required: [true, 'Please provide enrollment number'],
+    required: [true, 'Please provide student ID'],
     unique: true,
     trim: true
+  },
+  enrollmentYear: {
+    type: Number,
+    required: [true, 'Please provide enrollment year'],
+    min: 2000,
+    max: 2100
   },
   department: {
     type: String,
@@ -92,6 +98,6 @@ const studentSchema = new mongoose.Schema({
 
 // Indexes for faster queries
 studentSchema.index({ userId: 1 });
-studentSchema.index({ enrollmentNumber: 1 });
+studentSchema.index({ studentId: 1 });
 
 export default mongoose.model('Student', studentSchema);

@@ -157,6 +157,25 @@ export const createUser = async (req, res) => {
   try {
     const { name, email, password, role, ...roleSpecificData } = req.body;
 
+    // Check if trying to create an admin account
+    if (role === 'admin') {
+      // Only super admins can create admin accounts
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Only Super Admins can create admin accounts'
+        });
+      }
+
+      const adminRecord = await Admin.findOne({ userId: req.user._id });
+      if (!adminRecord || !adminRecord.isSuperAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only Super Admins can create admin accounts'
+        });
+      }
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
@@ -178,25 +197,27 @@ export const createUser = async (req, res) => {
     let roleRecord;
     try {
       switch (role) {
-        case 'student':
-          const { enrollmentNumber, department, batch, currentSemester } = roleSpecificData;
+        case 'student': {
+          const { studentId, enrollmentYear, department, batch, currentSemester } = roleSpecificData;
           
-          // Check if enrollment number already exists
-          const existingStudent = await Student.findOne({ enrollmentNumber });
+          // Check if student ID already exists
+          const existingStudent = await Student.findOne({ studentId });
           if (existingStudent) {
-            throw new Error('Student with this enrollment number already exists');
+            throw new Error('Student with this student ID already exists');
           }
           
           roleRecord = await Student.create({
             userId: user._id,
-            enrollmentNumber,
+            studentId,
+            enrollmentYear,
             department,
             batch,
             currentSemester: currentSemester || 1
           });
           break;
+        }
 
-        case 'teacher':
+        case 'teacher': {
           const { employeeId: teacherEmpId, department: teacherDept, designation, qualification, specialization } = roleSpecificData;
           
           // Check if employee ID already exists
@@ -214,8 +235,9 @@ export const createUser = async (req, res) => {
             specialization: specialization || []
           });
           break;
+        }
 
-        case 'ta':
+        case 'ta': {
           const { studentId } = roleSpecificData;
           
           // Verify student exists
@@ -229,9 +251,10 @@ export const createUser = async (req, res) => {
             studentId
           });
           break;
+        }
 
-        case 'admin':
-          const { employeeId: adminEmpId, department: adminDept, designation: adminDesig, permissions } = roleSpecificData;
+        case 'admin': {
+          const { employeeId: adminEmpId, department: adminDept, designation: adminDesig, permissions, isSuperAdmin } = roleSpecificData;
           
           // Check if employee ID already exists
           const existingAdmin = await Admin.findOne({ employeeId: adminEmpId });
@@ -239,14 +262,23 @@ export const createUser = async (req, res) => {
             throw new Error('Admin with this employee ID already exists');
           }
           
+          // Only super admins can create other super admins
+          const canCreateSuperAdmin = req.user && req.user.role === 'admin';
+          let adminRecordCheck;
+          if (canCreateSuperAdmin) {
+            adminRecordCheck = await Admin.findOne({ userId: req.user._id });
+          }
+          
           roleRecord = await Admin.create({
             userId: user._id,
             employeeId: adminEmpId,
             department: adminDept,
             designation: adminDesig || 'Administrator',
-            permissions: permissions || ['manage_users', 'manage_courses']
+            permissions: permissions || ['manage_users', 'manage_courses'],
+            isSuperAdmin: adminRecordCheck && adminRecordCheck.isSuperAdmin && isSuperAdmin === true ? true : false
           });
           break;
+        }
       }
     } catch (roleError) {
       // If role-specific record creation fails, delete the user
@@ -531,6 +563,34 @@ export const deleteUser = async (req, res) => {
         success: false,
         message: 'User not found'
       });
+    }
+
+    // Check if trying to delete an admin account
+    if (user.role === 'admin') {
+      // Only super admins can delete admin accounts
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Only Super Admins can delete admin accounts'
+        });
+      }
+
+      const adminRecord = await Admin.findOne({ userId: req.user._id });
+      if (!adminRecord || !adminRecord.isSuperAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only Super Admins can delete admin accounts'
+        });
+      }
+
+      // Prevent deletion of super admin accounts
+      const targetAdminRecord = await Admin.findOne({ userId: user._id });
+      if (targetAdminRecord && targetAdminRecord.isSuperAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'Super Admin accounts cannot be deleted'
+        });
+      }
     }
 
     // Soft delete - just deactivate

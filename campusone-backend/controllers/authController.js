@@ -58,6 +58,25 @@ export const register = async (req, res) => {
       });
     }
 
+    // Check if trying to create an admin account
+    if (role === 'admin') {
+      // Only super admins can create admin accounts
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Only Super Admins can create admin accounts'
+        });
+      }
+
+      const adminRecord = await Admin.findOne({ userId: req.user._id });
+      if (!adminRecord || !adminRecord.isSuperAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only Super Admins can create admin accounts'
+        });
+      }
+    }
+
     // Validate role
     const validRoles = ['student', 'teacher', 'ta', 'admin'];
     if (!validRoles.includes(role)) {
@@ -76,9 +95,61 @@ export const register = async (req, res) => {
       });
     }
 
+    // Determine username based on role
+    let username;
+    switch (role) {
+      case 'admin':
+      case 'teacher':
+        if (!roleSpecificData.employeeId) {
+          return res.status(400).json({
+            success: false,
+            message: `Please provide employeeId for ${role}`
+          });
+        }
+        username = roleSpecificData.employeeId.toLowerCase();
+        break;
+      case 'student':
+        if (!roleSpecificData.studentId) {
+          return res.status(400).json({
+            success: false,
+            message: 'Please provide studentId for student'
+          });
+        }
+        username = roleSpecificData.studentId.toLowerCase();
+        break;
+      case 'ta':
+        // For TA, we need to get the student's studentId
+        if (!roleSpecificData.studentId) {
+          return res.status(400).json({
+            success: false,
+            message: 'Please provide studentId for TA (TA must be a student)'
+          });
+        }
+        // studentId here refers to the Student model reference, not the studentId field
+        const studentRecord = await Student.findById(roleSpecificData.studentId);
+        if (!studentRecord) {
+          return res.status(400).json({
+            success: false,
+            message: 'Student record not found for TA'
+          });
+        }
+        username = studentRecord.studentId.toLowerCase();
+        break;
+    }
+
+    // Check if username already exists
+    const existingUsername = await User.findOne({ username });
+    if (existingUsername) {
+      return res.status(400).json({
+        success: false,
+        message: 'User with this username already exists'
+      });
+    }
+
     // Create base user
     const user = await User.create({
       name,
+      username,
       email: email.toLowerCase(),
       password, // Will be hashed by pre-save hook in User model
       role,
@@ -89,21 +160,23 @@ export const register = async (req, res) => {
     let roleRecord;
     try {
       switch (role) {
-        case 'student':
-          const { enrollmentNumber, department, batch, currentSemester } = roleSpecificData;
-          if (!enrollmentNumber || !department) {
-            throw new Error('Please provide enrollmentNumber and department for student');
+        case 'student': {
+          const { studentId, enrollmentYear, department, batch, currentSemester } = roleSpecificData;
+          if (!studentId || !enrollmentYear || !department) {
+            throw new Error('Please provide studentId, enrollmentYear, and department for student');
           }
           roleRecord = await Student.create({
             userId: user._id,
-            enrollmentNumber,
+            studentId,
+            enrollmentYear,
             department,
             batch,
             currentSemester: currentSemester || 1
           });
           break;
+        }
 
-        case 'teacher':
+        case 'teacher': {
           const { employeeId: teacherEmpId, department: teacherDept, designation } = roleSpecificData;
           if (!teacherEmpId || !teacherDept) {
             throw new Error('Please provide employeeId and department for teacher');
@@ -115,8 +188,9 @@ export const register = async (req, res) => {
             designation: designation || 'Lecturer'
           });
           break;
+        }
 
-        case 'ta':
+        case 'ta': {
           const { studentId } = roleSpecificData;
           if (!studentId) {
             throw new Error('Please provide studentId for TA (TA must be a student)');
@@ -126,19 +200,26 @@ export const register = async (req, res) => {
             studentId
           });
           break;
+        }
 
-        case 'admin':
-          const { employeeId: adminEmpId, department: adminDept, designation: adminDesig } = roleSpecificData;
+        case 'admin': {
+          const { employeeId: adminEmpId, department: adminDept, designation: adminDesig, isSuperAdmin } = roleSpecificData;
           if (!adminEmpId || !adminDept) {
             throw new Error('Please provide employeeId and department for admin');
           }
+          
+          // Only super admins can create other super admins
+          const canCreateSuperAdmin = req.adminRecord && req.adminRecord.isSuperAdmin;
+          
           roleRecord = await Admin.create({
             userId: user._id,
             employeeId: adminEmpId,
             department: adminDept,
-            designation: adminDesig || 'Administrator'
+            designation: adminDesig || 'Administrator',
+            isSuperAdmin: canCreateSuperAdmin && isSuperAdmin === true ? true : false
           });
           break;
+        }
       }
     } catch (roleError) {
       // If role-specific record creation fails, delete the user
@@ -178,18 +259,18 @@ export const register = async (req, res) => {
  */
 export const login = async (req, res) => {
   try {
-    const { email, password, rememberDevice } = req.body;
+    const { username, password, rememberDevice } = req.body;
 
     // Validate input
-    if (!email || !password) {
+    if (!username || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide email and password'
+        message: 'Please provide username and password'
       });
     }
 
     // Find user (include password field)
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    const user = await User.findOne({ username: username.toLowerCase() }).select('+password');
 
     if (!user) {
       return res.status(401).json({

@@ -7,6 +7,13 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Please provide a name'],
     trim: true
   },
+  username: {
+    type: String,
+    required: [true, 'Please provide a username'],
+    unique: true,
+    trim: true,
+    lowercase: true
+  },
   email: {
     type: String,
     required: [true, 'Please provide an email'],
@@ -107,6 +114,7 @@ const userSchema = new mongoose.Schema({
 
 // Index for faster queries
 userSchema.index({ email: 1 });
+userSchema.index({ username: 1 });
 
 // Hash password before saving
 userSchema.pre('save', async function() {
