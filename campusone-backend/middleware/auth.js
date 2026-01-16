@@ -304,4 +304,69 @@ export const addTrustedDevice = async (req, res, next) => {
   }
 };
 
-export default { protect, authorize, authorizeSuperAdmin, verify2FA, checkDeviceTrust, addTrustedDevice };
+/**
+ * Middleware to authorize based on admin permissions
+ * Super Admins can do everything, regular admins need specific permissions
+ * Usage: authorizePermission('manage_users')
+ */
+export const authorizePermission = (...requiredPermissions) => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Not authorized. Please login first.'
+        });
+      }
+
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. Only admins can perform this action.'
+        });
+      }
+
+      // Import Admin model dynamically to avoid circular dependencies
+      const Admin = (await import('../models/Admin.js')).default;
+      const adminRecord = await Admin.findOne({ userId: req.user._id });
+
+      if (!adminRecord) {
+        return res.status(403).json({
+          success: false,
+          message: 'Admin record not found. Please contact system administrator.'
+        });
+      }
+
+      // Super Admins bypass permission checks
+      if (adminRecord.isSuperAdmin) {
+        req.adminRecord = adminRecord;
+        req.isSuperAdmin = true;
+        return next();
+      }
+
+      // Check if admin has all required permissions
+      const hasPermissions = requiredPermissions.every(permission =>
+        adminRecord.permissions.includes(permission)
+      );
+
+      if (!hasPermissions) {
+        return res.status(403).json({
+          success: false,
+          message: `Access denied. Required permissions: ${requiredPermissions.join(', ')}`
+        });
+      }
+
+      req.adminRecord = adminRecord;
+      req.isSuperAdmin = false;
+      next();
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error verifying permissions',
+        error: error.message
+      });
+    }
+  };
+};
+
+export default { protect, authorize, authorizeSuperAdmin, verify2FA, checkDeviceTrust, addTrustedDevice, authorizePermission };

@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import UserManagement from './pages/UserManagement';
 import DashboardLayout from './components/DashboardLayout';
 import { Toaster } from 'react-hot-toast';
 
@@ -32,7 +33,7 @@ function App() {
           <Route path="/qna" element={<div style={{ padding: '20px' }}>Q&A Forum - Coming Soon</div>} />
           <Route path="/notifications" element={<div style={{ padding: '20px' }}>Notifications Page - Coming Soon</div>} />
           <Route path="/settings" element={<div style={{ padding: '20px' }}>Settings Page - Coming Soon</div>} />
-          <Route path="/users" element={<div style={{ padding: '20px' }}>Users Management - Coming Soon</div>} />
+          <Route path="/users" element={<UserManagement />} />
           <Route path="/reports" element={<div style={{ padding: '20px' }}>Reports Page - Coming Soon</div>} />
           <Route path="/announcements" element={<div style={{ padding: '20px' }}>Announcements Page - Coming Soon</div>} />
         </Route>

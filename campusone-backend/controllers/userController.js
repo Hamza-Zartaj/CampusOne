@@ -155,20 +155,12 @@ export const getUserById = async (req, res) => {
  */
 export const createUser = async (req, res) => {
   try {
-    const { name, email, password, role, ...roleSpecificData } = req.body;
+    const { name, email, password, role, username, ...roleSpecificData } = req.body;
 
     // Check if trying to create an admin account
     if (role === 'admin') {
       // Only super admins can create admin accounts
-      if (!req.user || req.user.role !== 'admin') {
-        return res.status(403).json({
-          success: false,
-          message: 'Only Super Admins can create admin accounts'
-        });
-      }
-
-      const adminRecord = await Admin.findOne({ userId: req.user._id });
-      if (!adminRecord || !adminRecord.isSuperAdmin) {
+      if (!req.isSuperAdmin) {
         return res.status(403).json({
           success: false,
           message: 'Only Super Admins can create admin accounts'
@@ -185,10 +177,23 @@ export const createUser = async (req, res) => {
       });
     }
 
+    // Generate username if not provided
+    const finalUsername = username || email.split('@')[0].toLowerCase();
+
+    // Check if username exists
+    const existingUsername = await User.findOne({ username: finalUsername });
+    if (existingUsername) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username already taken'
+      });
+    }
+
     // Create base user
     const user = await User.create({
       name,
       email: email.toLowerCase(),
+      username: finalUsername,
       password, // Will be hashed by pre-save hook
       role
     });
@@ -655,6 +660,207 @@ export const getUserStats = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get user statistics by role (Admins, Teachers, Students, TAs)
+ * @route   GET /api/users/stats/by-role
+ * @access  Private/Admin (with manage_users permission)
+ */
+export const getUserStatsByRole = async (req, res) => {
+  try {
+    // Count users by each role
+    const [adminCount, teacherCount, studentCount, taCount] = await Promise.all([
+      User.countDocuments({ role: 'admin' }),
+      User.countDocuments({ role: 'teacher' }),
+      User.countDocuments({ role: 'student' }),
+      User.countDocuments({ role: 'ta' })
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        admins: adminCount,
+        teachers: teacherCount,
+        students: studentCount,
+        tas: taCount,
+        total: adminCount + teacherCount + studentCount + taCount
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching user statistics by role',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Promote a student to TA role
+ * @route   POST /api/users/promote-to-ta
+ * @access  Private/Admin (with manage_users permission) or Super Admin
+ */
+export const promoteStudentToTA = async (req, res) => {
+  try {
+    const { studentUserId, courseIds } = req.body;
+
+    if (!studentUserId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide student user ID'
+      });
+    }
+
+    // Find the student user
+    const studentUser = await User.findById(studentUserId);
+
+    if (!studentUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student user not found'
+      });
+    }
+
+    if (studentUser.role !== 'student') {
+      return res.status(400).json({
+        success: false,
+        message: 'User is not a student. Only students can be promoted to TA.'
+      });
+    }
+
+    // Find the student record
+    const studentRecord = await Student.findOne({ userId: studentUserId });
+
+    if (!studentRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student record not found'
+      });
+    }
+
+    // Check if already a TA
+    const existingTA = await TA.findOne({ userId: studentUserId });
+
+    if (existingTA) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student is already a TA'
+      });
+    }
+
+    // Update user role to TA
+    studentUser.role = 'ta';
+    await studentUser.save();
+
+    // Create TA record
+    const assignedCourses = [];
+    if (courseIds && Array.isArray(courseIds) && courseIds.length > 0) {
+      // Verify courses exist
+      const courses = await Course.find({ _id: { $in: courseIds } });
+      
+      if (courses.length !== courseIds.length) {
+        // Rollback user role change
+        studentUser.role = 'student';
+        await studentUser.save();
+        
+        return res.status(400).json({
+          success: false,
+          message: 'One or more course IDs are invalid'
+        });
+      }
+
+      assignedCourses.push(...courseIds.map(courseId => ({
+        courseId,
+        responsibilities: ['Grading', 'Tutorial Sessions'],
+        hoursPerWeek: 0
+      })));
+    }
+
+    const taRecord = await TA.create({
+      userId: studentUserId,
+      studentId: studentRecord._id,
+      assignedCourses
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Student successfully promoted to TA',
+      data: {
+        user: {
+          id: studentUser._id,
+          name: studentUser.name,
+          email: studentUser.email,
+          role: studentUser.role
+        },
+        taRecord
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error promoting student to TA',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Search for students by name, email, or student ID
+ * @route   GET /api/users/search-students
+ * @access  Private/Admin (with manage_users permission)
+ */
+export const searchStudents = async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query || query.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a search query'
+      });
+    }
+
+    // Find users with student role matching the query
+    const students = await User.find({
+      role: 'student',
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { email: { $regex: query, $options: 'i' } },
+        { username: { $regex: query, $options: 'i' } }
+      ]
+    }).select('-password').limit(20);
+
+    // Get student records with student IDs
+    const studentIds = students.map(s => s._id);
+    const studentRecords = await Student.find({ userId: { $in: studentIds } });
+
+    // Combine user and student data
+    const studentsWithDetails = students.map(user => {
+      const studentRecord = studentRecords.find(sr => sr.userId.toString() === user._id.toString());
+      return {
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        username: user.username,
+        studentId: studentRecord?.studentId || 'N/A',
+        department: studentRecord?.department || 'N/A',
+        semester: studentRecord?.currentSemester || 'N/A'
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      count: studentsWithDetails.length,
+      data: studentsWithDetails
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error searching students',
+      error: error.message
+    });
+  }
+};
+
 export default {
   getAllUsers,
   getUserById,
@@ -664,5 +870,8 @@ export default {
   activateUser,
   unlockAccount,
   deleteUser,
-  getUserStats
+  getUserStats,
+  getUserStatsByRole,
+  promoteStudentToTA,
+  searchStudents
 };

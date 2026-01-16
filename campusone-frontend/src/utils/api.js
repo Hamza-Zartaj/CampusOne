@@ -96,4 +96,37 @@ export const authAPI = {
     api.post('/auth/reset-password', { resetToken, newPassword }),
 };
 
+// User Management endpoints
+export const userAPI = {
+  getUserStatsByRole: () => 
+    api.get('/users/stats/by-role'),
+  
+  searchStudents: (query) => 
+    api.get(`/users/search-students?query=${encodeURIComponent(query)}`),
+  
+  createUser: (userData) => 
+    api.post('/users', userData),
+  
+  promoteStudentToTA: (studentUserId, courseIds = []) => 
+    api.post('/users/promote-to-ta', { studentUserId, courseIds }),
+  
+  getAllUsers: (params = {}) => 
+    api.get('/users', { params }),
+  
+  getUserById: (userId) => 
+    api.get(`/users/${userId}`),
+  
+  updateUser: (userId, userData) => 
+    api.put(`/users/${userId}`, userData),
+  
+  deactivateUser: (userId) => 
+    api.put(`/users/${userId}/deactivate`),
+  
+  activateUser: (userId) => 
+    api.put(`/users/${userId}/activate`),
+  
+  deleteUser: (userId) => 
+    api.delete(`/users/${userId}`)
+};
+
 export default api;
