@@ -242,13 +242,15 @@ const UserManagement = () => {
     }
   };
 
-  const roleStats = [
+  // Filter stats based on Super Admin status
+  const allRoleStats = [
     {
       icon: Shield,
       label: 'Admins',
       value: stats.admins,
       color: '#ef4444',
-      gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+      gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+      superAdminOnly: true
     },
     {
       icon: BookOpen,
@@ -272,6 +274,11 @@ const UserManagement = () => {
       gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
     }
   ];
+
+  // Only show admin stats to Super Admins
+  const roleStats = allRoleStats.filter(stat => 
+    !stat.superAdminOnly || isSuperAdmin
+  );
 
   const availablePermissions = [
     { id: 'manage_users', label: 'Manage Users' },
@@ -302,14 +309,20 @@ const UserManagement = () => {
         <div className="header-actions">
           <button 
             className="btn btn-secondary"
-            onClick={() => setShowPromoteTAModal(true)}
+            onClick={() => {
+              setShowPromoteTAModal(true);
+              setError('');
+            }}
           >
             <GraduationCap size={18} />
             Promote to TA
           </button>
           <button 
             className="btn btn-primary"
-            onClick={() => setShowCreateUserModal(true)}
+            onClick={() => {
+              setShowCreateUserModal(true);
+              setError('');
+            }}
           >
             <UserPlus size={18} />
             Create User
@@ -317,17 +330,7 @@ const UserManagement = () => {
         </div>
       </div>
 
-      {/* Alerts */}
-      {error && (
-        <div className="alert alert-error">
-          <AlertCircle size={18} />
-          <span>{error}</span>
-          <button onClick={() => setError('')} className="alert-close">
-            <X size={16} />
-          </button>
-        </div>
-      )}
-      
+      {/* Success Alert - Only show at page level */}
       {success && (
         <div className="alert alert-success">
           <span>{success}</span>
@@ -357,14 +360,31 @@ const UserManagement = () => {
 
       {/* Create User Modal */}
       {showCreateUserModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateUserModal(false)}>
+        <div className="modal-overlay" onClick={() => {
+          setShowCreateUserModal(false);
+          setError('');
+        }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Create New User</h2>
-              <button className="modal-close" onClick={() => setShowCreateUserModal(false)}>
+              <button className="modal-close" onClick={() => {
+                setShowCreateUserModal(false);
+                setError('');
+              }}>
                 <X size={20} />
               </button>
             </div>
+            
+            {/* Error Alert inside modal */}
+            {error && (
+              <div className="alert alert-error" style={{ margin: '1rem 1.5rem 0' }}>
+                <AlertCircle size={18} />
+                <span>{error}</span>
+                <button onClick={() => setError('')} className="alert-close">
+                  <X size={16} />
+                </button>
+              </div>
+            )}
             
             <form onSubmit={handleCreateUser} className="user-form">
               <div className="form-row">
@@ -601,7 +621,10 @@ const UserManagement = () => {
                 <button 
                   type="button" 
                   className="btn btn-secondary"
-                  onClick={() => setShowCreateUserModal(false)}
+                  onClick={() => {
+                    setShowCreateUserModal(false);
+                    setError('');
+                  }}
                 >
                   Cancel
                 </button>
@@ -616,14 +639,31 @@ const UserManagement = () => {
 
       {/* Promote to TA Modal */}
       {showPromoteTAModal && (
-        <div className="modal-overlay" onClick={() => setShowPromoteTAModal(false)}>
+        <div className="modal-overlay" onClick={() => {
+          setShowPromoteTAModal(false);
+          setError('');
+        }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Promote Student to TA</h2>
-              <button className="modal-close" onClick={() => setShowPromoteTAModal(false)}>
+              <button className="modal-close" onClick={() => {
+                setShowPromoteTAModal(false);
+                setError('');
+              }}>
                 <X size={20} />
               </button>
             </div>
+            
+            {/* Error Alert inside modal */}
+            {error && (
+              <div className="alert alert-error" style={{ margin: '1rem 1.5rem 0' }}>
+                <AlertCircle size={18} />
+                <span>{error}</span>
+                <button onClick={() => setError('')} className="alert-close">
+                  <X size={16} />
+                </button>
+              </div>
+            )}
             
             <div className="ta-promotion-form">
               <div className="form-group">
@@ -688,6 +728,7 @@ const UserManagement = () => {
                     setSelectedStudent(null);
                     setStudentSearch('');
                     setSearchResults([]);
+                    setError('');
                   }}
                 >
                   Cancel
