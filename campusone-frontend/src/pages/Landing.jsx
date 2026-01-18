@@ -1,10 +1,28 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Users, Award, CheckCircle, ArrowRight } from 'lucide-react';
+import { BookOpen, Users, Award, CheckCircle, ArrowRight, UserPlus } from 'lucide-react';
+import { admissionAPI } from '../utils/api';
 import '../styles/Landing.css';
 
 const Landing = () => {
   const navigate = useNavigate();
+  const [admissionsOpen, setAdmissionsOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkAdmissionStatus();
+  }, []);
+
+  const checkAdmissionStatus = async () => {
+    try {
+      const response = await admissionAPI.getSettings();
+      setAdmissionsOpen(response.data.data.isOpen);
+    } catch (error) {
+      console.error('Error checking admission status:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const features = [
     {
@@ -42,10 +60,18 @@ const Landing = () => {
             <BookOpen size={32} />
             <h2>CampusOne</h2>
           </div>
-          <button className="login-btn" onClick={() => navigate('/login')}>
-            Login
-            <ArrowRight size={18} />
-          </button>
+          <div className="nav-buttons">
+            {!loading && admissionsOpen && (
+              <button className="apply-btn" onClick={() => navigate('/apply')}>
+                <UserPlus size={18} />
+                Apply Now
+              </button>
+            )}
+            <button className="login-btn" onClick={() => navigate('/login')}>
+              Login
+              <ArrowRight size={18} />
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -61,11 +87,14 @@ const Landing = () => {
               Empowering students, teachers, and administrators.
             </p>
             <div className="hero-buttons">
+              {!loading && admissionsOpen && (
+                <button className="btn-apply-hero" onClick={() => navigate('/apply')}>
+                  <UserPlus size={20} />
+                  Apply for Admission
+                </button>
+              )}
               <button className="btn-primary" onClick={() => navigate('/login')}>
                 Get Started
-              </button>
-              <button className="btn-secondary">
-                Learn More
               </button>
             </div>
           </div>

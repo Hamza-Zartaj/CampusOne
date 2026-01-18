@@ -3,6 +3,8 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import UserManagement from './pages/UserManagement';
+import AdmissionSettings from './pages/AdmissionSettings';
+import AdmissionApplication from './pages/AdmissionApplication';
 import DashboardLayout from './components/DashboardLayout';
 import { Toaster } from 'react-hot-toast';
 
@@ -22,6 +24,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/apply" element={<AdmissionApplication />} />
         
         {/* Protected Dashboard Routes */}
         <Route element={<DashboardLayout />}>
@@ -35,6 +38,7 @@ function App() {
           <Route path="/notifications" element={<div style={{ padding: '20px' }}>Notifications Page - Coming Soon</div>} />
           <Route path="/settings" element={<div style={{ padding: '20px' }}>Settings Page - Coming Soon</div>} />
           <Route path="/users" element={<UserManagement />} />
+          <Route path="/admissions" element={<AdmissionSettings />} />
           <Route path="/reports" element={<div style={{ padding: '20px' }}>Reports Page - Coming Soon</div>} />
           <Route path="/announcements" element={<div style={{ padding: '20px' }}>Announcements Page - Coming Soon</div>} />
         </Route>

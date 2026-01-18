@@ -12,7 +12,8 @@ import {
   FileText,
   GraduationCap,
   UserCheck,
-  BarChart
+  BarChart,
+  UserPlus
 } from 'lucide-react';
 import '../styles/Sidebar.css';
 
@@ -32,6 +33,7 @@ const Sidebar = ({ isOpen }) => {
       admin: [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { path: '/users', icon: Users, label: 'Users' },
+        { path: '/admissions', icon: UserPlus, label: 'Admissions' },
         { path: '/courses', icon: BookOpen, label: 'Courses' },
         { path: '/announcements', icon: Bell, label: 'Announcements' },
         { path: '/reports', icon: BarChart, label: 'Reports' },

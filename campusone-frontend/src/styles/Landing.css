@@ -43,6 +43,33 @@
   stroke-width: 2.5;
 }
 
+.nav-buttons {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.apply-btn {
+  background: white;
+  color: var(--primary-blue);
+  border: 2px solid white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 50px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: var(--transition-normal);
+  font-size: 1rem;
+}
+
+.apply-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.95);
+}
+
 .login-btn {
   background: var(--gradient-primary);
   color: white;
@@ -125,6 +152,27 @@
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
+}
+
+.btn-apply-hero {
+  background: white;
+  color: var(--primary-blue);
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 50px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: var(--transition-normal);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.3);
+}
+
+.btn-apply-hero:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 8px 30px rgba(255, 255, 255, 0.5);
 }
 
 .btn-primary {
@@ -420,6 +468,11 @@
     justify-content: center;
   }
 
+  .btn-apply-hero {
+    width: 100%;
+    justify-content: center;
+  }
+
   .benefits-content {
     grid-template-columns: 1fr;
   }
@@ -443,7 +496,18 @@
   .nav-container {
     padding: 0 1rem;
   }
+nav-buttons {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
 
+  .apply-btn,
+  .login-btn {
+    font-size: 0.9rem;
+    padding: 0.625rem 1.25rem;
+  }
+
+  .
   .logo h2 {
     font-size: 1.25rem;
   }

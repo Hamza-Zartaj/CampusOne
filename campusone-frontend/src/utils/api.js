@@ -129,4 +129,35 @@ export const userAPI = {
     api.delete(`/users/${userId}`)
 };
 
+// Admission API
+export const admissionAPI = {
+  // Get admission settings (public)
+  getSettings: () => 
+    api.get('/admissions/settings'),
+  
+  // Update admission settings (admin only)
+  updateSettings: (settings) => 
+    api.put('/admissions/settings', settings),
+  
+  // Submit admission application (public)
+  submitApplication: (applicationData) => 
+    api.post('/admissions/apply', applicationData),
+  
+  // Get all applications (admin only)
+  getAllApplications: (params = {}) => 
+    api.get('/admissions/applications', { params }),
+  
+  // Get single application
+  getApplication: (id) => 
+    api.get(`/admissions/applications/${id}`),
+  
+  // Update application status (admin only)
+  updateApplicationStatus: (id, status, reviewNotes) => 
+    api.put(`/admissions/applications/${id}/status`, { status, reviewNotes }),
+  
+  // Get application statistics (admin only)
+  getStatistics: () => 
+    api.get('/admissions/statistics')
+};
+
 export default api;
