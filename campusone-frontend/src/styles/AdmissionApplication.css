@@ -1,7 +1,7 @@
 /* Admission Application Styles */
 
 .admission-application {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
 }
@@ -146,8 +146,8 @@
 }
 
 .form-section {
-  margin-bottom: 2.5rem;
-  padding-bottom: 2rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
   border-bottom: 1px solid var(--border-light);
 }
 
@@ -173,9 +173,13 @@
 
 .form-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
   margin-bottom: 1.5rem;
+}
+
+.form-row.three-col {
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .form-group {
@@ -382,7 +386,7 @@
 }
 
 .education-form {
-  background: var(--bg-secondary);
+  /* background: var(--bg-secondary); */
   padding: 1.5rem;
   border-radius: var(--radius-md);
   margin-bottom: 2rem;

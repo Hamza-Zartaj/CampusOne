@@ -411,7 +411,7 @@ const AdmissionApplication = () => {
         {/* Personal Information */}
         <section className="form-section">
           <h2>Personal Information</h2>
-          <div className="form-row">
+          <div className="form-row three-col">
             <div className="form-group required">
               <label>Full Name</label>
               <input
@@ -432,6 +432,19 @@ const AdmissionApplication = () => {
                 onChange={handleChange}
                 required
               />
+            </div>
+            <div className="form-group">
+              <label>Gender</label>
+              <select
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+              >
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+                <option value="Prefer not to say">Prefer not to say</option>
+              </select>
             </div>
           </div>
 
@@ -460,9 +473,6 @@ const AdmissionApplication = () => {
                 title="Please enter a valid Pakistani phone number (e.g., 0300-1234567)"
               />
             </div>
-          </div>
-
-          <div className="form-row">
             <div className="form-group required">
               <label>CNIC Number</label>
               <input
@@ -475,19 +485,6 @@ const AdmissionApplication = () => {
                 pattern="^[0-9]{5}-[0-9]{7}-[0-9]$"
                 title="Please enter CNIC in format: XXXXX-XXXXXXX-X"
               />
-            </div>
-            <div className="form-group">
-              <label>Gender</label>
-              <select
-                name="gender"
-                value={formData.gender}
-                onChange={handleChange}
-              >
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-                <option value="Prefer not to say">Prefer not to say</option>
-              </select>
             </div>
           </div>
 
@@ -593,46 +590,59 @@ const AdmissionApplication = () => {
             <MapPin size={20} />
             Address
           </h2>
-          <div className="form-group">
-            <label className="required-label">Nationality</label>
-            <select
-              name="nationality"
-              value={formData.address.nationality}
-              onChange={(e) => handleChange(e, 'address')}
-              required
-            >
-              <option value="Pakistani">Pakistani</option>
-              <option value="Foreigner">Foreigner</option>
-            </select>
-          </div>
-
-          {formData.address.nationality === 'Pakistani' && (
-            <div className="form-group required">
-              <label>Domicile Upload (PDF, JPG, PNG - Max 5MB)</label>
-              <input
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => handleFileChange(e, 'domicileUpload', 'address')}
-                className="file-input"
+          <div className="form-row">
+            <div className="form-group">
+              <label className="required-label">Nationality</label>
+              <select
+                name="nationality"
+                value={formData.address.nationality}
+                onChange={(e) => handleChange(e, 'address')}
                 required
-              />
-              {formData.address.domicileUpload && (
-                <span className="file-name">{formData.address.domicileUpload.name}</span>
-              )}
+              >
+                <option value="Pakistani">Pakistani</option>
+                <option value="Foreigner">Foreigner</option>
+              </select>
             </div>
-          )}
 
-          <div className="form-group">
-            <label>Street Address</label>
-            <input
-              type="text"
-              name="street"
-              value={formData.address.street}
-              onChange={(e) => handleChange(e, 'address')}
-              placeholder="123 Main Street"
-            />
+            {formData.address.nationality === 'Pakistani' && (
+              <div className="form-group required">
+                <label>Domicile Upload (PDF, JPG, PNG - Max 5MB)</label>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => handleFileChange(e, 'domicileUpload', 'address')}
+                  className="file-input"
+                  required
+                />
+                {formData.address.domicileUpload && (
+                  <span className="file-name">{formData.address.domicileUpload.name}</span>
+                )}
+              </div>
+            )}
           </div>
+
           <div className="form-row">
+            <div className="form-group">
+              <label>Street Address</label>
+              <input
+                type="text"
+                name="street"
+                value={formData.address.street}
+                onChange={(e) => handleChange(e, 'address')}
+                placeholder="123 Main Street"
+              />
+            </div>
+            <div className="form-group">
+              <label>Zip/Postal Code</label>
+              <input
+                type="text"
+                name="zipCode"
+                value={formData.address.zipCode}
+                onChange={(e) => handleChange(e, 'address')}
+              />
+            </div>
+          </div>
+          <div className="form-row three-col">
             <div className="form-group">
               <label>City</label>
               <input
@@ -651,81 +661,12 @@ const AdmissionApplication = () => {
                 onChange={(e) => handleChange(e, 'address')}
               />
             </div>
-          </div>
-          <div className="form-row">
             <div className="form-group">
               <label>Country</label>
               <input
                 type="text"
                 name="country"
                 value={formData.address.country}
-                onChange={(e) => handleChange(e, 'address')}
-              />
-            </div>
-            <div className="form-group">
-              <label>Zip/Postal Code</label>
-              <input
-                type="text"
-                name="zipCode"
-                value={formData.address.zipCode}
-                onChange={(e) => handleChange(e, 'address')}
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* Address */}
-        <section className="form-section">
-          <h2>
-            <MapPin size={20} />
-            Address
-          </h2>
-          <div className="form-group">
-            <label>Street Address</label>
-            <input
-              type="text"
-              name="street"
-              value={formData.address.street}
-              onChange={(e) => handleChange(e, 'address')}
-              placeholder="123 Main Street"
-            />
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label>City</label>
-              <input
-                type="text"
-                name="city"
-                value={formData.address.city}
-                onChange={(e) => handleChange(e, 'address')}
-              />
-            </div>
-            <div className="form-group">
-              <label>State/Province</label>
-              <input
-                type="text"
-                name="state"
-                value={formData.address.state}
-                onChange={(e) => handleChange(e, 'address')}
-              />
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Country</label>
-              <input
-                type="text"
-                name="country"
-                value={formData.address.country}
-                onChange={(e) => handleChange(e, 'address')}
-              />
-            </div>
-            <div className="form-group">
-              <label>Zip/Postal Code</label>
-              <input
-                type="text"
-                name="zipCode"
-                value={formData.address.zipCode}
                 onChange={(e) => handleChange(e, 'address')}
               />
             </div>
@@ -807,7 +748,7 @@ const AdmissionApplication = () => {
               </div>
             </div>
 
-            <div className="form-row">
+            <div className="form-row three-col">
               <div className="form-group required">
                 <label>Graduation / Completion Year</label>
                 <input
@@ -879,17 +820,6 @@ const AdmissionApplication = () => {
                 )}
                 {educationErrors.transcript && <span className="error-text">{educationErrors.transcript}</span>}
               </div>
-            </div>
-
-            <div className="form-group">
-              <label>Additional Remarks (Optional)</label>
-              <textarea
-                name="remarks"
-                value={currentEducation.remarks}
-                onChange={handleEducationChange}
-                placeholder="Any additional information about this education..."
-                rows="2"
-              />
             </div>
 
             <div className="education-form-actions">
@@ -990,7 +920,7 @@ const AdmissionApplication = () => {
               name="personalStatement"
               value={formData.personalStatement}
               onChange={handleChange}
-              rows="8"
+              rows="4"
               maxLength="2000"
               placeholder="Share your goals, interests, and what makes you a great fit..."
             />
