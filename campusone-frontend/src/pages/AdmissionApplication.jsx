@@ -11,7 +11,9 @@ import {
   FileText,
   Send,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  ChevronRight,
+  ChevronLeft
 } from 'lucide-react';
 import '../styles/AdmissionApplication.css';
 
@@ -23,6 +25,18 @@ const AdmissionApplication = () => {
   const [submitted, setSubmitted] = useState(false);
   const [applicationNumber, setApplicationNumber] = useState('');
   const [programs, setPrograms] = useState([]);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [maxStepReached, setMaxStepReached] = useState(0);
+
+  const steps = [
+    { title: 'Personal Information', icon: UserPlus },
+    { title: 'Father/Guardian Info', icon: UserPlus },
+    { title: 'Previous Education', icon: FileText },
+    { title: 'Address & Nationality', icon: MapPin },
+    { title: 'Program Details', icon: FileText },
+    { title: 'Personal Statement', icon: FileText },
+    { title: 'Review & Submit', icon: CheckCircle }
+  ];
   
   const [formData, setFormData] = useState({
     fullName: '',
@@ -320,9 +334,70 @@ const AdmissionApplication = () => {
     setEducationErrors({});
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
+  const validateStep = (step) => {
+    switch (step) {
+      case 0: // Personal Information
+        if (!formData.fullName || !formData.email || !formData.phone || !formData.cnic || !formData.dateOfBirth) {
+          toast.error('Please fill in all required personal information fields');
+          return false;
+        }
+        return true;
+      
+      case 1: // Father/Guardian Information (optional)
+        return true;
+      
+      case 2: // Previous Education
+        if (formData.educationRecords.length === 0) {
+          toast.error('Please add at least one education record');
+          return false;
+        }
+        return true;
+      
+      case 3: // Address & Nationality
+        if (formData.address.nationality === 'Pakistani' && !formData.address.domicileUpload) {
+          toast.error('Domicile upload is required for Pakistani nationals');
+          return false;
+        }
+        return true;
+      
+      case 4: // Program Details
+        if (!formData.program) {
+          toast.error('Please select a program');
+          return false;
+        }
+        return true;
+      
+      case 5: // Personal Statement (optional)
+        return true;
+      
+      default:
+        return true;
+    }
+  };
+
+  const nextStep = () => {
+    if (validateStep(currentStep)) {
+      const newStep = Math.min(currentStep + 1, steps.length - 1);
+      setCurrentStep(newStep);
+      setMaxStepReached(prev => Math.max(prev, newStep));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const prevStep = () => {
+    setCurrentStep(prev => Math.max(prev - 1, 0));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const goToStep = (stepIndex) => {
+    // Only allow navigation to current step or previously reached steps
+    if (stepIndex <= maxStepReached) {
+      setCurrentStep(stepIndex);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleSubmit = async () => {
     // Basic validation
     if (!formData.fullName || !formData.email || !formData.phone || !formData.cnic || !formData.dateOfBirth || !formData.program) {
       toast.error('Please fill in all required fields');
@@ -407,8 +482,25 @@ const AdmissionApplication = () => {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="application-form">
-        {/* Personal Information */}
+      {/* Step Indicator */}
+      <div className="step-indicator">
+        {steps.map((step, index) => (
+          <div 
+            key={index} 
+            className={`step ${index === currentStep ? 'active' : ''} ${index < currentStep ? 'completed' : ''} ${index <= maxStepReached ? 'clickable' : 'disabled'}`}
+            onClick={() => goToStep(index)}
+          >
+            <div className="step-number">
+              {index < currentStep ? <CheckCircle size={20} /> : index + 1}
+            </div>
+            <div className="step-title">{step.title}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="application-form">
+        {/* Step 0: Personal Information */}
+        {currentStep === 0 && (
         <section className="form-section">
           <h2>Personal Information</h2>
           <div className="form-row three-col">
@@ -515,8 +607,10 @@ const AdmissionApplication = () => {
             </div>
           </div>
         </section>
+        )}
 
-        {/* Father/Guardian Information */}
+        {/* Step 1: Father/Guardian Information */}
+        {currentStep === 1 && (
         <section className="form-section">
           <h2>Father / Guardian Information</h2>
           <div className="form-row">
@@ -583,8 +677,10 @@ const AdmissionApplication = () => {
             )}
           </div>
         </section>
+        )}
 
-        {/* Address */}
+        {/* Step 3: Address & Nationality */}
+        {currentStep === 3 && (
         <section className="form-section">
           <h2>
             <MapPin size={20} />
@@ -672,8 +768,10 @@ const AdmissionApplication = () => {
             </div>
           </div>
         </section>
+        )}
 
-        {/* Previous Education */}
+        {/* Step 2: Previous Education */}
+        {currentStep === 2 && (
         <section className="form-section" id="education-form-section">
           <h2>Previous Education</h2>
           <p className="section-description">
@@ -886,8 +984,10 @@ const AdmissionApplication = () => {
             </div>
           )}
         </section>
+        )}
 
-        {/* Program Selection */}
+        {/* Step 4: Program Selection */}
+        {currentStep === 4 && (
         <section className="form-section">
           <h2>Program Details</h2>
           <div className="form-group required">
@@ -907,8 +1007,10 @@ const AdmissionApplication = () => {
             </select>
           </div>
         </section>
+        )}
 
-        {/* Personal Statement */}
+        {/* Step 5: Personal Statement */}
+        {currentStep === 5 && (
         <section className="form-section">
           <h2>
             <FileText size={20} />
@@ -927,27 +1029,112 @@ const AdmissionApplication = () => {
             <span className="char-count">{formData.personalStatement.length}/2000</span>
           </div>
         </section>
+        )}
 
-        {/* Submit Button */}
-        <div className="form-actions">
-          <button type="button" className="btn-secondary" onClick={() => navigate('/')}>
-            Cancel
-          </button>
-          <button type="submit" className="btn-submit" disabled={submitting}>
-            {submitting ? (
-              <>
-                <div className="spinner-small"></div>
-                Submitting...
-              </>
-            ) : (
-              <>
-                <Send size={18} />
-                Submit Application
-              </>
+        {/* Step 6: Review & Submit */}
+        {currentStep === 6 && (
+          <section className="form-section">
+            <h2>Review Your Application</h2>
+            <div className="review-section">
+              <h3>Personal Information</h3>
+              <div className="review-grid">
+                <div className="review-item"><strong>Full Name:</strong> {formData.fullName}</div>
+                <div className="review-item"><strong>Date of Birth:</strong> {formData.dateOfBirth}</div>
+                <div className="review-item"><strong>Gender:</strong> {formData.gender}</div>
+                <div className="review-item"><strong>Email:</strong> {formData.email}</div>
+                <div className="review-item"><strong>Phone:</strong> {formData.phone}</div>
+                <div className="review-item"><strong>CNIC:</strong> {formData.cnic}</div>
+                <div className="review-item"><strong>CNIC Front:</strong> {formData.cnicFront?.name || 'Not uploaded'}</div>
+                <div className="review-item"><strong>CNIC Back:</strong> {formData.cnicBack?.name || 'Not uploaded'}</div>
+              </div>
+            </div>
+
+            {(formData.fatherGuardian.name || formData.fatherGuardian.relation) && (
+              <div className="review-section">
+                <h3>Father/Guardian Information</h3>
+                <div className="review-grid">
+                  {formData.fatherGuardian.relation && <div className="review-item"><strong>Relation:</strong> {formData.fatherGuardian.relation}</div>}
+                  {formData.fatherGuardian.name && <div className="review-item"><strong>Name:</strong> {formData.fatherGuardian.name}</div>}
+                  {formData.fatherGuardian.phone && <div className="review-item"><strong>Phone:</strong> {formData.fatherGuardian.phone}</div>}
+                  {formData.fatherGuardian.cnic && <div className="review-item"><strong>CNIC:</strong> {formData.fatherGuardian.cnic}</div>}
+                </div>
+              </div>
             )}
-          </button>
+
+            <div className="review-section">
+              <h3>Previous Education</h3>
+              {formData.educationRecords.map((edu, index) => (
+                <div key={index} className="review-education-item">
+                  <h4>{edu.level} - {edu.degreeName}</h4>
+                  <div className="review-grid">
+                    <div className="review-item"><strong>Institution:</strong> {edu.institution}</div>
+                    <div className="review-item"><strong>Board/University:</strong> {edu.board}</div>
+                    <div className="review-item"><strong>Year:</strong> {edu.completionYear}</div>
+                    <div className="review-item"><strong>Result:</strong> {edu.result} ({edu.resultType})</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="review-section">
+              <h3>Address & Nationality</h3>
+              <div className="review-grid">
+                <div className="review-item"><strong>Nationality:</strong> {formData.address.nationality}</div>
+                {formData.address.street && <div className="review-item"><strong>Street:</strong> {formData.address.street}</div>}
+                {formData.address.city && <div className="review-item"><strong>City:</strong> {formData.address.city}</div>}
+                {formData.address.state && <div className="review-item"><strong>State/Province:</strong> {formData.address.state}</div>}
+                {formData.address.country && <div className="review-item"><strong>Country:</strong> {formData.address.country}</div>}
+                {formData.address.zipCode && <div className="review-item"><strong>Zip Code:</strong> {formData.address.zipCode}</div>}
+              </div>
+            </div>
+
+            <div className="review-section">
+              <h3>Program Details</h3>
+              <div className="review-grid">
+                <div className="review-item"><strong>Selected Program:</strong> {formData.program}</div>
+              </div>
+            </div>
+
+            {formData.personalStatement && (
+              <div className="review-section">
+                <h3>Personal Statement</h3>
+                <p className="review-statement">{formData.personalStatement}</p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Navigation Buttons */}
+        <div className="form-actions">
+          {currentStep > 0 && (
+            <button type="button" className="btn-secondary" onClick={prevStep}>
+              <ChevronLeft size={18} />
+              Previous
+            </button>
+          )}
+          
+          {currentStep < steps.length - 1 ? (
+            <button type="button" className="btn-primary" onClick={nextStep}>
+              Next
+              <ChevronRight size={18} />
+            </button>
+          ) : (
+            <button type="button" className="btn-submit" disabled={submitting} onClick={handleSubmit}>
+              {submitting ? (
+                <>
+                  <div className="spinner-small"></div>
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send size={18} />
+                  Submit Application
+                </>
+              )}
+            </button>
+          )}
         </div>
-      </form>
+      </div>
     </div>
   );
 };
