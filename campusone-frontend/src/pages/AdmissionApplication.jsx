@@ -49,22 +49,26 @@ const AdmissionApplication = () => {
       nationality: 'Pakistani',
       domicileUpload: null
     },
-    previousEducation: {
-      highSchool: {
-        name: '',
-        graduationYear: '',
-        gpa: ''
-      },
-      college: {
-        name: '',
-        degree: '',
-        graduationYear: '',
-        gpa: ''
-      }
-    },
+    educationRecords: [],
     program: '',
     personalStatement: ''
   });
+
+  const [currentEducation, setCurrentEducation] = useState({
+    level: '',
+    degreeName: '',
+    institution: '',
+    board: '',
+    completionYear: '',
+    resultType: '',
+    result: '',
+    transcript: null,
+    country: '',
+    remarks: ''
+  });
+
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [educationErrors, setEducationErrors] = useState({});
 
   useEffect(() => {
     checkAdmissionStatus();
@@ -169,6 +173,153 @@ const AdmissionApplication = () => {
     }
   };
 
+  const handleEducationChange = (e) => {
+    const { name, value } = e.target;
+    setCurrentEducation(prev => ({
+      ...prev,
+      [name]: value
+    }));
+
+    // Clear error for this field
+    if (educationErrors[name]) {
+      setEducationErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
+
+    // Auto-set result type based on education level
+    if (name === 'level') {
+      const belowBachelors = ['Matric', 'O-Level', 'Intermediate', 'A-Level'];
+      if (belowBachelors.includes(value)) {
+        setCurrentEducation(prev => ({ ...prev, resultType: 'Percentage' }));
+      } else if (value) {
+        setCurrentEducation(prev => ({ ...prev, resultType: 'CGPA' }));
+      }
+    }
+  };
+
+  const handleEducationFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Only PDF, JPG, and PNG files are allowed');
+      e.target.value = '';
+      return;
+    }
+
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error('File size must be less than 5MB');
+      e.target.value = '';
+      return;
+    }
+
+    setCurrentEducation(prev => ({ ...prev, transcript: file }));
+  };
+
+  const validateEducation = () => {
+    const errors = {};
+    if (!currentEducation.level) errors.level = 'Education level is required';
+    if (!currentEducation.degreeName) errors.degreeName = 'Degree/Program name is required';
+    if (!currentEducation.institution) errors.institution = 'Institution name is required';
+    if (!currentEducation.board) errors.board = 'Board/University is required';
+    if (!currentEducation.completionYear) errors.completionYear = 'Completion year is required';
+    if (!currentEducation.resultType) errors.resultType = 'Result type is required';
+    if (!currentEducation.result) errors.result = 'Result is required';
+    if (!currentEducation.transcript) errors.transcript = 'Transcript upload is required';
+
+    setEducationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const addEducation = () => {
+    if (!validateEducation()) {
+      toast.error('Please fill in all required education fields');
+      return;
+    }
+
+    if (editingIndex !== null) {
+      const updated = [...formData.educationRecords];
+      updated[editingIndex] = currentEducation;
+      setFormData(prev => ({ ...prev, educationRecords: updated }));
+      toast.success('Education record updated');
+      setEditingIndex(null);
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        educationRecords: [...prev.educationRecords, currentEducation]
+      }));
+      toast.success('Education record added');
+    }
+
+    setCurrentEducation({
+      level: '',
+      degreeName: '',
+      institution: '',
+      board: '',
+      completionYear: '',
+      resultType: '',
+      result: '',
+      transcript: null,
+      country: '',
+      remarks: ''
+    });
+    setEducationErrors({});
+  };
+
+  const editEducation = (index) => {
+    setCurrentEducation(formData.educationRecords[index]);
+    setEditingIndex(index);
+    const section = document.getElementById('education-form-section');
+    if (section) {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const deleteEducation = (index) => {
+    if (window.confirm('Are you sure you want to delete this education record?')) {
+      const updated = formData.educationRecords.filter((_, i) => i !== index);
+      setFormData(prev => ({ ...prev, educationRecords: updated }));
+      toast.success('Education record deleted');
+      
+      if (editingIndex === index) {
+        setCurrentEducation({
+          level: '',
+          degreeName: '',
+          institution: '',
+          board: '',
+          completionYear: '',
+          resultType: '',
+          result: '',
+          transcript: null,
+          country: '',
+          remarks: ''
+        });
+        setEditingIndex(null);
+      }
+    }
+  };
+
+  const cancelEditEducation = () => {
+    setCurrentEducation({
+      level: '',
+      degreeName: '',
+      institution: '',
+      board: '',
+      completionYear: '',
+      resultType: '',
+      result: '',
+      transcript: null,
+      country: '',
+      remarks: ''
+    });
+    setEditingIndex(null);
+    setEducationErrors({});
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -181,6 +332,12 @@ const AdmissionApplication = () => {
     // Validate Pakistani nationality requires domicile
     if (formData.address.nationality === 'Pakistani' && !formData.address.domicileUpload) {
       toast.error('Domicile upload is required for Pakistani nationals');
+      return;
+    }
+
+    // Validate at least one education record
+    if (formData.educationRecords.length === 0) {
+      toast.error('Please add at least one education record');
       return;
     }
     
@@ -291,14 +448,14 @@ const AdmissionApplication = () => {
               />
             </div>
             <div className="form-group required">
-              <label>Phone Number (Pakistani Format)</label>
+              <label>Phone Number</label>
               <input
                 type="tel"
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
                 required
-                placeholder="03XX-XXXXXXX or +92-3XX-XXXXXXX"
+                placeholder="03XX-XXXXXXX"
                 pattern="^(\+92|0)?3[0-9]{2}-?[0-9]{7}$"
                 title="Please enter a valid Pakistani phone number (e.g., 0300-1234567)"
               />
@@ -364,7 +521,7 @@ const AdmissionApplication = () => {
 
         {/* Father/Guardian Information */}
         <section className="form-section">
-          <h2>Father / Guardian Information (Optional)</h2>
+          <h2>Father / Guardian Information</h2>
           <div className="form-row">
             <div className="form-group">
               <label>Relation</label>
@@ -576,90 +733,228 @@ const AdmissionApplication = () => {
         </section>
 
         {/* Previous Education */}
-        <section className="form-section">
+        <section className="form-section" id="education-form-section">
           <h2>Previous Education</h2>
-          <h3>High School</h3>
-          <div className="form-row">
+          <p className="section-description">
+            Add your academic history below. You can add multiple education records (Matric, Intermediate, Bachelor's, Master's, etc.)
+          </p>
+
+          {/* Education Entry Form */}
+          <div className="education-form">
+            <h3>{editingIndex !== null ? 'Edit Education Record' : 'Add Education Record'}</h3>
+            
+            <div className="form-row">
+              <div className="form-group required">
+                <label>Education Level</label>
+                <select
+                  name="level"
+                  value={currentEducation.level}
+                  onChange={handleEducationChange}
+                  className={educationErrors.level ? 'error' : ''}
+                >
+                  <option value="">Select Level</option>
+                  <option value="Matric">Matric</option>
+                  <option value="O-Level">O-Level</option>
+                  <option value="Intermediate">Intermediate</option>
+                  <option value="A-Level">A-Level</option>
+                  <option value="Bachelor's">Bachelor's</option>
+                  <option value="Master's">Master's</option>
+                  <option value="MPhil">MPhil</option>
+                  <option value="PhD">PhD</option>
+                </select>
+                {educationErrors.level && <span className="error-text">{educationErrors.level}</span>}
+              </div>
+
+              <div className="form-group required">
+                <label>Degree / Program Name</label>
+                <input
+                  type="text"
+                  name="degreeName"
+                  value={currentEducation.degreeName}
+                  onChange={handleEducationChange}
+                  placeholder="e.g., BS Computer Science, SSC Science"
+                  className={educationErrors.degreeName ? 'error' : ''}
+                />
+                {educationErrors.degreeName && <span className="error-text">{educationErrors.degreeName}</span>}
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group required">
+                <label>School / Institute / College / University Name</label>
+                <input
+                  type="text"
+                  name="institution"
+                  value={currentEducation.institution}
+                  onChange={handleEducationChange}
+                  placeholder="Institution name"
+                  className={educationErrors.institution ? 'error' : ''}
+                />
+                {educationErrors.institution && <span className="error-text">{educationErrors.institution}</span>}
+              </div>
+
+              <div className="form-group required">
+                <label>Board / University</label>
+                <input
+                  type="text"
+                  name="board"
+                  value={currentEducation.board}
+                  onChange={handleEducationChange}
+                  placeholder="e.g., FBISE, University of Punjab"
+                  className={educationErrors.board ? 'error' : ''}
+                />
+                {educationErrors.board && <span className="error-text">{educationErrors.board}</span>}
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group required">
+                <label>Graduation / Completion Year</label>
+                <input
+                  type="number"
+                  name="completionYear"
+                  value={currentEducation.completionYear}
+                  onChange={handleEducationChange}
+                  placeholder="2020"
+                  min="1950"
+                  max="2050"
+                  className={educationErrors.completionYear ? 'error' : ''}
+                />
+                {educationErrors.completionYear && <span className="error-text">{educationErrors.completionYear}</span>}
+              </div>
+
+              <div className="form-group required">
+                <label>Result Type</label>
+                <select
+                  name="resultType"
+                  value={currentEducation.resultType}
+                  onChange={handleEducationChange}
+                  disabled={!currentEducation.level}
+                  className={educationErrors.resultType ? 'error' : ''}
+                >
+                  <option value="">Select Result Type</option>
+                  {['Matric', 'O-Level', 'Intermediate', 'A-Level'].includes(currentEducation.level) ? (
+                    <>
+                      <option value="Percentage">Percentage</option>
+                      <option value="Marks">Marks</option>
+                    </>
+                  ) : (
+                    <option value="CGPA">CGPA</option>
+                  )}
+                </select>
+                {educationErrors.resultType && <span className="error-text">{educationErrors.resultType}</span>}
+              </div>
+
+              <div className="form-group required">
+                <label>Result</label>
+                <input
+                  type="text"
+                  name="result"
+                  value={currentEducation.result}
+                  onChange={handleEducationChange}
+                  placeholder={
+                    currentEducation.resultType === 'CGPA' ? 'e.g., 3.5' :
+                    currentEducation.resultType === 'Percentage' ? 'e.g., 85%' :
+                    currentEducation.resultType === 'Marks' ? 'e.g., 850/1100' :
+                    'Enter result'
+                  }
+                  className={educationErrors.result ? 'error' : ''}
+                />
+                {educationErrors.result && <span className="error-text">{educationErrors.result}</span>}
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group required">
+                <label>Transcript Upload</label>
+                <input
+                  type="file"
+                  name="transcript"
+                  onChange={handleEducationFileChange}
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className={educationErrors.transcript ? 'error file-input' : 'file-input'}
+                />
+                {currentEducation.transcript && (
+                  <span className="file-name">Selected: {currentEducation.transcript.name}</span>
+                )}
+                {educationErrors.transcript && <span className="error-text">{educationErrors.transcript}</span>}
+              </div>
+            </div>
+
             <div className="form-group">
-              <label>School Name</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.previousEducation.highSchool.name}
-                onChange={(e) => handleChange(e, 'previousEducation', 'highSchool')}
+              <label>Additional Remarks (Optional)</label>
+              <textarea
+                name="remarks"
+                value={currentEducation.remarks}
+                onChange={handleEducationChange}
+                placeholder="Any additional information about this education..."
+                rows="2"
               />
             </div>
-            <div className="form-group">
-              <label>Graduation Year</label>
-              <input
-                type="number"
-                name="graduationYear"
-                value={formData.previousEducation.highSchool.graduationYear}
-                onChange={(e) => handleChange(e, 'previousEducation', 'highSchool')}
-                min="1950"
-                max="2050"
-              />
-            </div>
-            <div className="form-group">
-              <label>GPA</label>
-              <input
-                type="number"
-                name="gpa"
-                value={formData.previousEducation.highSchool.gpa}
-                onChange={(e) => handleChange(e, 'previousEducation', 'highSchool')}
-                step="0.01"
-                min="0"
-                max="4"
-              />
+
+            <div className="education-form-actions">
+              {editingIndex !== null && (
+                <button type="button" className="btn-cancel" onClick={cancelEditEducation}>
+                  Cancel Edit
+                </button>
+              )}
+              <button type="button" className="btn-add-education" onClick={addEducation}>
+                {editingIndex !== null ? 'Update Education' : 'Add Education'}
+              </button>
             </div>
           </div>
 
-          <h3>College/University (if applicable)</h3>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Institution Name</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.previousEducation.college.name}
-                onChange={(e) => handleChange(e, 'previousEducation', 'college')}
-              />
+          {/* Education Records Table */}
+          {formData.educationRecords.length > 0 && (
+            <div className="education-records">
+              <h3>Added Education Records ({formData.educationRecords.length})</h3>
+              <div className="education-table-container">
+                <table className="education-table">
+                  <thead>
+                    <tr>
+                      <th>Level</th>
+                      <th>Degree/Program</th>
+                      <th>Institution</th>
+                      <th>Board/University</th>
+                      <th>Year</th>
+                      <th>Result</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {formData.educationRecords.map((edu, index) => (
+                      <tr key={index}>
+                        <td>{edu.level}</td>
+                        <td>{edu.degreeName}</td>
+                        <td>{edu.institution}</td>
+                        <td>{edu.board}</td>
+                        <td>{edu.completionYear}</td>
+                        <td>{edu.result} ({edu.resultType})</td>
+                        <td className="action-buttons">
+                          <button
+                            type="button"
+                            className="btn-edit"
+                            onClick={() => editEducation(index)}
+                            title="Edit"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-delete"
+                            onClick={() => deleteEducation(index)}
+                            title="Delete"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="form-group">
-              <label>Degree</label>
-              <input
-                type="text"
-                name="degree"
-                value={formData.previousEducation.college.degree}
-                onChange={(e) => handleChange(e, 'previousEducation', 'college')}
-              />
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Graduation Year</label>
-              <input
-                type="number"
-                name="graduationYear"
-                value={formData.previousEducation.college.graduationYear}
-                onChange={(e) => handleChange(e, 'previousEducation', 'college')}
-                min="1950"
-                max="2050"
-              />
-            </div>
-            <div className="form-group">
-              <label>GPA</label>
-              <input
-                type="number"
-                name="gpa"
-                value={formData.previousEducation.college.gpa}
-                onChange={(e) => handleChange(e, 'previousEducation', 'college')}
-                step="0.01"
-                min="0"
-                max="4"
-              />
-            </div>
-          </div>
+          )}
         </section>
 
         {/* Program Selection */}

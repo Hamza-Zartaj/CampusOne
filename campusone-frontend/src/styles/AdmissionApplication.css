@@ -373,6 +373,174 @@
   cursor: not-allowed;
 }
 
+/* Education Form */
+.section-description {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.education-form {
+  background: var(--bg-secondary);
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 2rem;
+  border: 1px solid var(--border-light);
+}
+
+.education-form h3 {
+  margin: 0 0 1.5rem 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.education-form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+
+.btn-add-education {
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  padding: 0.75rem 2rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  font-size: 0.95rem;
+}
+
+.btn-add-education:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-cancel {
+  background: white;
+  color: var(--text-secondary);
+  border: 2px solid var(--border-medium);
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  font-size: 0.95rem;
+}
+
+.btn-cancel:hover {
+  background: var(--bg-secondary);
+  border-color: var(--border-dark);
+}
+
+.error-text {
+  display: block;
+  color: var(--error);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.form-group.required label::after {
+  content: ' *';
+  color: var(--error);
+}
+
+input.error,
+select.error,
+textarea.error {
+  border-color: var(--error);
+}
+
+/* Education Records Table */
+.education-records {
+  margin-top: 2rem;
+}
+
+.education-records h3 {
+  margin: 0 0 1rem 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.education-table-container {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: white;
+}
+
+.education-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+}
+
+.education-table thead {
+  background: var(--bg-secondary);
+}
+
+.education-table th {
+  padding: 0.875rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  border-bottom: 2px solid var(--border-medium);
+}
+
+.education-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.education-table tbody tr:hover {
+  background: var(--bg-secondary);
+}
+
+.education-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-edit,
+.btn-delete {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-edit {
+  background: var(--primary-blue);
+  color: white;
+}
+
+.btn-edit:hover {
+  background: var(--primary-dark-blue);
+}
+
+.btn-delete {
+  background: var(--error);
+  color: white;
+}
+
+.btn-delete:hover {
+  opacity: 0.9;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .admission-application {
@@ -404,6 +572,35 @@
   .btn-secondary,
   .btn-submit {
     width: 100%;
+  }
+
+  .education-form-actions {
+    flex-direction: column;
+  }
+
+  .btn-add-education,
+  .btn-cancel {
+    width: 100%;
+  }
+
+  .education-table {
+    font-size: 0.85rem;
+  }
+
+  .education-table th,
+  .education-table td {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .btn-edit,
+  .btn-delete {
+    width: 100%;
+    padding: 0.5rem;
   }
 
   .success-card {
