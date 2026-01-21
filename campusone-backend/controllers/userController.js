@@ -4,6 +4,8 @@ import Teacher from '../models/Teacher.js';
 import TA from '../models/TA.js';
 import Admin from '../models/Admin.js';
 import Course from '../models/Course.js';
+import xlsx from 'xlsx';
+import bcrypt from 'bcryptjs';
 
 /**
  * Get role-specific data based on user role
@@ -861,6 +863,262 @@ export const searchStudents = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Download Excel template for bulk student upload
+ * @route   GET /api/users/bulk-upload/template
+ * @access  Private/Admin
+ */
+export const downloadBulkUploadTemplate = async (req, res) => {
+  try {
+    // Create workbook
+    const wb = xlsx.utils.book_new();
+    
+    // Define template headers and sample data
+    const templateData = [
+      {
+        'Full Name': 'John Doe',
+        'Email': 'john.doe@example.com',
+        'Student ID': '2024-CS-001',
+        'Password': 'password123',
+        'Department': 'Computer Science',
+        'Enrollment Year': 2024,
+        'Batch': '2024',
+        'Current Semester': 1
+      },
+      {
+        'Full Name': 'Jane Smith',
+        'Email': 'jane.smith@example.com',
+        'Student ID': '2024-CS-002',
+        'Password': 'password123',
+        'Department': 'Computer Science',
+        'Enrollment Year': 2024,
+        'Batch': '2024',
+        'Current Semester': 1
+      }
+    ];
+    
+    // Create worksheet
+    const ws = xlsx.utils.json_to_sheet(templateData);
+    
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 20 }, // Full Name
+      { wch: 30 }, // Email
+      { wch: 15 }, // Student ID
+      { wch: 15 }, // Password
+      { wch: 25 }, // Department
+      { wch: 15 }, // Enrollment Year
+      { wch: 10 }, // Batch
+      { wch: 17 }  // Current Semester
+    ];
+    
+    // Add worksheet to workbook
+    xlsx.utils.book_append_sheet(wb, ws, 'Students');
+    
+    // Generate buffer
+    const excelBuffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    
+    // Set response headers
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=student_bulk_upload_template.xlsx');
+    
+    res.send(excelBuffer);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error generating template',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Bulk upload students from Excel file
+ * @route   POST /api/users/bulk-upload
+ * @access  Private/Admin
+ */
+export const bulkUploadStudents = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    // Read the Excel file
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Convert to JSON
+    const data = xlsx.utils.sheet_to_json(worksheet);
+    
+    if (data.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Excel file is empty'
+      });
+    }
+
+    const results = {
+      total: data.length,
+      successful: [],
+      failed: []
+    };
+
+    // Process each row
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNumber = i + 2; // Excel row number (accounting for header)
+
+      try {
+        // Validate required fields
+        const requiredFields = ['Full Name', 'Email', 'Student ID', 'Password', 'Department', 'Enrollment Year', 'Current Semester'];
+        const missingFields = requiredFields.filter(field => !row[field]);
+        
+        if (missingFields.length > 0) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: `Missing required fields: ${missingFields.join(', ')}`
+          });
+          continue;
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(row['Email'])) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Invalid email format'
+          });
+          continue;
+        }
+
+        // Check if user already exists
+        const existingUser = await User.findOne({
+          $or: [
+            { email: row['Email'] },
+            { username: row['Email'].split('@')[0] }
+          ]
+        });
+
+        if (existingUser) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'User with this email or username already exists'
+          });
+          continue;
+        }
+
+        // Check if student ID already exists
+        const existingStudent = await Student.findOne({ studentId: row['Student ID'] });
+        if (existingStudent) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Student ID already exists'
+          });
+          continue;
+        }
+
+        // Validate enrollment year
+        const enrollmentYear = parseInt(row['Enrollment Year']);
+        if (isNaN(enrollmentYear) || enrollmentYear < 2000 || enrollmentYear > 2100) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Invalid enrollment year (must be between 2000 and 2100)'
+          });
+          continue;
+        }
+
+        // Validate current semester
+        const currentSemester = parseInt(row['Current Semester']);
+        if (isNaN(currentSemester) || currentSemester < 1 || currentSemester > 8) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Invalid current semester (must be between 1 and 8)'
+          });
+          continue;
+        }
+
+        // Generate username from email
+        const username = row['Email'].split('@')[0];
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(row['Password'].toString(), salt);
+
+        // Create user and student in a try-catch to handle rollback
+        let user;
+        try {
+          // Create user
+          user = await User.create({
+            name: row['Full Name'],
+            email: row['Email'],
+            username: username,
+            password: hashedPassword,
+            role: 'student',
+            isActive: true
+          });
+
+          // Create student record
+          await Student.create({
+            userId: user._id,
+            studentId: row['Student ID'],
+            enrollmentYear: enrollmentYear,
+            department: row['Department'],
+            batch: row['Batch'] || enrollmentYear.toString(),
+            currentSemester: currentSemester,
+            enrolledCourses: [],
+            completedCourses: []
+          });
+
+          results.successful.push({
+            row: rowNumber,
+            data: {
+              name: row['Full Name'],
+              email: row['Email'],
+              studentId: row['Student ID']
+            }
+          });
+        } catch (createError) {
+          // If student creation failed but user was created, delete the user
+          if (user && user._id) {
+            await User.findByIdAndDelete(user._id);
+          }
+          throw createError;
+        }
+
+      } catch (error) {
+        results.failed.push({
+          row: rowNumber,
+          data: row,
+          error: error.message || 'Unknown error occurred'
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Processed ${results.total} rows: ${results.successful.length} successful, ${results.failed.length} failed`,
+      results: results
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error processing bulk upload',
+      error: error.message
+    });
+  }
+};
+
 export default {
   getAllUsers,
   getUserById,
@@ -873,5 +1131,7 @@ export default {
   getUserStats,
   getUserStatsByRole,
   promoteStudentToTA,
-  searchStudents
+  searchStudents,
+  downloadBulkUploadTemplate,
+  bulkUploadStudents
 };

@@ -110,6 +110,21 @@ export const userAPI = {
   promoteStudentToTA: (studentUserId, courseIds = []) => 
     api.post('/users/promote-to-ta', { studentUserId, courseIds }),
   
+  downloadBulkUploadTemplate: () => 
+    api.get('/users/bulk-upload/template', { 
+      responseType: 'blob' 
+    }),
+  
+  bulkUploadStudents: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/users/bulk-upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  
   getAllUsers: (params = {}) => 
     api.get('/users', { params }),
   

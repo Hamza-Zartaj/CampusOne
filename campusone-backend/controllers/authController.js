@@ -265,12 +265,17 @@ export const login = async (req, res) => {
     if (!username || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide username and password'
+        message: 'Please provide username/email and password'
       });
     }
 
-    // Find user (include password field)
-    const user = await User.findOne({ username: username.toLowerCase() }).select('+password');
+    // Find user by username or email (include password field)
+    const user = await User.findOne({
+      $or: [
+        { username: username.toLowerCase() },
+        { email: username.toLowerCase() }
+      ]
+    }).select('+password');
 
     if (!user) {
       return res.status(401).json({

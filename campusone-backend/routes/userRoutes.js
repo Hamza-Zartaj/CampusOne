@@ -1,4 +1,5 @@
 import express from 'express';
+import multer from 'multer';
 import {
   getAllUsers,
   getUserById,
@@ -11,7 +12,9 @@ import {
   getUserStats,
   getUserStatsByRole,
   promoteStudentToTA,
-  searchStudents
+  searchStudents,
+  downloadBulkUploadTemplate,
+  bulkUploadStudents
 } from '../controllers/userController.js';
 import { protect, authorize, authorizePermission } from '../middleware/auth.js';
 import {
@@ -25,6 +28,23 @@ import {
 } from '../middleware/validation.js';
 
 const router = express.Router();
+
+// Configure multer for file upload (in-memory storage)
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+        file.mimetype === 'application/vnd.ms-excel') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only Excel files are allowed'));
+    }
+  }
+});
 
 // Apply authentication to all routes
 router.use(protect);
@@ -42,6 +62,19 @@ router.get('/stats/by-role', authorizePermission('manage_users'), getUserStatsBy
 // Search for students
 // Requires manage_users permission or Super Admin
 router.get('/search-students', authorizePermission('manage_users'), searchStudents);
+
+// Download bulk upload template
+// Requires manage_users permission or Super Admin
+router.get('/bulk-upload/template', authorizePermission('manage_users'), downloadBulkUploadTemplate);
+
+// Bulk upload students
+// Requires manage_users permission or Super Admin
+router.post(
+  '/bulk-upload',
+  authorizePermission('manage_users'),
+  upload.single('file'),
+  bulkUploadStudents
+);
 
 // Get all users with filters and pagination
 router.get('/', authorizePermission('manage_users'), validatePagination, getAllUsers);

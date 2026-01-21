@@ -8,7 +8,12 @@ import {
   Search,
   X,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  Upload,
+  Download,
+  CheckCircle,
+  XCircle,
+  FileSpreadsheet
 } from 'lucide-react';
 import { userAPI } from '../utils/api';
 import '../styles/UserManagement.css';
@@ -28,6 +33,7 @@ const UserManagement = () => {
   // Modal states
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [showPromoteTAModal, setShowPromoteTAModal] = useState(false);
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
   
   // Form states
   const [createUserForm, setCreateUserForm] = useState({
@@ -53,6 +59,11 @@ const UserManagement = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [searching, setSearching] = useState(false);
+  
+  // Bulk Upload states
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResults, setUploadResults] = useState(null);
   
   // Get current user info
   const [currentUser, setCurrentUser] = useState(null);
@@ -242,6 +253,79 @@ const UserManagement = () => {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await userAPI.downloadBulkUploadTemplate();
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'student_bulk_upload_template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Failed to download template');
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      const validTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel'
+      ];
+      if (!validTypes.includes(file.type)) {
+        setError('Please select a valid Excel file (.xlsx or .xls)');
+        return;
+      }
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('File size must be less than 5MB');
+        return;
+      }
+      setSelectedFile(file);
+      setError('');
+    }
+  };
+
+  const handleBulkUpload = async () => {
+    if (!selectedFile) {
+      setError('Please select a file to upload');
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+    setUploading(true);
+    setUploadResults(null);
+
+    try {
+      const response = await userAPI.bulkUploadStudents(selectedFile);
+      
+      if (response.data.success) {
+        setUploadResults(response.data.results);
+        if (response.data.results.successful.length > 0) {
+          setSuccess(`Successfully uploaded ${response.data.results.successful.length} student(s)`);
+          fetchStats();
+        }
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to upload file');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleCloseBulkUploadModal = () => {
+    setShowBulkUploadModal(false);
+    setSelectedFile(null);
+    setUploadResults(null);
+    setError('');
+  };
+
   // Filter stats based on Super Admin status
   const allRoleStats = [
     {
@@ -316,6 +400,16 @@ const UserManagement = () => {
           >
             <GraduationCap size={18} />
             Promote to TA
+          </button>
+          <button 
+            className="btn btn-secondary"
+            onClick={() => {
+              setShowBulkUploadModal(true);
+              setError('');
+            }}
+          >
+            <Upload size={18} />
+            Bulk Upload
           </button>
           <button 
             className="btn btn-primary"
@@ -742,6 +836,174 @@ const UserManagement = () => {
                   Promote to TA
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Upload Modal */}
+      {showBulkUploadModal && (
+        <div className="modal-overlay" onClick={handleCloseBulkUploadModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Bulk Upload Students</h2>
+              <button className="modal-close" onClick={handleCloseBulkUploadModal}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            {/* Error Alert inside modal */}
+            {error && (
+              <div className="alert alert-error" style={{ margin: '1rem 1.5rem 0' }}>
+                <AlertCircle size={18} />
+                <span>{error}</span>
+                <button onClick={() => setError('')} className="alert-close">
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+            
+            <div className="bulk-upload-form">
+              {!uploadResults ? (
+                <>
+                  <div className="upload-instructions">
+                    <h3>Upload Instructions:</h3>
+                    <ol>
+                      <li>Download the Excel template using the button below</li>
+                      <li>Fill in the student information in the template</li>
+                      <li>Save the file and upload it here</li>
+                      <li>The system will validate and import the data</li>
+                    </ol>
+                  </div>
+
+                  <button 
+                    className="btn btn-secondary download-template-btn"
+                    onClick={handleDownloadTemplate}
+                  >
+                    <Download size={18} />
+                    Download Template
+                  </button>
+
+                  <div className="file-upload-section">
+                    <label htmlFor="bulkUploadFile" className="file-upload-label">
+                      <FileSpreadsheet size={48} />
+                      <p className="upload-text">
+                        {selectedFile ? selectedFile.name : 'Click to select Excel file or drag and drop'}
+                      </p>
+                      <p className="upload-subtext">
+                        Supported: .xlsx, .xls (Max 5MB)
+                      </p>
+                    </label>
+                    <input
+                      type="file"
+                      id="bulkUploadFile"
+                      accept=".xlsx,.xls"
+                      onChange={handleFileSelect}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
+
+                  <div className="form-actions">
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary"
+                      onClick={handleCloseBulkUploadModal}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn btn-primary"
+                      onClick={handleBulkUpload}
+                      disabled={!selectedFile || uploading}
+                    >
+                      {uploading ? (
+                        <>
+                          <span className="spinner-small"></span>
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={18} />
+                          Upload File
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="upload-results">
+                    <div className="results-summary">
+                      <h3>Upload Results</h3>
+                      <div className="summary-stats">
+                        <div className="summary-stat success">
+                          <CheckCircle size={24} />
+                          <div>
+                            <p className="stat-label">Successful</p>
+                            <p className="stat-value">{uploadResults.successful.length}</p>
+                          </div>
+                        </div>
+                        <div className="summary-stat failed">
+                          <XCircle size={24} />
+                          <div>
+                            <p className="stat-label">Failed</p>
+                            <p className="stat-value">{uploadResults.failed.length}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {uploadResults.successful.length > 0 && (
+                      <div className="results-section success-section">
+                        <h4>✓ Successfully Added ({uploadResults.successful.length})</h4>
+                        <div className="results-list">
+                          {uploadResults.successful.map((item, index) => (
+                            <div key={index} className="result-item success-item">
+                              <span className="row-number">Row {item.row}</span>
+                              <div className="student-info">
+                                <p className="student-name">{item.data.name}</p>
+                                <p className="student-details">
+                                  {item.data.email} • {item.data.studentId}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {uploadResults.failed.length > 0 && (
+                      <div className="results-section failed-section">
+                        <h4>✗ Failed to Add ({uploadResults.failed.length})</h4>
+                        <div className="results-list">
+                          {uploadResults.failed.map((item, index) => (
+                            <div key={index} className="result-item failed-item">
+                              <span className="row-number">Row {item.row}</span>
+                              <div className="error-info">
+                                <p className="error-message">{item.error}</p>
+                                <p className="error-details">
+                                  {item.data['Full Name']} • {item.data['Email']}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="form-actions">
+                    <button 
+                      type="button" 
+                      className="btn btn-primary"
+                      onClick={handleCloseBulkUploadModal}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

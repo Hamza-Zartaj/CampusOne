@@ -242,10 +242,10 @@ export default function Login() {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Username Field */}
+            {/* Username/Email Field */}
             <div className="group">
               <label htmlFor="username" className="block text-sm font-semibold text-slate-700 mb-2">
-                Username
+                Username or Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -260,7 +260,7 @@ export default function Login() {
                   value={formData.username}
                   onChange={handleChange}
                   className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-900 placeholder-slate-400 hover:border-slate-300"
-                  placeholder="Enter your username"
+                  placeholder="Enter your username or email"
                   required
                 />
               </div>

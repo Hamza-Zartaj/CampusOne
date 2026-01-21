@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Users, Award, CheckCircle, ArrowRight, UserPlus } from 'lucide-react';
 import { admissionAPI } from '../utils/api';
+import toast from 'react-hot-toast';
 import '../styles/Landing.css';
 
 const Landing = () => {
@@ -21,6 +22,22 @@ const Landing = () => {
       console.error('Error checking admission status:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApplyClick = async () => {
+    // Re-check admission status before navigating
+    try {
+      const response = await admissionAPI.getSettings();
+      if (response.data.data.isOpen) {
+        navigate('/apply');
+      } else {
+        toast.error('Admissions are currently closed. Please check back later.');
+        setAdmissionsOpen(false);
+      }
+    } catch (error) {
+      console.error('Error checking admission status:', error);
+      toast.error('Unable to check admission status. Please try again.');
     }
   };
 
@@ -62,7 +79,7 @@ const Landing = () => {
           </div>
           <div className="nav-buttons">
             {!loading && admissionsOpen && (
-              <button className="apply-btn" onClick={() => navigate('/apply')}>
+              <button className="apply-btn" onClick={handleApplyClick}>
                 <UserPlus size={18} />
                 Apply Now
               </button>
@@ -88,7 +105,7 @@ const Landing = () => {
             </p>
             <div className="hero-buttons">
               {!loading && admissionsOpen && (
-                <button className="btn-apply-hero" onClick={() => navigate('/apply')}>
+                <button className="btn-apply-hero" onClick={handleApplyClick}>
                   <UserPlus size={20} />
                   Apply for Admission
                 </button>

@@ -3,7 +3,6 @@ import { admissionAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 import { 
   Settings, 
-  Calendar, 
   Users, 
   CheckCircle, 
   XCircle,
@@ -65,9 +64,17 @@ const AdmissionSettings = () => {
       setSaving(true);
       const newIsOpen = !settings.isOpen;
       
-      await admissionAPI.updateSettings({ isOpen: newIsOpen });
+      // Prepare settings data with the new status
+      const settingsData = {
+        ...settings,
+        isOpen: newIsOpen,
+        maxApplications: settings.maxApplications ? parseInt(settings.maxApplications) : null
+      };
+      
+      await admissionAPI.updateSettings(settingsData);
       
       setSettings(prev => ({ ...prev, isOpen: newIsOpen }));
+      
       toast.success(
         newIsOpen 
           ? '✅ Admissions are now OPEN' 
@@ -91,13 +98,19 @@ const AdmissionSettings = () => {
       // Prepare settings data
       const settingsData = {
         ...settings,
-        maxApplications: settings.maxApplications ? parseInt(settings.maxApplications) : null,
-        startDate: settings.startDate || null,
-        endDate: settings.endDate || null
+        maxApplications: settings.maxApplications ? parseInt(settings.maxApplications) : null
       };
       
       await admissionAPI.updateSettings(settingsData);
-      toast.success('Settings saved successfully');
+      
+      toast.success(
+        settings.isOpen 
+          ? '✅ Settings saved - Admissions are OPEN' 
+          : '❌ Settings saved - Admissions are CLOSED'
+      );
+      
+      // Refresh statistics
+      fetchStatistics();
     } catch (error) {
       console.error('Error saving settings:', error);
       toast.error('Failed to save settings');
@@ -193,38 +206,8 @@ const AdmissionSettings = () => {
         </div>
         <div className={`status-indicator ${settings.isOpen ? 'open' : 'closed'}`}>
           {settings.isOpen 
-            ? '✅ Students can now submit admission applications' 
+            ? '✅ Students can now submit admission applications'
             : '❌ Admission applications are currently closed'}
-        </div>
-      </div>
-
-      {/* Settings Form */}
-      <div className="settings-card">
-        <h3>
-          <Calendar size={20} />
-          Application Period
-        </h3>
-        <div className="form-grid">
-          <div className="form-group">
-            <label>Start Date (Optional)</label>
-            <input
-              type="datetime-local"
-              value={settings.startDate}
-              onChange={(e) => handleChange('startDate', e.target.value)}
-              className="form-input"
-            />
-            <span className="input-hint">Leave empty for immediate start</span>
-          </div>
-          <div className="form-group">
-            <label>End Date (Optional)</label>
-            <input
-              type="datetime-local"
-              value={settings.endDate}
-              onChange={(e) => handleChange('endDate', e.target.value)}
-              className="form-input"
-            />
-            <span className="input-hint">Leave empty for no deadline</span>
-          </div>
         </div>
       </div>
 
