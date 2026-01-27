@@ -31,7 +31,9 @@ const getRoleSpecificData = async (userId, role) => {
       roleData = await Teacher.findOne({ userId }).populate('teachingCourses.courseId');
       break;
     case 'ta':
-      roleData = await TA.findOne({ userId }).populate('assignedCourses.courseId');
+      roleData = await TA.findOne({ userId })
+        .populate('studentId')
+        .populate('assignedCourses.courseId');
       break;
     case 'admin':
       roleData = await Admin.findOne({ userId });
@@ -815,16 +817,19 @@ export const getMe = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          profilePicture: user.profilePicture,
-          twoFactorEnabled: user.twoFactorEnabled,
-          isActive: user.isActive,
-          lastLogin: user.lastLogin
-        },
+        _id: user._id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        profilePicture: user.profilePicture,
+        twoFactorEnabled: user.twoFactorEnabled,
+        twoFactorMethod: user.twoFactorMethod,
+        isActive: user.isActive,
+        lastLogin: user.lastLogin,
+        createdAt: user.createdAt,
+        passwordChangedAt: user.passwordChangedAt,
+        trustedDevices: user.trustedDevices,
         roleData
       }
     });
