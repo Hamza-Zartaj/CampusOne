@@ -1,4 +1,36 @@
-/* CampusOne Theme Variables */
+/* 
+ * CampusOne Theme Variables
+ * 
+ * ⚠️  LEGACY FILE - MIGRATED TO TAILWIND CSS
+ * 
+ * This file contains CSS custom properties that were used before
+ * the Tailwind CSS migration. These variables are now defined in
+ * the @theme directive in index.css for Tailwind v4.
+ * 
+ * Components converted to Tailwind:
+ * ✅ DashboardLayout.jsx
+ * ✅ Header.jsx  
+ * ✅ Sidebar.jsx
+ * ✅ Dashboard.jsx
+ * ✅ Landing.jsx
+ * ✅ UserManagement.jsx
+ * ✅ AdmissionSettings.jsx
+ * ✅ AdmissionApplication.jsx
+ * 
+ * Deleted CSS files:
+ * - DashboardLayout.css
+ * - Header.css
+ * - Sidebar.css
+ * - Dashboard.css
+ * - Landing.css
+ * - UserManagement.css
+ * - AdmissionSettings.css
+ * - AdmissionApplication.css
+ * 
+ * This file is kept for reference and any potential fallback needs.
+ * You can safely delete this file if no longer needed.
+ */
+
 :root {
   /* Primary Colors - Blue Theme */
   --primary-blue: #3b82f6;

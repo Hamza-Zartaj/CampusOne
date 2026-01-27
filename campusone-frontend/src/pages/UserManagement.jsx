@@ -16,7 +16,6 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { userAPI } from '../utils/api';
-import '../styles/UserManagement.css';
 
 const UserManagement = () => {
   const [stats, setStats] = useState({
@@ -42,13 +41,11 @@ const UserManagement = () => {
     username: '',
     password: '',
     role: 'student',
-    // Student fields
     studentId: '',
     enrollmentYear: new Date().getFullYear(),
     department: '',
     batch: '',
     currentSemester: 1,
-    // Teacher/Admin fields
     employeeId: '',
     designation: '',
     permissions: []
@@ -72,33 +69,21 @@ const UserManagement = () => {
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
     setCurrentUser(userData);
-    
     fetchAdminStatus(userData);
     fetchStats();
   }, []);
 
   const fetchAdminStatus = async (userData) => {
     try {
-      // Check both _id and id fields
       const userId = userData._id || userData.id;
-      
-      console.log('Fetching admin status for user:', userId);
-      
       if (userId) {
-        // Fetch current user details including admin record
         const response = await userAPI.getUserById(userId);
-        console.log('Admin status response:', response.data);
-        
         if (response.data.success && response.data.data.roleData) {
-          const adminData = response.data.data.roleData;
-          console.log('Admin data:', adminData);
-          console.log('Is Super Admin:', adminData.isSuperAdmin);
-          setIsSuperAdmin(adminData.isSuperAdmin || false);
+          setIsSuperAdmin(response.data.data.roleData.isSuperAdmin || false);
         }
       }
     } catch (err) {
       console.error('Error fetching admin status:', err);
-      // If it fails, assume not super admin
       setIsSuperAdmin(false);
     }
   };
@@ -119,10 +104,7 @@ const UserManagement = () => {
 
   const handleCreateUserChange = (e) => {
     const { name, value } = e.target;
-    setCreateUserForm(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setCreateUserForm(prev => ({ ...prev, [name]: value }));
   };
 
   const handlePermissionChange = (permission) => {
@@ -140,7 +122,6 @@ const UserManagement = () => {
     setSuccess('');
 
     try {
-      // Validate based on role
       if (createUserForm.role === 'student' && !createUserForm.studentId) {
         setError('Student ID is required');
         return;
@@ -150,7 +131,6 @@ const UserManagement = () => {
         return;
       }
 
-      // Prepare data based on role
       const userData = {
         name: createUserForm.name,
         email: createUserForm.email,
@@ -184,21 +164,10 @@ const UserManagement = () => {
         setSuccess(`${createUserForm.role.charAt(0).toUpperCase() + createUserForm.role.slice(1)} created successfully!`);
         setShowCreateUserModal(false);
         fetchStats();
-        // Reset form
         setCreateUserForm({
-          name: '',
-          email: '',
-          username: '',
-          password: '',
-          role: 'student',
-          studentId: '',
-          enrollmentYear: new Date().getFullYear(),
-          department: '',
-          batch: '',
-          currentSemester: 1,
-          employeeId: '',
-          designation: '',
-          permissions: []
+          name: '', email: '', username: '', password: '', role: 'student',
+          studentId: '', enrollmentYear: new Date().getFullYear(), department: '',
+          batch: '', currentSemester: 1, employeeId: '', designation: '', permissions: []
         });
       }
     } catch (err) {
@@ -208,12 +177,10 @@ const UserManagement = () => {
 
   const handleStudentSearch = async (query) => {
     setStudentSearch(query);
-    
     if (query.trim().length < 2) {
       setSearchResults([]);
       return;
     }
-
     try {
       setSearching(true);
       const response = await userAPI.searchStudents(query);
@@ -233,13 +200,10 @@ const UserManagement = () => {
       setError('Please select a student');
       return;
     }
-
     setError('');
     setSuccess('');
-
     try {
       const response = await userAPI.promoteStudentToTA(selectedStudent.userId);
-      
       if (response.data.success) {
         setSuccess(`${selectedStudent.name} has been promoted to TA successfully!`);
         setShowPromoteTAModal(false);
@@ -272,7 +236,6 @@ const UserManagement = () => {
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file type
       const validTypes = [
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/vnd.ms-excel'
@@ -281,7 +244,6 @@ const UserManagement = () => {
         setError('Please select a valid Excel file (.xlsx or .xls)');
         return;
       }
-      // Validate file size (5MB max)
       if (file.size > 5 * 1024 * 1024) {
         setError('File size must be less than 5MB');
         return;
@@ -296,15 +258,12 @@ const UserManagement = () => {
       setError('Please select a file to upload');
       return;
     }
-
     setError('');
     setSuccess('');
     setUploading(true);
     setUploadResults(null);
-
     try {
       const response = await userAPI.bulkUploadStudents(selectedFile);
-      
       if (response.data.success) {
         setUploadResults(response.data.results);
         if (response.data.results.successful.length > 0) {
@@ -326,43 +285,14 @@ const UserManagement = () => {
     setError('');
   };
 
-  // Filter stats based on Super Admin status
   const allRoleStats = [
-    {
-      icon: Shield,
-      label: 'Admins',
-      value: stats.admins,
-      color: '#ef4444',
-      gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-      superAdminOnly: true
-    },
-    {
-      icon: BookOpen,
-      label: 'Teachers',
-      value: stats.teachers,
-      color: '#3b82f6',
-      gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
-    },
-    {
-      icon: Users,
-      label: 'Students',
-      value: stats.students,
-      color: '#10b981',
-      gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-    },
-    {
-      icon: GraduationCap,
-      label: 'TAs',
-      value: stats.tas,
-      color: '#f59e0b',
-      gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
-    }
+    { icon: Shield, label: 'Admins', value: stats.admins, color: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', superAdminOnly: true },
+    { icon: BookOpen, label: 'Teachers', value: stats.teachers, color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' },
+    { icon: Users, label: 'Students', value: stats.students, color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
+    { icon: GraduationCap, label: 'TAs', value: stats.tas, color: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }
   ];
 
-  // Only show admin stats to Super Admins
-  const roleStats = allRoleStats.filter(stat => 
-    !stat.superAdminOnly || isSuperAdmin
-  );
+  const roleStats = allRoleStats.filter(stat => !stat.superAdminOnly || isSuperAdmin);
 
   const availablePermissions = [
     { id: 'manage_users', label: 'Manage Users' },
@@ -375,122 +305,99 @@ const UserManagement = () => {
     { id: 'manage_quiz', label: 'Manage Quiz' }
   ];
 
+  // Reusable classes
+  const inputClass = "w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] transition-all focus:outline-none focus:border-primary-500 focus:ring-[3px] focus:ring-primary-500/10";
+  const labelClass = "block text-[0.9rem] font-medium text-slate-800 mb-2";
+  const btnPrimaryClass = "inline-flex items-center gap-2 py-2.5 px-5 border-none rounded-lg text-[0.95rem] font-medium cursor-pointer transition-all bg-gradient-primary text-white hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
+  const btnSecondaryClass = "inline-flex items-center gap-2 py-2.5 px-5 border border-gray-200 rounded-lg text-[0.95rem] font-medium cursor-pointer transition-all bg-white text-slate-800 hover:bg-slate-50 hover:border-gray-300";
+
   if (loading) {
     return (
-      <div className="user-management-page">
-        <div className="loading-spinner">Loading...</div>
+      <div className="p-8 max-w-[1400px] mx-auto max-md:p-4">
+        <div className="flex justify-center items-center min-h-[400px] text-lg text-slate-500">
+          Loading...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="user-management-page">
-      <div className="page-header">
-        <div className="header-content">
-          <h1>User Management</h1>
-          <p className="header-subtitle">Manage users, roles, and permissions</p>
+    <div className="p-8 max-w-[1400px] mx-auto max-md:p-4">
+      {/* Page Header */}
+      <div className="flex justify-between items-center mb-8 flex-wrap gap-4 max-md:flex-col max-md:items-start">
+        <div>
+          <h1 className="text-[2rem] font-bold text-slate-800 m-0">User Management</h1>
+          <p className="text-[0.95rem] text-slate-500 mt-1">Manage users, roles, and permissions</p>
         </div>
-        <div className="header-actions">
-          <button 
-            className="btn btn-secondary"
-            onClick={() => {
-              setShowPromoteTAModal(true);
-              setError('');
-            }}
-          >
+        <div className="flex gap-3 max-md:w-full">
+          <button className={`${btnSecondaryClass} max-md:flex-1 max-md:justify-center`} onClick={() => { setShowPromoteTAModal(true); setError(''); }}>
             <GraduationCap size={18} />
             Promote to TA
           </button>
-          <button 
-            className="btn btn-secondary"
-            onClick={() => {
-              setShowBulkUploadModal(true);
-              setError('');
-            }}
-          >
+          <button className={`${btnSecondaryClass} max-md:flex-1 max-md:justify-center`} onClick={() => { setShowBulkUploadModal(true); setError(''); }}>
             <Upload size={18} />
             Bulk Upload
           </button>
-          <button 
-            className="btn btn-primary"
-            onClick={() => {
-              setShowCreateUserModal(true);
-              setError('');
-            }}
-          >
+          <button className={`${btnPrimaryClass} max-md:flex-1 max-md:justify-center`} onClick={() => { setShowCreateUserModal(true); setError(''); }}>
             <UserPlus size={18} />
             Create User
           </button>
         </div>
       </div>
 
-      {/* Success Alert - Only show at page level */}
+      {/* Success Alert */}
       {success && (
-        <div className="alert alert-success">
+        <div className="flex items-center gap-3 py-4 px-5 rounded-lg mb-6 text-[0.95rem] bg-green-50 text-green-800 border border-green-200">
           <span>{success}</span>
-          <button onClick={() => setSuccess('')} className="alert-close">
+          <button onClick={() => setSuccess('')} className="ml-auto bg-transparent border-none cursor-pointer text-inherit opacity-70 hover:opacity-100 transition-opacity">
             <X size={16} />
           </button>
         </div>
       )}
 
       {/* Stats Grid */}
-      <div className="stats-grid">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-6 mb-8 max-md:grid-cols-1">
         {roleStats.map((stat, index) => (
-          <div key={index} className="stat-card" style={{ '--card-gradient': stat.gradient }}>
-            <div className="stat-icon-wrapper">
-              <div className="stat-icon" style={{ backgroundColor: `${stat.color}15`, color: stat.color }}>
+          <div key={index} className="relative bg-white rounded-xl p-7 shadow-sm overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-md">
+            <div className="absolute top-0 left-0 right-0 h-1" style={{ background: stat.gradient }}></div>
+            <div className="absolute top-0 right-0 w-[120px] h-[120px] opacity-5 rounded-full translate-x-[30%] -translate-y-[30%]" style={{ background: stat.gradient }}></div>
+            <div className="mb-4">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl" style={{ backgroundColor: `${stat.color}15`, color: stat.color }}>
                 <stat.icon size={28} />
               </div>
             </div>
-            <div className="stat-details">
-              <p className="stat-label">{stat.label}</p>
-              <h2 className="stat-value">{stat.value}</h2>
+            <div className="relative z-[1]">
+              <p className="text-[0.9rem] text-slate-500 m-0 mb-2 font-medium">{stat.label}</p>
+              <h2 className="text-4xl font-bold text-slate-800 m-0">{stat.value}</h2>
             </div>
-            <div className="stat-background"></div>
           </div>
         ))}
       </div>
 
       {/* Create User Modal */}
       {showCreateUserModal && (
-        <div className="modal-overlay" onClick={() => {
-          setShowCreateUserModal(false);
-          setError('');
-        }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Create New User</h2>
-              <button className="modal-close" onClick={() => {
-                setShowCreateUserModal(false);
-                setError('');
-              }}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in" onClick={() => { setShowCreateUserModal(false); setError(''); }}>
+          <div className="bg-white rounded-xl max-w-[700px] w-full max-h-[90vh] overflow-y-auto shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-slate-800 m-0">Create New User</h2>
+              <button className="bg-transparent border-none cursor-pointer text-slate-500 hover:text-slate-800 transition-colors p-1" onClick={() => { setShowCreateUserModal(false); setError(''); }}>
                 <X size={20} />
               </button>
             </div>
             
-            {/* Error Alert inside modal */}
             {error && (
-              <div className="alert alert-error" style={{ margin: '1rem 1.5rem 0' }}>
+              <div className="flex items-center gap-3 py-4 px-5 rounded-lg mx-6 mt-4 text-[0.95rem] bg-red-50 text-red-800 border border-red-200">
                 <AlertCircle size={18} />
                 <span>{error}</span>
-                <button onClick={() => setError('')} className="alert-close">
-                  <X size={16} />
-                </button>
+                <button onClick={() => setError('')} className="ml-auto bg-transparent border-none cursor-pointer text-inherit opacity-70 hover:opacity-100"><X size={16} /></button>
               </div>
             )}
             
-            <form onSubmit={handleCreateUser} className="user-form">
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="role">User Role *</label>
-                  <select
-                    id="role"
-                    name="role"
-                    value={createUserForm.role}
-                    onChange={handleCreateUserChange}
-                    required
-                  >
+            <form onSubmit={handleCreateUser} className="p-6">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                <div className="mb-4">
+                  <label className={labelClass} htmlFor="role">User Role *</label>
+                  <select id="role" name="role" value={createUserForm.role} onChange={handleCreateUserChange} required className={inputClass}>
                     <option value="student">Student</option>
                     <option value="teacher">Teacher</option>
                     {isSuperAdmin && <option value="admin">Admin</option>}
@@ -498,178 +405,79 @@ const UserManagement = () => {
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="name">Full Name *</label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={createUserForm.name}
-                    onChange={handleCreateUserChange}
-                    required
-                    placeholder="Enter full name"
-                  />
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                <div className="mb-4">
+                  <label className={labelClass} htmlFor="name">Full Name *</label>
+                  <input type="text" id="name" name="name" value={createUserForm.name} onChange={handleCreateUserChange} required placeholder="Enter full name" className={inputClass} />
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="email">Email *</label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={createUserForm.email}
-                    onChange={handleCreateUserChange}
-                    required
-                    placeholder="user@example.com"
-                  />
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                <div className="mb-4">
+                  <label className={labelClass} htmlFor="email">Email *</label>
+                  <input type="email" id="email" name="email" value={createUserForm.email} onChange={handleCreateUserChange} required placeholder="user@example.com" className={inputClass} />
                 </div>
-                <div className="form-group">
-                  <label htmlFor="username">Username</label>
-                  <input
-                    type="text"
-                    id="username"
-                    name="username"
-                    value={createUserForm.username}
-                    onChange={handleCreateUserChange}
-                    placeholder="Leave blank to auto-generate"
-                  />
+                <div className="mb-4">
+                  <label className={labelClass} htmlFor="username">Username</label>
+                  <input type="text" id="username" name="username" value={createUserForm.username} onChange={handleCreateUserChange} placeholder="Leave blank to auto-generate" className={inputClass} />
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="password">Password *</label>
-                  <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    value={createUserForm.password}
-                    onChange={handleCreateUserChange}
-                    required
-                    minLength={6}
-                    placeholder="Minimum 6 characters"
-                  />
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                <div className="mb-4">
+                  <label className={labelClass} htmlFor="password">Password *</label>
+                  <input type="password" id="password" name="password" value={createUserForm.password} onChange={handleCreateUserChange} required minLength={6} placeholder="Minimum 6 characters" className={inputClass} />
                 </div>
               </div>
 
-              {/* Student-specific fields */}
               {createUserForm.role === 'student' && (
                 <>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label htmlFor="studentId">Student ID *</label>
-                      <input
-                        type="text"
-                        id="studentId"
-                        name="studentId"
-                        value={createUserForm.studentId}
-                        onChange={handleCreateUserChange}
-                        required
-                        placeholder="e.g., 2024-CS-001"
-                      />
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="studentId">Student ID *</label>
+                      <input type="text" id="studentId" name="studentId" value={createUserForm.studentId} onChange={handleCreateUserChange} required placeholder="e.g., 2024-CS-001" className={inputClass} />
                     </div>
-                    <div className="form-group">
-                      <label htmlFor="enrollmentYear">Enrollment Year *</label>
-                      <input
-                        type="number"
-                        id="enrollmentYear"
-                        name="enrollmentYear"
-                        value={createUserForm.enrollmentYear}
-                        onChange={handleCreateUserChange}
-                        required
-                        min="2000"
-                        max="2100"
-                      />
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="enrollmentYear">Enrollment Year *</label>
+                      <input type="number" id="enrollmentYear" name="enrollmentYear" value={createUserForm.enrollmentYear} onChange={handleCreateUserChange} required min="2000" max="2100" className={inputClass} />
                     </div>
                   </div>
-                  
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label htmlFor="department">Department *</label>
-                      <input
-                        type="text"
-                        id="department"
-                        name="department"
-                        value={createUserForm.department}
-                        onChange={handleCreateUserChange}
-                        required
-                        placeholder="e.g., Computer Science"
-                      />
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="department">Department *</label>
+                      <input type="text" id="department" name="department" value={createUserForm.department} onChange={handleCreateUserChange} required placeholder="e.g., Computer Science" className={inputClass} />
                     </div>
-                    <div className="form-group">
-                      <label htmlFor="batch">Batch</label>
-                      <input
-                        type="text"
-                        id="batch"
-                        name="batch"
-                        value={createUserForm.batch}
-                        onChange={handleCreateUserChange}
-                        placeholder="e.g., 2024"
-                      />
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="batch">Batch</label>
+                      <input type="text" id="batch" name="batch" value={createUserForm.batch} onChange={handleCreateUserChange} placeholder="e.g., 2024" className={inputClass} />
                     </div>
                   </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label htmlFor="currentSemester">Current Semester *</label>
-                      <input
-                        type="number"
-                        id="currentSemester"
-                        name="currentSemester"
-                        value={createUserForm.currentSemester}
-                        onChange={handleCreateUserChange}
-                        required
-                        min="1"
-                        max="8"
-                      />
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="currentSemester">Current Semester *</label>
+                      <input type="number" id="currentSemester" name="currentSemester" value={createUserForm.currentSemester} onChange={handleCreateUserChange} required min="1" max="8" className={inputClass} />
                     </div>
                   </div>
                 </>
               )}
 
-              {/* Teacher/Admin-specific fields */}
               {(createUserForm.role === 'teacher' || createUserForm.role === 'admin') && (
                 <>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label htmlFor="employeeId">Employee ID *</label>
-                      <input
-                        type="text"
-                        id="employeeId"
-                        name="employeeId"
-                        value={createUserForm.employeeId}
-                        onChange={handleCreateUserChange}
-                        required
-                        placeholder="e.g., EMP-001"
-                      />
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="employeeId">Employee ID *</label>
+                      <input type="text" id="employeeId" name="employeeId" value={createUserForm.employeeId} onChange={handleCreateUserChange} required placeholder="e.g., EMP-001" className={inputClass} />
                     </div>
-                    <div className="form-group">
-                      <label htmlFor="department">Department *</label>
-                      <input
-                        type="text"
-                        id="department"
-                        name="department"
-                        value={createUserForm.department}
-                        onChange={handleCreateUserChange}
-                        required
-                        placeholder="e.g., Computer Science"
-                      />
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="department">Department *</label>
+                      <input type="text" id="department" name="department" value={createUserForm.department} onChange={handleCreateUserChange} required placeholder="e.g., Computer Science" className={inputClass} />
                     </div>
                   </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label htmlFor="designation">Designation</label>
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="designation">Designation</label>
                       {createUserForm.role === 'teacher' ? (
-                        <select
-                          id="designation"
-                          name="designation"
-                          value={createUserForm.designation}
-                          onChange={handleCreateUserChange}
-                        >
+                        <select id="designation" name="designation" value={createUserForm.designation} onChange={handleCreateUserChange} className={inputClass}>
                           <option value="">Select designation</option>
                           <option value="Professor">Professor</option>
                           <option value="Associate Professor">Associate Professor</option>
@@ -678,53 +486,30 @@ const UserManagement = () => {
                           <option value="Visiting Faculty">Visiting Faculty</option>
                         </select>
                       ) : (
-                        <input
-                          type="text"
-                          id="designation"
-                          name="designation"
-                          value={createUserForm.designation}
-                          onChange={handleCreateUserChange}
-                          placeholder="e.g., Administrator"
-                        />
+                        <input type="text" id="designation" name="designation" value={createUserForm.designation} onChange={handleCreateUserChange} placeholder="e.g., Administrator" className={inputClass} />
                       )}
                     </div>
                   </div>
                 </>
               )}
 
-              {/* Admin permissions */}
               {createUserForm.role === 'admin' && (
-                <div className="form-group">
-                  <label>Permissions</label>
-                  <div className="permissions-grid">
+                <div className="mb-4">
+                  <label className={labelClass}>Permissions</label>
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3 mt-2">
                     {availablePermissions.map(permission => (
-                      <label key={permission.id} className="permission-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={createUserForm.permissions.includes(permission.id)}
-                          onChange={() => handlePermissionChange(permission.id)}
-                        />
-                        <span>{permission.label}</span>
+                      <label key={permission.id} className="flex items-center gap-2 py-2.5 px-3 border border-gray-200 rounded-md cursor-pointer transition-all hover:bg-slate-50 hover:border-primary-500">
+                        <input type="checkbox" checked={createUserForm.permissions.includes(permission.id)} onChange={() => handlePermissionChange(permission.id)} className="w-auto m-0 cursor-pointer" />
+                        <span className="text-[0.9rem] pl-2 text-slate-800">{permission.label}</span>
                       </label>
                     ))}
                   </div>
                 </div>
               )}
 
-              <div className="form-actions">
-                <button 
-                  type="button" 
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setShowCreateUserModal(false);
-                    setError('');
-                  }}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Create User
-                </button>
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 mt-6">
+                <button type="button" className={btnSecondaryClass} onClick={() => { setShowCreateUserModal(false); setError(''); }}>Cancel</button>
+                <button type="submit" className={btnPrimaryClass}>Create User</button>
               </div>
             </form>
           </div>
@@ -733,108 +518,67 @@ const UserManagement = () => {
 
       {/* Promote to TA Modal */}
       {showPromoteTAModal && (
-        <div className="modal-overlay" onClick={() => {
-          setShowPromoteTAModal(false);
-          setError('');
-        }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Promote Student to TA</h2>
-              <button className="modal-close" onClick={() => {
-                setShowPromoteTAModal(false);
-                setError('');
-              }}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in" onClick={() => { setShowPromoteTAModal(false); setError(''); }}>
+          <div className="bg-white rounded-xl max-w-[700px] w-full max-h-[90vh] overflow-y-auto shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-slate-800 m-0">Promote Student to TA</h2>
+              <button className="bg-transparent border-none cursor-pointer text-slate-500 hover:text-slate-800 transition-colors p-1" onClick={() => { setShowPromoteTAModal(false); setError(''); }}>
                 <X size={20} />
               </button>
             </div>
             
-            {/* Error Alert inside modal */}
             {error && (
-              <div className="alert alert-error" style={{ margin: '1rem 1.5rem 0' }}>
+              <div className="flex items-center gap-3 py-4 px-5 rounded-lg mx-6 mt-4 text-[0.95rem] bg-red-50 text-red-800 border border-red-200">
                 <AlertCircle size={18} />
                 <span>{error}</span>
-                <button onClick={() => setError('')} className="alert-close">
-                  <X size={16} />
-                </button>
+                <button onClick={() => setError('')} className="ml-auto bg-transparent border-none cursor-pointer text-inherit opacity-70 hover:opacity-100"><X size={16} /></button>
               </div>
             )}
             
-            <div className="ta-promotion-form">
-              <div className="form-group">
-                <label htmlFor="studentSearch">Search for Student</label>
-                <div className="search-input-wrapper">
-                  <Search size={18} className="search-icon" />
-                  <input
-                    type="text"
-                    id="studentSearch"
-                    value={studentSearch}
-                    onChange={(e) => handleStudentSearch(e.target.value)}
-                    placeholder="Search by name, email, or student ID..."
-                    className="search-input"
-                  />
-                  {searching && <div className="search-loading">Searching...</div>}
+            <div className="p-6">
+              <div className="mb-4">
+                <label className={labelClass} htmlFor="studentSearch">Search for Student</label>
+                <div className="relative">
+                  <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input type="text" id="studentSearch" value={studentSearch} onChange={(e) => handleStudentSearch(e.target.value)} placeholder="Search by name, email, or student ID..." className={`${inputClass} pl-11`} />
+                  {searching && <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[0.85rem] text-slate-500">Searching...</div>}
                 </div>
               </div>
 
               {searchResults.length > 0 && (
-                <div className="search-results">
+                <div className="mt-4 max-h-[300px] overflow-y-auto border border-gray-200 rounded-lg">
                   {searchResults.map(student => (
-                    <div
-                      key={student.userId}
-                      className={`search-result-item ${selectedStudent?.userId === student.userId ? 'selected' : ''}`}
-                      onClick={() => setSelectedStudent(student)}
-                    >
-                      <div className="student-info">
-                        <h4>{student.name}</h4>
-                        <p>{student.email}</p>
-                        <div className="student-details">
-                          <span className="badge">{student.studentId}</span>
-                          <span className="badge">{student.department}</span>
-                          <span className="badge">Semester {student.semester}</span>
+                    <div key={student.userId} className={`flex justify-between items-center p-4 cursor-pointer transition-all border-b border-gray-100 last:border-b-0 hover:bg-slate-50 ${selectedStudent?.userId === student.userId ? 'bg-primary-50 border-primary-500' : ''}`} onClick={() => setSelectedStudent(student)}>
+                      <div>
+                        <h4 className="text-base font-semibold text-slate-800 m-0 mb-1">{student.name}</h4>
+                        <p className="text-[0.85rem] text-slate-500 m-0 mb-2">{student.email}</p>
+                        <div className="flex gap-2 flex-wrap">
+                          <span className="inline-block py-1 px-2.5 bg-gray-100 text-slate-500 rounded text-xs font-medium">{student.studentId}</span>
+                          <span className="inline-block py-1 px-2.5 bg-gray-100 text-slate-500 rounded text-xs font-medium">{student.department}</span>
+                          <span className="inline-block py-1 px-2.5 bg-gray-100 text-slate-500 rounded text-xs font-medium">Semester {student.semester}</span>
                         </div>
                       </div>
-                      {selectedStudent?.userId === student.userId && (
-                        <ChevronRight size={20} className="selected-icon" />
-                      )}
+                      {selectedStudent?.userId === student.userId && <ChevronRight size={20} className="text-primary-500" />}
                     </div>
                   ))}
                 </div>
               )}
 
               {selectedStudent && (
-                <div className="selected-student-card">
-                  <h3>Selected Student</h3>
-                  <div className="student-card-content">
-                    <p><strong>Name:</strong> {selectedStudent.name}</p>
-                    <p><strong>Email:</strong> {selectedStudent.email}</p>
-                    <p><strong>Student ID:</strong> {selectedStudent.studentId}</p>
-                    <p><strong>Department:</strong> {selectedStudent.department}</p>
+                <div className="mt-6 p-5 bg-slate-50 border border-gray-200 rounded-lg">
+                  <h3 className="text-base font-semibold text-slate-800 m-0 mb-4">Selected Student</h3>
+                  <div>
+                    <p className="text-[0.9rem] text-slate-800 my-2"><strong className="text-slate-500">Name:</strong> {selectedStudent.name}</p>
+                    <p className="text-[0.9rem] text-slate-800 my-2"><strong className="text-slate-500">Email:</strong> {selectedStudent.email}</p>
+                    <p className="text-[0.9rem] text-slate-800 my-2"><strong className="text-slate-500">Student ID:</strong> {selectedStudent.studentId}</p>
+                    <p className="text-[0.9rem] text-slate-800 my-2"><strong className="text-slate-500">Department:</strong> {selectedStudent.department}</p>
                   </div>
                 </div>
               )}
 
-              <div className="form-actions">
-                <button 
-                  type="button" 
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setShowPromoteTAModal(false);
-                    setSelectedStudent(null);
-                    setStudentSearch('');
-                    setSearchResults([]);
-                    setError('');
-                  }}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn-primary"
-                  onClick={handlePromoteToTA}
-                  disabled={!selectedStudent}
-                >
-                  Promote to TA
-                </button>
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 mt-6">
+                <button type="button" className={btnSecondaryClass} onClick={() => { setShowPromoteTAModal(false); setSelectedStudent(null); setStudentSearch(''); setSearchResults([]); setError(''); }}>Cancel</button>
+                <button type="button" className={btnPrimaryClass} onClick={handlePromoteToTA} disabled={!selectedStudent}>Promote to TA</button>
               </div>
             </div>
           </div>
@@ -843,83 +587,58 @@ const UserManagement = () => {
 
       {/* Bulk Upload Modal */}
       {showBulkUploadModal && (
-        <div className="modal-overlay" onClick={handleCloseBulkUploadModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Bulk Upload Students</h2>
-              <button className="modal-close" onClick={handleCloseBulkUploadModal}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in" onClick={handleCloseBulkUploadModal}>
+          <div className="bg-white rounded-xl max-w-[700px] w-full max-h-[90vh] overflow-y-auto shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-slate-800 m-0">Bulk Upload Students</h2>
+              <button className="bg-transparent border-none cursor-pointer text-slate-500 hover:text-slate-800 transition-colors p-1" onClick={handleCloseBulkUploadModal}>
                 <X size={20} />
               </button>
             </div>
             
-            {/* Error Alert inside modal */}
             {error && (
-              <div className="alert alert-error" style={{ margin: '1rem 1.5rem 0' }}>
+              <div className="flex items-center gap-3 py-4 px-5 rounded-lg mx-6 mt-4 text-[0.95rem] bg-red-50 text-red-800 border border-red-200">
                 <AlertCircle size={18} />
                 <span>{error}</span>
-                <button onClick={() => setError('')} className="alert-close">
-                  <X size={16} />
-                </button>
+                <button onClick={() => setError('')} className="ml-auto bg-transparent border-none cursor-pointer text-inherit opacity-70 hover:opacity-100"><X size={16} /></button>
               </div>
             )}
             
-            <div className="bulk-upload-form">
+            <div className="p-6">
               {!uploadResults ? (
                 <>
-                  <div className="upload-instructions">
-                    <h3>Upload Instructions:</h3>
-                    <ol>
-                      <li>Download the Excel template using the button below</li>
-                      <li>Fill in the student information in the template</li>
-                      <li>Save the file and upload it here</li>
-                      <li>The system will validate and import the data</li>
+                  <div className="bg-slate-50 p-5 rounded-lg mb-6">
+                    <h3 className="text-base font-semibold text-slate-800 m-0 mb-3">Upload Instructions:</h3>
+                    <ol className="m-0 pl-6 text-slate-500">
+                      <li className="mb-2 leading-relaxed">Download the Excel template using the button below</li>
+                      <li className="mb-2 leading-relaxed">Fill in the student information in the template</li>
+                      <li className="mb-2 leading-relaxed">Save the file and upload it here</li>
+                      <li className="mb-2 leading-relaxed">The system will validate and import the data</li>
                     </ol>
                   </div>
 
-                  <button 
-                    className="btn btn-secondary download-template-btn"
-                    onClick={handleDownloadTemplate}
-                  >
+                  <button className={`${btnSecondaryClass} w-full justify-center mb-6`} onClick={handleDownloadTemplate}>
                     <Download size={18} />
                     Download Template
                   </button>
 
-                  <div className="file-upload-section">
-                    <label htmlFor="bulkUploadFile" className="file-upload-label">
-                      <FileSpreadsheet size={48} />
-                      <p className="upload-text">
+                  <div className="mb-6">
+                    <label htmlFor="bulkUploadFile" className="flex flex-col items-center justify-center py-10 px-6 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50 cursor-pointer transition-all hover:border-primary-500 hover:bg-primary-50">
+                      <FileSpreadsheet size={48} className="text-slate-500 mb-4" />
+                      <p className="text-base font-medium text-slate-800 m-0 mb-1 text-center">
                         {selectedFile ? selectedFile.name : 'Click to select Excel file or drag and drop'}
                       </p>
-                      <p className="upload-subtext">
-                        Supported: .xlsx, .xls (Max 5MB)
-                      </p>
+                      <p className="text-sm text-slate-500 m-0">Supported: .xlsx, .xls (Max 5MB)</p>
                     </label>
-                    <input
-                      type="file"
-                      id="bulkUploadFile"
-                      accept=".xlsx,.xls"
-                      onChange={handleFileSelect}
-                      style={{ display: 'none' }}
-                    />
+                    <input type="file" id="bulkUploadFile" accept=".xlsx,.xls" onChange={handleFileSelect} className="hidden" />
                   </div>
 
-                  <div className="form-actions">
-                    <button 
-                      type="button" 
-                      className="btn btn-secondary"
-                      onClick={handleCloseBulkUploadModal}
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="button" 
-                      className="btn btn-primary"
-                      onClick={handleBulkUpload}
-                      disabled={!selectedFile || uploading}
-                    >
+                  <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 mt-6">
+                    <button type="button" className={btnSecondaryClass} onClick={handleCloseBulkUploadModal}>Cancel</button>
+                    <button type="button" className={btnPrimaryClass} onClick={handleBulkUpload} disabled={!selectedFile || uploading}>
                       {uploading ? (
                         <>
-                          <span className="spinner-small"></span>
+                          <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                           Uploading...
                         </>
                       ) : (
@@ -933,74 +652,62 @@ const UserManagement = () => {
                 </>
               ) : (
                 <>
-                  <div className="upload-results">
-                    <div className="results-summary">
-                      <h3>Upload Results</h3>
-                      <div className="summary-stats">
-                        <div className="summary-stat success">
-                          <CheckCircle size={24} />
-                          <div>
-                            <p className="stat-label">Successful</p>
-                            <p className="stat-value">{uploadResults.successful.length}</p>
-                          </div>
+                  <div className="mb-6">
+                    <h3 className="text-xl font-semibold text-slate-800 m-0 mb-4">Upload Results</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center gap-4 p-4 rounded-lg bg-green-100 text-green-800">
+                        <CheckCircle size={24} className="shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium m-0 mb-1">Successful</p>
+                          <p className="text-2xl font-bold m-0">{uploadResults.successful.length}</p>
                         </div>
-                        <div className="summary-stat failed">
-                          <XCircle size={24} />
-                          <div>
-                            <p className="stat-label">Failed</p>
-                            <p className="stat-value">{uploadResults.failed.length}</p>
-                          </div>
+                      </div>
+                      <div className="flex items-center gap-4 p-4 rounded-lg bg-red-100 text-red-800">
+                        <XCircle size={24} className="shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium m-0 mb-1">Failed</p>
+                          <p className="text-2xl font-bold m-0">{uploadResults.failed.length}</p>
                         </div>
                       </div>
                     </div>
-
-                    {uploadResults.successful.length > 0 && (
-                      <div className="results-section success-section">
-                        <h4>✓ Successfully Added ({uploadResults.successful.length})</h4>
-                        <div className="results-list">
-                          {uploadResults.successful.map((item, index) => (
-                            <div key={index} className="result-item success-item">
-                              <span className="row-number">Row {item.row}</span>
-                              <div className="student-info">
-                                <p className="student-name">{item.data.name}</p>
-                                <p className="student-details">
-                                  {item.data.email} • {item.data.studentId}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {uploadResults.failed.length > 0 && (
-                      <div className="results-section failed-section">
-                        <h4>✗ Failed to Add ({uploadResults.failed.length})</h4>
-                        <div className="results-list">
-                          {uploadResults.failed.map((item, index) => (
-                            <div key={index} className="result-item failed-item">
-                              <span className="row-number">Row {item.row}</span>
-                              <div className="error-info">
-                                <p className="error-message">{item.error}</p>
-                                <p className="error-details">
-                                  {item.data['Full Name']} • {item.data['Email']}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
-                  <div className="form-actions">
-                    <button 
-                      type="button" 
-                      className="btn btn-primary"
-                      onClick={handleCloseBulkUploadModal}
-                    >
-                      Close
-                    </button>
+                  {uploadResults.successful.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-base font-semibold m-0 mb-4 text-green-800">✓ Successfully Added ({uploadResults.successful.length})</h4>
+                      <div className="max-h-[300px] overflow-y-auto flex flex-col gap-3">
+                        {uploadResults.successful.map((item, index) => (
+                          <div key={index} className="flex items-start gap-4 p-4 rounded-md bg-green-100 border-l-[3px] border-green-500 text-sm">
+                            <span className="inline-block py-1 px-2 bg-black/10 rounded text-xs font-semibold shrink-0">Row {item.row}</span>
+                            <div className="flex-1">
+                              <p className="font-semibold text-slate-800 m-0 mb-1">{item.data.name}</p>
+                              <p className="text-[0.8rem] text-slate-500 m-0">{item.data.email} • {item.data.studentId}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {uploadResults.failed.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-base font-semibold m-0 mb-4 text-red-800">✗ Failed to Add ({uploadResults.failed.length})</h4>
+                      <div className="max-h-[300px] overflow-y-auto flex flex-col gap-3">
+                        {uploadResults.failed.map((item, index) => (
+                          <div key={index} className="flex items-start gap-4 p-4 rounded-md bg-red-100 border-l-[3px] border-red-500 text-sm">
+                            <span className="inline-block py-1 px-2 bg-black/10 rounded text-xs font-semibold shrink-0">Row {item.row}</span>
+                            <div className="flex-1">
+                              <p className="font-semibold text-red-800 m-0 mb-1">{item.error}</p>
+                              <p className="text-[0.8rem] text-slate-500 m-0">{item.data['Full Name']} • {item.data['Email']}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 mt-6">
+                    <button type="button" className={btnPrimaryClass} onClick={handleCloseBulkUploadModal}>Close</button>
                   </div>
                 </>
               )}

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
-import '../styles/DashboardLayout.css';
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -12,11 +11,11 @@ const DashboardLayout = () => {
   };
 
   return (
-    <div className="dashboard-layout">
+    <div className="flex flex-col h-screen bg-slate-100">
       <Header toggleSidebar={toggleSidebar} />
-      <div className="dashboard-container">
+      <div className="flex flex-1 overflow-hidden">
         <Sidebar isOpen={sidebarOpen} />
-        <main className={`dashboard-content ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
+        <main className={`flex-1 overflow-y-auto p-6 transition-all duration-300 ease-in-out md:p-4 sm:p-3`}>
           <Outlet />
         </main>
       </div>
