@@ -13,7 +13,16 @@ import {
   Download,
   CheckCircle,
   XCircle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Edit,
+  Trash2,
+  UserX,
+  UserCheck,
+  RotateCcw,
+  Lock,
+  Unlock,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { userAPI } from '../utils/api';
 
@@ -61,6 +70,37 @@ const UserManagement = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResults, setUploadResults] = useState(null);
+  
+  // User List Management states
+  const [selectedRole, setSelectedRole] = useState(null);
+  const [usersList, setUsersList] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  
+  // Edit User states
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    studentId: '',
+    enrollmentYear: '',
+    department: '',
+    batch: '',
+    currentSemester: '',
+    employeeId: '',
+    designation: '',
+    permissions: []
+  });
+  
+  // Delete/Deactivate states
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(null);
+  
+  // Reset Settings states
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resettingUser, setResettingUser] = useState(null);
   
   // Get current user info
   const [currentUser, setCurrentUser] = useState(null);
@@ -285,11 +325,216 @@ const UserManagement = () => {
     setError('');
   };
 
+  // User List Management Functions
+  const fetchUsersByRole = async (role) => {
+    if (selectedRole === role) {
+      // Toggle off if clicking the same card
+      setSelectedRole(null);
+      setUsersList([]);
+      setFilteredUsers([]);
+      setUserSearchQuery('');
+      return;
+    }
+    
+    setSelectedRole(role);
+    setLoadingUsers(true);
+    setError('');
+    setUserSearchQuery('');
+    
+    try {
+      console.log('Fetching users for role:', role);
+      const response = await userAPI.getAllUsers({ role, page: 1, limit: 100 });
+      console.log('API Response:', response.data);
+      if (response.data.success) {
+        setUsersList(response.data.data);
+        setFilteredUsers(response.data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      setError(err.response?.data?.message || `Failed to fetch ${role}s`);
+      setUsersList([]);
+      setFilteredUsers([]);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleUserSearch = (query) => {
+    setUserSearchQuery(query);
+    if (!query.trim()) {
+      setFilteredUsers(usersList);
+      return;
+    }
+    
+    const filtered = usersList.filter(user => 
+      user.name.toLowerCase().includes(query.toLowerCase()) ||
+      user.email.toLowerCase().includes(query.toLowerCase()) ||
+      (user.roleData?.studentId && user.roleData.studentId.toLowerCase().includes(query.toLowerCase())) ||
+      (user.roleData?.employeeId && user.roleData.employeeId.toLowerCase().includes(query.toLowerCase()))
+    );
+    setFilteredUsers(filtered);
+  };
+
+  // Edit User Functions
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+    setEditForm({
+      name: user.name || '',
+      email: user.email || '',
+      studentId: user.roleData?.studentId || '',
+      enrollmentYear: user.roleData?.enrollmentYear || '',
+      department: user.roleData?.department || '',
+      batch: user.roleData?.batch || '',
+      currentSemester: user.roleData?.currentSemester || '',
+      employeeId: user.roleData?.employeeId || '',
+      designation: user.roleData?.designation || '',
+      permissions: user.roleData?.permissions || []
+    });
+    setShowEditModal(true);
+    setError('');
+  };
+
+  const handleEditFormChange = (e) => {
+    const { name, value } = e.target;
+    setEditForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditPermissionChange = (permission) => {
+    setEditForm(prev => {
+      const permissions = prev.permissions.includes(permission)
+        ? prev.permissions.filter(p => p !== permission)
+        : [...prev.permissions, permission];
+      return { ...prev, permissions };
+    });
+  };
+
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    
+    try {
+      const updateData = {
+        name: editForm.name,
+        email: editForm.email
+      };
+      
+      if (editingUser.role === 'student') {
+        updateData.studentId = editForm.studentId;
+        updateData.enrollmentYear = parseInt(editForm.enrollmentYear);
+        updateData.department = editForm.department;
+        updateData.batch = editForm.batch;
+        updateData.currentSemester = parseInt(editForm.currentSemester);
+      } else if (editingUser.role === 'teacher') {
+        updateData.employeeId = editForm.employeeId;
+        updateData.department = editForm.department;
+        updateData.designation = editForm.designation;
+      } else if (editingUser.role === 'admin') {
+        updateData.employeeId = editForm.employeeId;
+        updateData.department = editForm.department;
+        updateData.designation = editForm.designation;
+        updateData.permissions = editForm.permissions;
+      }
+      
+      const response = await userAPI.updateUser(editingUser._id, updateData);
+      
+      if (response.data.success) {
+        setSuccess(`User updated successfully!`);
+        setShowEditModal(false);
+        // Refresh the user list
+        if (selectedRole) {
+          fetchUsersByRole(selectedRole);
+        }
+        fetchStats();
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update user');
+    }
+  };
+
+  // Deactivate/Activate Functions
+  const handleToggleUserStatus = async (user) => {
+    setError('');
+    setSuccess('');
+    
+    try {
+      if (user.isActive) {
+        await userAPI.deactivateUser(user._id);
+        setSuccess(`${user.name}'s account has been deactivated`);
+      } else {
+        await userAPI.activateUser(user._id);
+        setSuccess(`${user.name}'s account has been activated`);
+      }
+      
+      // Refresh the user list
+      if (selectedRole) {
+        fetchUsersByRole(selectedRole);
+      }
+      fetchStats();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to toggle user status');
+    }
+  };
+
+  // Delete User Functions
+  const handleDeleteUser = (user) => {
+    setDeletingUser(user);
+    setShowDeleteModal(true);
+    setError('');
+  };
+
+  const confirmDeleteUser = async () => {
+    setError('');
+    setSuccess('');
+    
+    try {
+      await userAPI.deleteUser(deletingUser._id);
+      setSuccess(`${deletingUser.name} has been deleted successfully`);
+      setShowDeleteModal(false);
+      setDeletingUser(null);
+      
+      // Refresh the user list
+      if (selectedRole) {
+        fetchUsersByRole(selectedRole);
+      }
+      fetchStats();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete user');
+      setShowDeleteModal(false);
+    }
+  };
+
+  // Reset Settings Functions
+  const handleResetSettings = (user) => {
+    setResettingUser(user);
+    setShowResetModal(true);
+    setError('');
+  };
+
+  const handleUnlockAccount = async () => {
+    setError('');
+    setSuccess('');
+    
+    try {
+      await userAPI.unlockUser(resettingUser._id);
+      setSuccess(`${resettingUser.name}'s account has been unlocked`);
+      setShowResetModal(false);
+      
+      // Refresh the user list
+      if (selectedRole) {
+        fetchUsersByRole(selectedRole);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to unlock account');
+    }
+  };
+
+
   const allRoleStats = [
-    { icon: Shield, label: 'Admins', value: stats.admins, color: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', superAdminOnly: true },
-    { icon: BookOpen, label: 'Teachers', value: stats.teachers, color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' },
-    { icon: Users, label: 'Students', value: stats.students, color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
-    { icon: GraduationCap, label: 'TAs', value: stats.tas, color: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }
+    { icon: Shield, label: 'Admins', value: stats.admins, color: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', superAdminOnly: true, role: 'admin' },
+    { icon: BookOpen, label: 'Teachers', value: stats.teachers, color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', role: 'teacher' },
+    { icon: Users, label: 'Students', value: stats.students, color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', role: 'student' },
+    { icon: GraduationCap, label: 'TAs', value: stats.tas, color: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', role: 'ta' }
   ];
 
   const roleStats = allRoleStats.filter(stat => !stat.superAdminOnly || isSuperAdmin);
@@ -358,21 +603,157 @@ const UserManagement = () => {
       {/* Stats Grid */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-6 mb-8 max-md:grid-cols-1">
         {roleStats.map((stat, index) => (
-          <div key={index} className="relative bg-white rounded-xl p-7 shadow-sm overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-md">
+          <div 
+            key={index} 
+            className={`relative bg-white rounded-xl p-5 shadow-sm overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-md cursor-pointer ${selectedRole === stat.role ? 'ring-2 ring-primary-500 shadow-md' : ''}`}
+            onClick={() => fetchUsersByRole(stat.role)}
+          >
             <div className="absolute top-0 left-0 right-0 h-1" style={{ background: stat.gradient }}></div>
             <div className="absolute top-0 right-0 w-[120px] h-[120px] opacity-5 rounded-full translate-x-[30%] -translate-y-[30%]" style={{ background: stat.gradient }}></div>
-            <div className="mb-4">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl" style={{ backgroundColor: `${stat.color}15`, color: stat.color }}>
-                <stat.icon size={28} />
+            <div className="mb-3">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl" style={{ backgroundColor: `${stat.color}15`, color: stat.color }}>
+                <stat.icon size={24} />
               </div>
             </div>
             <div className="relative z-[1]">
-              <p className="text-[0.9rem] text-slate-500 m-0 mb-2 font-medium">{stat.label}</p>
-              <h2 className="text-4xl font-bold text-slate-800 m-0">{stat.value}</h2>
+              <p className="text-[0.85rem] text-slate-500 m-0 mb-1 font-medium">{stat.label}</p>
+              <div className="flex items-center justify-between">
+                <h2 className="text-3xl font-bold text-slate-800 m-0">{stat.value}</h2>
+                {selectedRole === stat.role ? (
+                  <ChevronUp size={20} className="text-primary-500" />
+                ) : (
+                  <ChevronDown size={20} className="text-slate-400" />
+                )}
+              </div>
             </div>
           </div>
         ))}
       </div>
+
+      {/* User List Section */}
+      {selectedRole && (
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-8 animate-slide-up">
+          <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+            <h2 className="text-xl font-bold text-slate-800 m-0">
+              {selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)} List
+            </h2>
+            <div className="relative flex-1 max-w-md">
+              <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                value={userSearchQuery}
+                onChange={(e) => handleUserSearch(e.target.value)}
+                placeholder="Search by name, email, or ID..."
+                className={`${inputClass} pl-11`}
+              />
+            </div>
+          </div>
+
+          {loadingUsers ? (
+            <div className="flex justify-center items-center py-12 text-slate-500">
+              <div className="inline-block w-8 h-8 border-4 border-slate-200 border-t-primary-500 rounded-full animate-spin mr-3"></div>
+              Loading users...
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center py-12 text-slate-500">
+              No {selectedRole}s found
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-800">Name</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-800">Email</th>
+                    {selectedRole === 'student' && (
+                      <>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-800">Student ID</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-800">Department</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-800">Semester</th>
+                      </>
+                    )}
+                    {(selectedRole === 'teacher' || selectedRole === 'admin') && (
+                      <>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-800">Employee ID</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-800">Department</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-800">Designation</th>
+                      </>
+                    )}
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-800">Status</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-slate-800">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.map((user) => (
+                    <tr key={user._id} className="border-b border-gray-100 hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
+                            {user.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-medium text-slate-800">{user.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">{user.email}</td>
+                      {selectedRole === 'student' && (
+                        <>
+                          <td className="py-3 px-4 text-slate-600">{user.roleData?.studentId || 'N/A'}</td>
+                          <td className="py-3 px-4 text-slate-600">{user.roleData?.department || 'N/A'}</td>
+                          <td className="py-3 px-4 text-slate-600">{user.roleData?.currentSemester || 'N/A'}</td>
+                        </>
+                      )}
+                      {(selectedRole === 'teacher' || selectedRole === 'admin') && (
+                        <>
+                          <td className="py-3 px-4 text-slate-600">{user.roleData?.employeeId || 'N/A'}</td>
+                          <td className="py-3 px-4 text-slate-600">{user.roleData?.department || 'N/A'}</td>
+                          <td className="py-3 px-4 text-slate-600">{user.roleData?.designation || 'N/A'}</td>
+                        </>
+                      )}
+                      <td className="py-3 px-4">
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {user.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleEditUser(user)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit User"
+                          >
+                            <Edit size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleToggleUserStatus(user)}
+                            className={`p-2 rounded-lg transition-colors ${user.isActive ? 'text-orange-600 hover:bg-orange-50' : 'text-green-600 hover:bg-green-50'}`}
+                            title={user.isActive ? 'Deactivate User' : 'Activate User'}
+                          >
+                            {user.isActive ? <UserX size={18} /> : <UserCheck size={18} />}
+                          </button>
+                          <button
+                            onClick={() => handleResetSettings(user)}
+                            className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                            title="Reset Settings"
+                          >
+                            <RotateCcw size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(user)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete User"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Create User Modal */}
       {showCreateUserModal && (
@@ -711,6 +1092,252 @@ const UserManagement = () => {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {showEditModal && editingUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in" onClick={() => { setShowEditModal(false); setError(''); }}>
+          <div className="bg-white rounded-xl max-w-[700px] w-full max-h-[90vh] overflow-y-auto shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-slate-800 m-0">Edit User</h2>
+              <button className="bg-transparent border-none cursor-pointer text-slate-500 hover:text-slate-800 transition-colors p-1" onClick={() => { setShowEditModal(false); setError(''); }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            {error && (
+              <div className="flex items-center gap-3 py-4 px-5 rounded-lg mx-6 mt-4 text-[0.95rem] bg-red-50 text-red-800 border border-red-200">
+                <AlertCircle size={18} />
+                <span>{error}</span>
+                <button onClick={() => setError('')} className="ml-auto bg-transparent border-none cursor-pointer text-inherit opacity-70 hover:opacity-100"><X size={16} /></button>
+              </div>
+            )}
+            
+            <form onSubmit={handleUpdateUser} className="p-6">
+              <div className="mb-4 p-4 bg-slate-50 rounded-lg">
+                <p className="text-sm text-slate-600 mb-1">Role: <strong className="text-slate-800">{editingUser.role.charAt(0).toUpperCase() + editingUser.role.slice(1)}</strong></p>
+                <p className="text-sm text-slate-600 m-0">User ID: <strong className="text-slate-800">{editingUser._id}</strong></p>
+              </div>
+
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                <div className="mb-4">
+                  <label className={labelClass} htmlFor="edit-name">Full Name *</label>
+                  <input type="text" id="edit-name" name="name" value={editForm.name} onChange={handleEditFormChange} required placeholder="Enter full name" className={inputClass} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                <div className="mb-4">
+                  <label className={labelClass} htmlFor="edit-email">Email *</label>
+                  <input type="email" id="edit-email" name="email" value={editForm.email} onChange={handleEditFormChange} required placeholder="user@example.com" className={inputClass} />
+                </div>
+              </div>
+
+              {editingUser.role === 'student' && (
+                <>
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="edit-studentId">Student ID *</label>
+                      <input type="text" id="edit-studentId" name="studentId" value={editForm.studentId} onChange={handleEditFormChange} required placeholder="e.g., 2024-CS-001" className={inputClass} />
+                    </div>
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="edit-enrollmentYear">Enrollment Year *</label>
+                      <input type="number" id="edit-enrollmentYear" name="enrollmentYear" value={editForm.enrollmentYear} onChange={handleEditFormChange} required min="2000" max="2100" className={inputClass} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="edit-department">Department *</label>
+                      <input type="text" id="edit-department" name="department" value={editForm.department} onChange={handleEditFormChange} required placeholder="e.g., Computer Science" className={inputClass} />
+                    </div>
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="edit-batch">Batch</label>
+                      <input type="text" id="edit-batch" name="batch" value={editForm.batch} onChange={handleEditFormChange} placeholder="e.g., 2024" className={inputClass} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="edit-currentSemester">Current Semester *</label>
+                      <input type="number" id="edit-currentSemester" name="currentSemester" value={editForm.currentSemester} onChange={handleEditFormChange} required min="1" max="8" className={inputClass} />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {(editingUser.role === 'teacher' || editingUser.role === 'admin') && (
+                <>
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="edit-employeeId">Employee ID *</label>
+                      <input type="text" id="edit-employeeId" name="employeeId" value={editForm.employeeId} onChange={handleEditFormChange} required placeholder="e.g., EMP-001" className={inputClass} />
+                    </div>
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="edit-department-emp">Department *</label>
+                      <input type="text" id="edit-department-emp" name="department" value={editForm.department} onChange={handleEditFormChange} required placeholder="e.g., Computer Science" className={inputClass} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                    <div className="mb-4">
+                      <label className={labelClass} htmlFor="edit-designation">Designation</label>
+                      {editingUser.role === 'teacher' ? (
+                        <select id="edit-designation" name="designation" value={editForm.designation} onChange={handleEditFormChange} className={inputClass}>
+                          <option value="">Select designation</option>
+                          <option value="Professor">Professor</option>
+                          <option value="Associate Professor">Associate Professor</option>
+                          <option value="Assistant Professor">Assistant Professor</option>
+                          <option value="Lecturer">Lecturer</option>
+                          <option value="Visiting Faculty">Visiting Faculty</option>
+                        </select>
+                      ) : (
+                        <input type="text" id="edit-designation" name="designation" value={editForm.designation} onChange={handleEditFormChange} placeholder="e.g., Administrator" className={inputClass} />
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {editingUser.role === 'admin' && (
+                <div className="mb-4">
+                  <label className={labelClass}>Permissions</label>
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3 mt-2">
+                    {availablePermissions.map(permission => (
+                      <label key={permission.id} className="flex items-center gap-2 py-2.5 px-3 border border-gray-200 rounded-md cursor-pointer transition-all hover:bg-slate-50 hover:border-primary-500">
+                        <input type="checkbox" checked={editForm.permissions.includes(permission.id)} onChange={() => handleEditPermissionChange(permission.id)} className="w-auto m-0 cursor-pointer" />
+                        <span className="text-[0.9rem] pl-2 text-slate-800">{permission.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 mt-6">
+                <button type="button" className={btnSecondaryClass} onClick={() => { setShowEditModal(false); setError(''); }}>Cancel</button>
+                <button type="submit" className={btnPrimaryClass}>Update User</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && deletingUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in" onClick={() => setShowDeleteModal(false)}>
+          <div className="bg-white rounded-xl max-w-[500px] w-full shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-slate-800 m-0">Delete User</h2>
+              <button className="bg-transparent border-none cursor-pointer text-slate-500 hover:text-slate-800 transition-colors p-1" onClick={() => setShowDeleteModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="flex items-start gap-4 mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle size={24} className="text-red-600 shrink-0 mt-1" />
+                <div>
+                  <p className="text-slate-800 font-semibold mb-2">Are you sure you want to delete this user?</p>
+                  <p className="text-sm text-slate-600 mb-2">This action cannot be undone. The user will be permanently removed from the system.</p>
+                  <div className="mt-4 p-3 bg-white rounded border border-red-200">
+                    <p className="text-sm text-slate-600 mb-1"><strong>Name:</strong> {deletingUser.name}</p>
+                    <p className="text-sm text-slate-600 mb-1"><strong>Email:</strong> {deletingUser.email}</p>
+                    <p className="text-sm text-slate-600 m-0"><strong>Role:</strong> {deletingUser.role.charAt(0).toUpperCase() + deletingUser.role.slice(1)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button type="button" className={btnSecondaryClass} onClick={() => setShowDeleteModal(false)}>Cancel</button>
+                <button type="button" className={`${btnPrimaryClass} bg-red-600 hover:bg-red-700`} onClick={confirmDeleteUser}>
+                  <Trash2 size={18} />
+                  Delete User
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Settings Modal */}
+      {showResetModal && resettingUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in" onClick={() => setShowResetModal(false)}>
+          <div className="bg-white rounded-xl max-w-[600px] w-full max-h-[90vh] overflow-y-auto shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-slate-800 m-0">Reset User Settings</h2>
+              <button className="bg-transparent border-none cursor-pointer text-slate-500 hover:text-slate-800 transition-colors p-1" onClick={() => setShowResetModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-6 p-4 bg-slate-50 rounded-lg">
+                <p className="text-sm text-slate-600 mb-1"><strong>User:</strong> {resettingUser.name}</p>
+                <p className="text-sm text-slate-600 mb-1"><strong>Email:</strong> {resettingUser.email}</p>
+                <p className="text-sm text-slate-600 m-0"><strong>Role:</strong> {resettingUser.role.charAt(0).toUpperCase() + resettingUser.role.slice(1)}</p>
+              </div>
+
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">Available Reset Options</h3>
+
+              <div className="flex flex-col gap-4">
+                <div className="border border-gray-200 rounded-lg p-4 hover:border-primary-500 transition-all">
+                  <div className="flex items-start gap-3">
+                    <Unlock size={24} className="text-blue-600 shrink-0 mt-1" />
+                    <div className="flex-1">
+                      <h4 className="text-base font-semibold text-slate-800 m-0 mb-2">Unlock Account</h4>
+                      <p className="text-sm text-slate-600 mb-3">Remove account lock caused by failed login attempts and reset login counter.</p>
+                      <button
+                        type="button"
+                        className={`${btnSecondaryClass} text-sm`}
+                        onClick={handleUnlockAccount}
+                      >
+                        <Unlock size={16} />
+                        Unlock Account
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-gray-200 rounded-lg p-4 hover:border-primary-500 transition-all">
+                  <div className="flex items-start gap-3">
+                    <Lock size={24} className="text-purple-600 shrink-0 mt-1" />
+                    <div className="flex-1">
+                      <h4 className="text-base font-semibold text-slate-800 m-0 mb-2">Reset 2FA</h4>
+                      <p className="text-sm text-slate-600 mb-3">Disable two-factor authentication for this user. They will need to set it up again.</p>
+                      <button
+                        type="button"
+                        className={`${btnSecondaryClass} text-sm`}
+                        disabled
+                      >
+                        <Lock size={16} />
+                        Reset 2FA (Coming Soon)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-gray-200 rounded-lg p-4 hover:border-primary-500 transition-all">
+                  <div className="flex items-start gap-3">
+                    <RotateCcw size={24} className="text-orange-600 shrink-0 mt-1" />
+                    <div className="flex-1">
+                      <h4 className="text-base font-semibold text-slate-800 m-0 mb-2">Force Password Reset</h4>
+                      <p className="text-sm text-slate-600 mb-3">Require user to reset their password on next login.</p>
+                      <button
+                        type="button"
+                        className={`${btnSecondaryClass} text-sm`}
+                        disabled
+                      >
+                        <RotateCcw size={16} />
+                        Force Reset (Coming Soon)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 mt-6">
+                <button type="button" className={btnPrimaryClass} onClick={() => setShowResetModal(false)}>Close</button>
+              </div>
             </div>
           </div>
         </div>

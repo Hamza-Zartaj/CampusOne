@@ -140,6 +140,9 @@ export const userAPI = {
   activateUser: (userId) => 
     api.put(`/users/${userId}/activate`),
   
+  unlockUser: (userId) => 
+    api.put(`/users/${userId}/unlock`),
+  
   deleteUser: (userId) => 
     api.delete(`/users/${userId}`)
 };
