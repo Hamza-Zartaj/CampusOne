@@ -31,44 +31,8 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     required: true,
-    enum: ['student', 'teacher', 'ta', 'admin', 'superadmin'],
+    enum: ['student', 'teacher', 'ta', 'admin'],
     default: 'student'
-  },
-  // Student-specific fields (only for role='student')
-  programId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Program',
-    default: null
-  },
-  currentSemester: {
-    type: Number,
-    min: 1,
-    max: 12,
-    default: null
-  },
-  enrollmentYear: {
-    type: Number,
-    min: 2000,
-    max: 2100,
-    default: null
-  },
-  studentId: {
-    type: String,
-    unique: true,
-    sparse: true, // Allow null values while maintaining uniqueness
-    trim: true
-  },
-  // Teacher-specific fields (only for role='teacher')
-  employeeId: {
-    type: String,
-    unique: true,
-    sparse: true,
-    trim: true
-  },
-  department: {
-    type: String,
-    trim: true,
-    default: null
   },
   profilePicture: {
     type: String,
