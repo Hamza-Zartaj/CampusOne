@@ -8,7 +8,6 @@ import {
   ClipboardList,
   MessageSquare,
   Bell,
-  Settings,
   FileText,
   GraduationCap,
   UserCheck,
@@ -24,8 +23,7 @@ const Sidebar = ({ isOpen }) => {
   const getNavigationItems = () => {
     const commonItems = [
       { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { path: '/notifications', icon: Bell, label: 'Notifications' },
-      { path: '/settings', icon: Settings, label: 'Settings' }
+      { path: '/notifications', icon: Bell, label: 'Notifications' }
     ];
 
     const roleSpecificItems = {
@@ -35,8 +33,7 @@ const Sidebar = ({ isOpen }) => {
         { path: '/admissions', icon: UserPlus, label: 'Admissions' },
         { path: '/courses', icon: BookOpen, label: 'Courses' },
         { path: '/announcements', icon: Bell, label: 'Announcements' },
-        { path: '/reports', icon: BarChart, label: 'Reports' },
-        { path: '/settings', icon: Settings, label: 'Settings' }
+        { path: '/reports', icon: BarChart, label: 'Reports' }
       ],
       teacher: [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -45,8 +42,7 @@ const Sidebar = ({ isOpen }) => {
         { path: '/assignments', icon: ClipboardList, label: 'Assignments' },
         { path: '/quizzes', icon: FileText, label: 'Quizzes' },
         { path: '/qna', icon: MessageSquare, label: 'Q&A Forum' },
-        { path: '/notifications', icon: Bell, label: 'Notifications' },
-        { path: '/settings', icon: Settings, label: 'Settings' }
+        { path: '/notifications', icon: Bell, label: 'Notifications' }
       ],
       student: [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -55,8 +51,7 @@ const Sidebar = ({ isOpen }) => {
         { path: '/assignments', icon: ClipboardList, label: 'Assignments' },
         { path: '/quizzes', icon: FileText, label: 'Quizzes' },
         { path: '/qna', icon: MessageSquare, label: 'Q&A Forum' },
-        { path: '/notifications', icon: Bell, label: 'Notifications' },
-        { path: '/settings', icon: Settings, label: 'Settings' }
+        { path: '/notifications', icon: Bell, label: 'Notifications' }
       ],
       ta: [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -64,8 +59,7 @@ const Sidebar = ({ isOpen }) => {
         { path: '/attendance', icon: UserCheck, label: 'Attendance' },
         { path: '/assignments', icon: ClipboardList, label: 'Assignments' },
         { path: '/qna', icon: MessageSquare, label: 'Q&A Forum' },
-        { path: '/notifications', icon: Bell, label: 'Notifications' },
-        { path: '/settings', icon: Settings, label: 'Settings' }
+        { path: '/notifications', icon: Bell, label: 'Notifications' }
       ]
     };
 

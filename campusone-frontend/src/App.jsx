@@ -37,7 +37,6 @@ function App() {
           <Route path="/quizzes" element={<div style={{ padding: '20px' }}>Quizzes Page - Coming Soon</div>} />
           <Route path="/qna" element={<div style={{ padding: '20px' }}>Q&A Forum - Coming Soon</div>} />
           <Route path="/notifications" element={<div style={{ padding: '20px' }}>Notifications Page - Coming Soon</div>} />
-          <Route path="/settings" element={<div style={{ padding: '20px' }}>Settings Page - Coming Soon</div>} />
           <Route path="/users" element={<UserManagement />} />
           <Route path="/admissions" element={<AdmissionSettings />} />
           <Route path="/reports" element={<div style={{ padding: '20px' }}>Reports Page - Coming Soon</div>} />
