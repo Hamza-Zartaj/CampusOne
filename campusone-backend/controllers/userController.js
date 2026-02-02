@@ -61,8 +61,16 @@ export const getAllUsers = async (req, res) => {
     }
 
     // Filter by active status
-    if (isActive !== undefined) {
+    // If isActive is explicitly provided (true/false), filter by it
+    // If isActive is empty string, show all users (both active and inactive)
+    // If isActive is undefined, default to only showing active users
+    if (isActive === '' || isActive === 'all') {
+      // Show all users (no filter)
+    } else if (isActive !== undefined) {
       query.isActive = isActive === 'true';
+    } else {
+      // By default, only show active users
+      query.isActive = true;
     }
 
     // Search by name or email
@@ -600,13 +608,24 @@ export const deleteUser = async (req, res) => {
       }
     }
 
-    // Soft delete - just deactivate
-    user.isActive = false;
-    await user.save();
+    // Hard delete - completely remove from database
+    // Delete from role-specific collections
+    if (user.role === 'student') {
+      await Student.deleteOne({ userId: id });
+    } else if (user.role === 'teacher') {
+      await Teacher.deleteOne({ userId: id });
+    } else if (user.role === 'ta') {
+      await TA.deleteOne({ userId: id });
+    } else if (user.role === 'admin') {
+      await Admin.deleteOne({ userId: id });
+    }
+
+    // Delete the user from User collection
+    await User.findByIdAndDelete(id);
 
     res.status(200).json({
       success: true,
-      message: 'User deleted successfully'
+      message: 'User permanently deleted successfully'
     });
   } catch (error) {
     res.status(500).json({
@@ -669,12 +688,12 @@ export const getUserStats = async (req, res) => {
  */
 export const getUserStatsByRole = async (req, res) => {
   try {
-    // Count users by each role
+    // Count users by each role (only active users)
     const [adminCount, teacherCount, studentCount, taCount] = await Promise.all([
-      User.countDocuments({ role: 'admin' }),
-      User.countDocuments({ role: 'teacher' }),
-      User.countDocuments({ role: 'student' }),
-      User.countDocuments({ role: 'ta' })
+      User.countDocuments({ role: 'admin', isActive: true }),
+      User.countDocuments({ role: 'teacher', isActive: true }),
+      User.countDocuments({ role: 'student', isActive: true }),
+      User.countDocuments({ role: 'ta', isActive: true })
     ]);
 
     res.status(200).json({

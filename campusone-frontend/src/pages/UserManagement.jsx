@@ -343,7 +343,8 @@ const UserManagement = () => {
     
     try {
       console.log('Fetching users for role:', role);
-      const response = await userAPI.getAllUsers({ role, page: 1, limit: 100 });
+      // Fetch all users (both active and inactive) by not passing isActive parameter
+      const response = await userAPI.getAllUsers({ role, page: 1, limit: 100, isActive: '' });
       console.log('API Response:', response.data);
       if (response.data.success) {
         setUsersList(response.data.data);
@@ -489,7 +490,7 @@ const UserManagement = () => {
     
     try {
       await userAPI.deleteUser(deletingUser._id);
-      setSuccess(`${deletingUser.name} has been deleted successfully`);
+      setSuccess(`${deletingUser.name} has been permanently deleted from the system`);
       setShowDeleteModal(false);
       setDeletingUser(null);
       
@@ -685,16 +686,16 @@ const UserManagement = () => {
                 </thead>
                 <tbody>
                   {filteredUsers.map((user) => (
-                    <tr key={user._id} className="border-b border-gray-100 hover:bg-slate-50 transition-colors">
+                    <tr key={user._id} className={`border-b transition-colors ${user.isActive ? 'border-gray-100 hover:bg-slate-50' : 'border-gray-200 bg-gray-50 hover:bg-gray-100 opacity-75'}`}>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${user.isActive ? 'bg-gradient-primary' : 'bg-gray-400'}`}>
                             {user.name.charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-medium text-slate-800">{user.name}</span>
+                          <span className={`font-medium ${user.isActive ? 'text-slate-800' : 'text-gray-600'}`}>{user.name}</span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-slate-600">{user.email}</td>
+                      <td className={`py-3 px-4 ${user.isActive ? 'text-slate-600' : 'text-gray-600'}`}>{user.email}</td>
                       {selectedRole === 'student' && (
                         <>
                           <td className="py-3 px-4 text-slate-600">{user.roleData?.studentId || 'N/A'}</td>
@@ -1237,8 +1238,9 @@ const UserManagement = () => {
               <div className="flex items-start gap-4 mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                 <AlertCircle size={24} className="text-red-600 shrink-0 mt-1" />
                 <div>
-                  <p className="text-slate-800 font-semibold mb-2">Are you sure you want to delete this user?</p>
-                  <p className="text-sm text-slate-600 mb-2">This action cannot be undone. The user will be permanently removed from the system.</p>
+                  <p className="text-slate-800 font-semibold mb-2">Permanently Delete User?</p>
+                  <p className="text-sm text-slate-600 mb-3">⚠️ This will <strong>permanently remove</strong> the user and all associated data from the system. This action <strong>cannot be undone</strong>.</p>
+                  <p className="text-sm text-slate-600 mb-2">💡 Tip: If you want to temporarily disable the user, use the <strong>deactivate</strong> button instead (orange icon).</p>
                   <div className="mt-4 p-3 bg-white rounded border border-red-200">
                     <p className="text-sm text-slate-600 mb-1"><strong>Name:</strong> {deletingUser.name}</p>
                     <p className="text-sm text-slate-600 mb-1"><strong>Email:</strong> {deletingUser.email}</p>
