@@ -197,7 +197,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     @tailwind utilities;
     ```
 
-- [ ] **Setup Environment Variables**
+- [x] **Setup Environment Variables**
   - Create `.env` file in backend:
     ```
     PORT=5000
@@ -240,7 +240,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 ### 2.1 Design Database Schema
 
-- [ ] **Create User Schema (Base Authentication Model)**
+- [x] **Create User Schema (Base Authentication Model)**
   - File: `campusone-backend/models/User.js`
   - **Purpose**: Handle authentication and basic account info only
   - Fields:
@@ -266,7 +266,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
     - `updatedAt`: Date
 
-- [ ] **Create Student Schema**
+- [x] **Create Student Schema**
   - File: `campusone-backend/models/Student.js`
   - **Purpose**: Store student-specific data
   - Fields:
@@ -297,7 +297,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
     - `updatedAt`: Date
 
-- [ ] **Create Teacher Schema**
+- [x] **Create Teacher Schema**
   - File: `campusone-backend/models/Teacher.js`
   - **Purpose**: Store teacher-specific data
   - Fields:
@@ -321,7 +321,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
     - `updatedAt`: Date
 
-- [ ] **Create TA Schema**
+- [x] **Create TA Schema**
   - File: `campusone-backend/models/TA.js`
   - **Purpose**: Store TA-specific data
   - Fields:
@@ -341,7 +341,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
     - `updatedAt`: Date
 
-- [ ] **Create Admin Schema**
+- [x] **Create Admin Schema**
   - File: `campusone-backend/models/Admin.js`
   - **Purpose**: Store admin-specific data
   - Fields:
@@ -356,7 +356,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdAt`: Date
     - `updatedAt`: Date
 
-- [ ] **Create Course Schema**
+- [x] **Create Course Schema**
   - File: `campusone-backend/models/Course.js`
   - Fields:
     - `_id`: ObjectId
@@ -378,7 +378,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `isActive`: Boolean
     - `createdAt`: Date
 
-- [ ] **Create Assignment Schema**
+- [x] **Create Assignment Schema**
   - File: `campusone-backend/models/Assignment.js`
   - Fields:
     - `_id`: ObjectId
@@ -392,7 +392,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdBy`: ObjectId (ref: 'User') // Can be Teacher or TA user
     - `createdAt`: Date
 
-- [ ] **Create Submission Schema**
+- [x] **Create Submission Schema**
   - File: `campusone-backend/models/Submission.js`
   - Fields:
     - `_id`: ObjectId
@@ -408,7 +408,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `gradedBy`: ObjectId (ref: 'User') // Can be Teacher or TA user
     - `gradedAt`: Date
 
-- [ ] **Create Attendance Schema**
+- [x] **Create Attendance Schema**
   - File: `campusone-backend/models/Attendance.js`
   - Fields:
     - `_id`: ObjectId
@@ -421,7 +421,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `markedBy`: ObjectId (ref: 'User') // Teacher or TA user
     - `createdAt`: Date
 
-- [ ] **Create Announcement Schema**
+- [x] **Create Announcement Schema**
   - File: `campusone-backend/models/Announcement.js`
   - Fields:
     - `_id`: ObjectId
@@ -433,7 +433,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `targetAudience`: String (enum: ['all', 'students', 'teachers', 'specific_course'])
     - `createdAt`: Date
 
-- [ ] **Create Notification Schema**
+- [x] **Create Notification Schema**
   - File: `campusone-backend/models/Notification.js`
   - Fields:
     - `_id`: ObjectId
@@ -445,7 +445,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `relatedId`: ObjectId (assignment/announcement ID)
     - `createdAt`: Date
 
-- [ ] **Create Summary Schema** (for AI-generated summaries)
+- [x] **Create Summary Schema** (for AI-generated summaries)
   - File: `campusone-backend/models/Summary.js`
   - Fields:
     - `_id`: ObjectId
@@ -455,7 +455,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `generatedBy`: ObjectId (ref: 'User') // Can be any user type
     - `createdAt`: Date
 
-- [ ] **Create Quiz Schema**
+- [x] **Create Quiz Schema**
   - File: `campusone-backend/models/Quiz.js`
   - Fields:
     - `_id`: ObjectId
@@ -483,7 +483,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `createdBy`: ObjectId (ref: 'User') // Teacher or TA user
     - `createdAt`: Date
 
-- [ ] **Create Quiz Attempt Schema**
+- [x] **Create Quiz Attempt Schema**
   - File: `campusone-backend/models/QuizAttempt.js`
   - Fields:
     - `_id`: ObjectId
@@ -511,7 +511,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
           }]
       }
 
-- [ ] **Create TA Eligibility Schema**
+- [x] **Create TA Eligibility Schema**
   - File: `campusone-backend/models/TAEligibility.js`
   - Fields:
     - `_id`: ObjectId
@@ -529,7 +529,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
     - `approvedBy`: ObjectId (ref: 'User') // Admin or Teacher user
     - `createdAt`: Date
 
-- [ ] **Create QNA (Question & Answer) Schema**
+- [x] **Create QNA (Question & Answer) Schema**
   - File: `campusone-backend/models/QNA.js`
   - Fields:
     - `_id`: ObjectId
@@ -667,7 +667,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Add routes for 2FA: setup, enable, disable, verify
   - Add routes for device management
 
-- [ ] **Implement Password Reset** (Optional)
+- [x] **Implement Password Reset** (Optional)
   - Generate reset token
   - Send reset email
   - Verify token and reset password
@@ -723,7 +723,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 #### 3.3.1 Setup Authentication Service
 
-- [ ] **Create Auth Context**
+- [x] **Create Auth Context**
   - File: `campusone-frontend/src/context/AuthContext.js`
   - Create context for auth state
   - Store user data, token, loading state
@@ -731,7 +731,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Store JWT token in localStorage
   - Auto-fetch user on app load if token exists
 
-- [ ] **Create API Service**
+- [x] **Create API Service**
   - File: `campusone-frontend/src/services/api.js`
   - Setup axios instance with base URL
   - Add request interceptor to attach JWT token
@@ -739,7 +739,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 #### 3.3.2 Auth Pages with 2FA Support
 
-- [ ] **Login Page** (REQ-UM-1)
+- [x] **Login Page** (REQ-UM-1)
   - File: `campusone-frontend/src/pages/Login.jsx`
   - Create login form (email, password) with Tailwind CSS
   - Handle submit → call API
@@ -762,7 +762,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Redirect to login
   - **Styling**: Tailwind forms with validation states
 
-- [ ] **2FA Setup Page** (REQ-UM-1)
+- [x] **2FA Setup Page** (REQ-UM-1)
   - File: `campusone-frontend/src/pages/Setup2FA.jsx`
   - Call setup-2fa API to get QR code
   - Display QR code for user to scan
@@ -771,7 +771,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Show success message
   - **Styling**: Center QR code, add instructions with Tailwind
 
-- [ ] **Trusted Devices Page** (REQ-UM-1)
+- [x] **Trusted Devices Page** (REQ-UM-1)
   - File: `campusone-frontend/src/pages/TrustedDevices.jsx`
   - Fetch and display list of trusted devices
   - Show device name, browser, IP, last used date
@@ -781,7 +781,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 #### 3.3.3 Role-Based Dashboards (REQ-UM-2)
 
-- [ ] **Student Dashboard** (REQ-UM-2)
+- [x] **Student Dashboard** (REQ-UM-2)
   - File: `campusone-frontend/src/pages/StudentDashboard.jsx`
   - Display enrolled courses
   - Show upcoming assignments
@@ -789,7 +789,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Display attendance summary
   - **Styling**: Tailwind grid layout, cards with shadows, icons
 
-- [ ] **Teacher Dashboard** (REQ-UM-2)
+- [x] **Teacher Dashboard** (REQ-UM-2)
   - File: `campusone-frontend/src/pages/TeacherDashboard.jsx`
   - Display teaching courses
   - Show pending submissions
@@ -797,14 +797,14 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Quick stats (students, assignments, attendance)
   - **Styling**: Stats cards with Tailwind, responsive layout
 
-- [ ] **TA Dashboard** (REQ-UM-2)
+- [x] **TA Dashboard** (REQ-UM-2)
   - File: `campusone-frontend/src/pages/TADashboard.jsx`
   - Display assigned courses
   - Show grading queue
   - Show material upload permissions
   - **Styling**: Similar to Teacher dashboard with Tailwind
 
-- [ ] **Admin Dashboard** (REQ-UM-2)
+- [x] **Admin Dashboard** (REQ-UM-2)
   - File: `campusone-frontend/src/pages/AdminDashboard.jsx`
   - System statistics (users, courses, activity)
   - Recent user activity
@@ -813,20 +813,20 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 #### 3.3.4 Protected Routes
 
-- [ ] **Setup Protected Routes**
+- [x] **Setup Protected Routes**
   - File: `campusone-frontend/src/components/ProtectedRoute.jsx`
   - Check if user is authenticated
   - Redirect to login if not authenticated
   - Check user role for role-based routes
 
-- [ ] **Setup Route-Based Role Access**
+- [x] **Setup Route-Based Role Access**
   - Create `RoleRoute` component
   - Check user role matches allowed roles
   - Redirect if not authorized
 
 #### 3.3.5 User Management UI (Admin Only) (REQ-UM-4)
 
-- [ ] **User Management Page**
+- [x] **User Management Page**
   - File: `campusone-frontend/src/pages/admin/UserManagement.jsx`
   - Display table of all users with filters (role, active status)
   - Search by name/email
@@ -834,7 +834,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
   - Add "Edit", "Deactivate", "Unlock" buttons for each user
   - **Styling**: Tailwind table, filter dropdowns, search input
 
-- [ ] **Create/Edit User Modal**
+- [x] **Create/Edit User Modal**
   - File: `campusone-frontend/src/components/UserModal.jsx`
   - Form for creating/editing users
   - Fields: name, email, password (only for create), role
@@ -844,7 +844,7 @@ CampusOne is a modern university portal that integrates intelligent workflows, c
 
 #### 3.3.6 Profile & Settings (REQ-UM-3)
 
-- [ ] **Profile Page** (REQ-UM-3)
+- [x] **Profile Page** (REQ-UM-3)
   - File: `campusone-frontend/src/pages/Profile.jsx`
   - Display user information
   - Allow user to update name, email (password change separate)
