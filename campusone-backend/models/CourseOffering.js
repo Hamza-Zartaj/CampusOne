@@ -123,6 +123,25 @@ const courseOfferingSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // Results/Grades fields
+  resultsLocked: {
+    type: Boolean,
+    default: false
+  },
+  resultsLockedAt: {
+    type: Date
+  },
+  resultsLockedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  gradesSubmittedAt: {
+    type: Date
+  },
+  gradesSubmittedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
   // Soft delete fields
   isDeleted: {
     type: Boolean,
