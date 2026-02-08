@@ -2,6 +2,7 @@ import Enrollment from '../models/Enrollment.js';
 import CourseOffering from '../models/CourseOffering.js';
 import Course from '../models/Course.js';
 import Student from '../models/Student.js';
+import AuditLogger from '../services/auditLogger.js';
 
 // Grade point mapping
 const GRADE_POINTS = {
@@ -224,6 +225,24 @@ export const enrollStudent = async (req, res) => {
       });
     }
 
+    // Audit log for enrollment (especially force enrollments)
+    if (forceEnroll) {
+      await AuditLogger.logEnrollmentAction(
+        'ENROLLMENT_FORCE_CREATED',
+        req.user.id,
+        enrollment._id,
+        studentId,
+        courseOfferingId,
+        {
+          enrollmentType,
+          status: enrollmentData.status,
+          waitlistPosition: enrollmentData.waitlistPosition,
+          bypassedChecks: ['prerequisites', 'corequisites', 'capacity'],
+          reason: 'Force enrollment requested by admin/registrar'
+        }
+      );
+    }
+
     // Populate for response
     await enrollment.populate([
       { path: 'student', select: 'studentId userId', populate: { path: 'userId', select: 'firstName lastName email' } },
@@ -305,6 +324,20 @@ export const dropEnrollment = async (req, res) => {
       }
     }
 
+    // Audit log for enrollment drop
+    await AuditLogger.logEnrollmentAction(
+      'ENROLLMENT_DROPPED',
+      req.user.id,
+      enrollment._id,
+      enrollment.student,
+      courseOfferingId,
+      {
+        reason,
+        wasWaitlisted,
+        previousStatus: wasWaitlisted ? 'waitlisted' : 'enrolled'
+      }
+    );
+
     res.status(200).json({
       success: true,
       message: 'Enrollment dropped successfully',
@@ -357,6 +390,19 @@ export const withdrawEnrollment = async (req, res) => {
 
     // Promote from waitlist
     await promoteFromWaitlist(enrollment.courseOffering._id, 1);
+
+    // Audit log for withdrawal
+    await AuditLogger.logEnrollmentAction(
+      'ENROLLMENT_WITHDRAWN',
+      req.user.id,
+      enrollment._id,
+      enrollment.student,
+      enrollment.courseOffering._id,
+      {
+        reason,
+        gradeAssigned: 'W'
+      }
+    );
 
     res.status(200).json({
       success: true,
@@ -964,6 +1010,24 @@ export const bulkEnroll = async (req, res) => {
       } catch (error) {
         results.failed.push({ studentId, reason: error.message });
       }
+    }
+
+    // Audit log for bulk enrollment
+    if (results.successful.length > 0) {
+      await AuditLogger.logBulkEnrollment(
+        skipPrerequisites ? 'ENROLLMENT_FORCE_CREATED' : 'ENROLLMENT_CREATED',
+        req.user.id,
+        results.successful.map(s => s.enrollmentId),
+        results.successful.map(s => s.studentId),
+        courseOfferingId,
+        {
+          enrollmentType,
+          skipPrerequisites,
+          totalAttempted: studentIds.length,
+          successCount: results.successful.length,
+          failedCount: results.failed.length
+        }
+      );
     }
 
     res.status(200).json({

@@ -2,6 +2,7 @@ import SemesterIncharge from '../models/SemesterIncharge.js';
 import Teacher from '../models/Teacher.js';
 import Program from '../models/Program.js';
 import Department from '../models/Department.js';
+import AuditLogger from '../services/auditLogger.js';
 
 /**
  * @desc    Get all semester incharges with pagination and filters
@@ -308,6 +309,22 @@ export const assignSemesterIncharge = async (req, res) => {
       { path: 'department', select: 'departmentCode name' }
     ]);
 
+    // Audit log
+    await AuditLogger.logInchargeAssignment({
+      performedBy: req.user._id,
+      performedByRole: req.user.role,
+      inchargeId: incharge._id,
+      teacherId: teacher,
+      teacherName: incharge.teacher?.userId?.name || incharge.teacher?.employeeId,
+      programId: program,
+      programCode: programDoc.programCode,
+      batch,
+      academicYear,
+      semesterNumber,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
     res.status(201).json({
       success: true,
       message: 'Semester incharge assigned successfully',
@@ -422,6 +439,42 @@ export const replaceSemesterIncharge = async (req, res) => {
       { path: 'department', select: 'departmentCode name' }
     ]);
 
+    // Audit log for replacement
+    if (currentIncharge) {
+      await AuditLogger.logInchargeReplacement({
+        performedBy: req.user._id,
+        performedByRole: req.user.role,
+        previousInchargeId: currentIncharge._id,
+        previousTeacherId: currentIncharge.teacher,
+        previousTeacherName: currentIncharge.teacher?.toString(),
+        newInchargeId: newIncharge._id,
+        newTeacherId: newTeacher,
+        newTeacherName: newIncharge.teacher?.userId?.name || newIncharge.teacher?.employeeId,
+        programId: program,
+        programCode: programDoc.programCode,
+        academicYear,
+        semesterNumber: parseInt(semesterNumber),
+        reason: relieveRemarks,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+    } else {
+      await AuditLogger.logInchargeAssignment({
+        performedBy: req.user._id,
+        performedByRole: req.user.role,
+        inchargeId: newIncharge._id,
+        teacherId: newTeacher,
+        teacherName: newIncharge.teacher?.userId?.name || newIncharge.teacher?.employeeId,
+        programId: program,
+        programCode: programDoc.programCode,
+        batch,
+        academicYear,
+        semesterNumber: parseInt(semesterNumber),
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+    }
+
     res.status(200).json({
       success: true,
       message: currentIncharge 
@@ -531,6 +584,20 @@ export const relieveSemesterIncharge = async (req, res) => {
     if (remarks) incharge.remarks = remarks;
 
     await incharge.save();
+
+    // Audit log
+    await AuditLogger.logInchargeRelief({
+      performedBy: req.user._id,
+      performedByRole: req.user.role,
+      inchargeId: incharge._id,
+      teacherId: incharge.teacher,
+      programId: incharge.program,
+      academicYear: incharge.academicYear,
+      semesterNumber: incharge.semesterNumber,
+      reason: remarks,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
 
     res.status(200).json({
       success: true,

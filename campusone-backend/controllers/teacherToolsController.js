@@ -2,6 +2,7 @@ import Enrollment from '../models/Enrollment.js';
 import CourseOffering from '../models/CourseOffering.js';
 import Teacher from '../models/Teacher.js';
 import Student from '../models/Student.js';
+import AuditLogger from '../services/auditLogger.js';
 
 // Grade point mapping
 const GRADE_POINTS = {
@@ -420,6 +421,11 @@ export const submitStudentGrade = async (req, res) => {
       });
     }
 
+    // Store previous values for audit
+    const previousGrade = enrollment.grade;
+    const previousGradePoints = enrollment.gradePoints;
+    const previousTotalMarks = enrollment.totalMarks;
+
     enrollment.grade = finalGrade;
     enrollment.gradePoints = GRADE_POINTS[finalGrade];
 
@@ -430,6 +436,26 @@ export const submitStudentGrade = async (req, res) => {
     }
 
     await enrollment.save();
+
+    // Audit log
+    await AuditLogger.logGradeChange({
+      performedBy: req.user._id,
+      performedByRole: req.user.role,
+      enrollmentId: enrollment._id,
+      studentId: enrollment.student,
+      courseOfferingId: enrollment.courseOffering._id,
+      previousGrade,
+      previousGradePoints,
+      previousTotalMarks,
+      newGrade: finalGrade,
+      newGradePoints: enrollment.gradePoints,
+      newTotalMarks: enrollment.totalMarks,
+      academicYear: enrollment.academicYear,
+      semesterNumber: enrollment.semesterNumber,
+      isUpdate: !!previousGrade,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
 
     res.status(200).json({
       success: true,
@@ -630,6 +656,19 @@ export const lockResults = async (req, res) => {
     offering.status = 'completed';
     await offering.save();
 
+    // Audit log
+    await AuditLogger.logResultsLock({
+      performedBy: req.user._id,
+      performedByRole: req.user.role,
+      courseOfferingId: offering._id,
+      courseId: offering.course,
+      academicYear: offering.academicYear,
+      semesterNumber: offering.semesterNumber,
+      isLock: true,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
     res.status(200).json({
       success: true,
       message: 'Results locked successfully',
@@ -676,8 +715,19 @@ export const unlockResults = async (req, res) => {
     offering.resultsLockedBy = undefined;
     await offering.save();
 
-    // Log the unlock action (you can add audit logging here)
-    console.log(`Results unlocked for offering ${offeringId} by user ${req.user._id}. Reason: ${reason || 'Not provided'}`);
+    // Audit log for unlock
+    await AuditLogger.logResultsLock({
+      performedBy: req.user._id,
+      performedByRole: req.user.role,
+      courseOfferingId: offering._id,
+      courseId: offering.course,
+      academicYear: offering.academicYear,
+      semesterNumber: offering.semesterNumber,
+      isLock: false,
+      reason,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
 
     res.status(200).json({
       success: true,
