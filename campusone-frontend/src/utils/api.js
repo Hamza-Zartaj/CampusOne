@@ -242,6 +242,93 @@ export const courseOfferingAPI = {
 
   getOfferingsByTeacher: (teacherId, params = {}) =>
     api.get(`/course-offerings/teacher/${teacherId}`, { params }),
+
+  getOfferingsByCourse: (courseId, params = {}) =>
+    api.get(`/course-offerings/course/${courseId}`, { params }),
+
+  createOffering: (data) =>
+    api.post('/course-offerings', data),
+
+  updateOffering: (id, data) =>
+    api.put(`/course-offerings/${id}`, data),
+
+  deleteOffering: (id) =>
+    api.delete(`/course-offerings/${id}`),
+
+  restoreOffering: (id) =>
+    api.post(`/course-offerings/${id}/restore`),
+
+  bulkCreateOfferings: (offerings) =>
+    api.post('/course-offerings/bulk', { offerings }),
+
+  assignInstructor: (id, teacherId) =>
+    api.put(`/course-offerings/${id}/instructor`, { teacherId }),
+
+  assignTAs: (id, taIds) =>
+    api.put(`/course-offerings/${id}/tas`, { taIds }),
+
+  updateSchedule: (id, schedule) =>
+    api.put(`/course-offerings/${id}/schedule`, { schedule }),
+
+  updateCapacity: (id, maxCapacity) =>
+    api.put(`/course-offerings/${id}/capacity`, { maxCapacity }),
+};
+
+// Enrollment API
+export const enrollmentAPI = {
+  getAll: (params = {}) =>
+    api.get('/enrollments', { params }),
+
+  getById: (id) =>
+    api.get(`/enrollments/${id}`),
+
+  getStudentEnrollments: (studentId, params = {}) =>
+    api.get(`/enrollments/student/${studentId}`, { params }),
+
+  getOfferingEnrollments: (courseOfferingId, params = {}) =>
+    api.get(`/enrollments/offering/${courseOfferingId}`, { params }),
+
+  enroll: (studentId, courseOfferingId, enrollmentType = 'regular', forceEnroll = false) =>
+    api.post('/enrollments', { studentId, courseOfferingId, enrollmentType, forceEnroll }),
+
+  bulkEnroll: (studentIds, courseOfferingId, enrollmentType = 'regular', skipPrerequisites = false) =>
+    api.post('/enrollments/bulk', { studentIds, courseOfferingId, enrollmentType, skipPrerequisites }),
+
+  drop: (id, reason = '') =>
+    api.put(`/enrollments/${id}/drop`, { reason }),
+
+  withdraw: (id, reason = '') =>
+    api.put(`/enrollments/${id}/withdraw`, { reason }),
+
+  activate: (id) =>
+    api.put(`/enrollments/${id}/activate`),
+
+  deleteEnrollment: (id) =>
+    api.delete(`/enrollments/${id}`),
+
+  restoreEnrollment: (id) =>
+    api.put(`/enrollments/${id}/restore`),
+
+  updateGrade: (id, gradeData) =>
+    api.put(`/enrollments/${id}/grade`, gradeData),
+
+  checkPrerequisites: (studentId, courseId) =>
+    api.get('/enrollments/check-prerequisites', { params: { studentId, courseId } }),
+
+  getWaitlist: (courseOfferingId) =>
+    api.get(`/enrollments/waitlist/${courseOfferingId}`),
+
+  getWaitlistPosition: (enrollmentId) =>
+    api.get(`/enrollments/waitlist-position/${enrollmentId}`),
+
+  getTranscript: (studentId) =>
+    api.get(`/enrollments/transcript/${studentId}`),
+
+  calculateCGPA: (studentId) =>
+    api.get(`/enrollments/cgpa/${studentId}`),
+
+  getSemesterSummary: (studentId, academicYear, semesterNumber) =>
+    api.get(`/enrollments/semester-summary/${studentId}/${academicYear}/${semesterNumber}`),
 };
 
 // Semester Incharge API

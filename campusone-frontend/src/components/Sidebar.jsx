@@ -14,7 +14,9 @@ import {
   BarChart,
   UserPlus,
   Layers,
-  Eye
+  Eye,
+  CalendarRange,
+  ClipboardCheck
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen }) => {
@@ -34,6 +36,7 @@ const Sidebar = ({ isOpen }) => {
         { path: '/users', icon: Users, label: 'Users' },
         { path: '/admissions', icon: UserPlus, label: 'Admissions' },
         { path: '/courses', icon: BookOpen, label: 'Courses' },
+        { path: '/offerings', icon: CalendarRange, label: 'Offerings' },
         { path: '/curriculum', icon: Layers, label: 'Curriculum' },
         { path: '/semesters', icon: Eye, label: 'Semesters' },
         { path: '/announcements', icon: Bell, label: 'Announcements' },
@@ -50,6 +53,7 @@ const Sidebar = ({ isOpen }) => {
       ],
       student: [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+        { path: '/enrollment', icon: ClipboardCheck, label: 'Enrollment' },
         { path: '/courses', icon: BookOpen, label: 'My Courses' },
         { path: '/attendance', icon: Calendar, label: 'Attendance' },
         { path: '/assignments', icon: ClipboardList, label: 'Assignments' },
