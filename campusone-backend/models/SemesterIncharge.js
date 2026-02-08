@@ -29,6 +29,7 @@ const semesterInchargeSchema = new mongoose.Schema({
   },
   batch: {
     type: String,
+    required: [true, 'Please provide batch'],
     trim: true
     // e.g., "2023-2027"
   },
@@ -81,8 +82,9 @@ semesterInchargeSchema.index({ program: 1 });
 semesterInchargeSchema.index({ department: 1 });
 semesterInchargeSchema.index({ academicYear: 1 });
 semesterInchargeSchema.index({ semesterNumber: 1 });
+semesterInchargeSchema.index({ batch: 1 });
 semesterInchargeSchema.index({ status: 1 });
-semesterInchargeSchema.index({ program: 1, academicYear: 1, semesterNumber: 1 }, { unique: true });
+semesterInchargeSchema.index({ program: 1, batch: 1, academicYear: 1, semesterNumber: 1 }, { unique: true });
 semesterInchargeSchema.index({ isDeleted: 1 });
 
 // Query middleware to exclude soft-deleted documents by default
