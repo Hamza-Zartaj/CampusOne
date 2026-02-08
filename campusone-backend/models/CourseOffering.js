@@ -6,6 +6,11 @@ const courseOfferingSchema = new mongoose.Schema({
     ref: 'Course',
     required: [true, 'Please provide course']
   },
+  program: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Program',
+    required: [true, 'Please provide program']
+  },
   academicYear: {
     type: String,
     required: [true, 'Please provide academic year'],
@@ -136,11 +141,13 @@ const courseOfferingSchema = new mongoose.Schema({
 
 // Indexes
 courseOfferingSchema.index({ course: 1 });
+courseOfferingSchema.index({ program: 1 });
 courseOfferingSchema.index({ academicYear: 1 });
 courseOfferingSchema.index({ semesterNumber: 1 });
 courseOfferingSchema.index({ teacher: 1 });
 courseOfferingSchema.index({ academicYear: 1, semesterNumber: 1 });
-courseOfferingSchema.index({ course: 1, academicYear: 1, semesterNumber: 1, section: 1 }, { unique: true });
+courseOfferingSchema.index({ program: 1, academicYear: 1, semesterNumber: 1 });
+courseOfferingSchema.index({ course: 1, program: 1, academicYear: 1, semesterNumber: 1, section: 1 }, { unique: true });
 courseOfferingSchema.index({ isDeleted: 1 });
 
 // Query middleware to exclude soft-deleted documents by default
