@@ -48,6 +48,79 @@ const programSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  // Curriculum structure: organized by semester
+  curriculum: [{
+    semesterNumber: {
+      type: Number,
+      required: true,
+      min: 1
+    },
+    semesterName: {
+      type: String,
+      trim: true
+      // e.g., "Fall Year 1", "Spring Year 2"
+    },
+    requiredCourses: [{
+      course: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Course',
+        required: true
+      },
+      isCompulsory: {
+        type: Boolean,
+        default: true
+      }
+    }],
+    electiveSlots: [{
+      slotName: {
+        type: String,
+        trim: true
+        // e.g., "Program Elective 1", "Open Elective"
+      },
+      domain: {
+        type: String,
+        trim: true
+        // e.g., "Computer Science", "Mathematics", "Any"
+      },
+      category: {
+        type: String,
+        enum: ['program', 'department', 'open', 'discipline'],
+        default: 'program'
+      },
+      minCredits: {
+        type: Number,
+        min: 0,
+        default: 3
+      },
+      maxCredits: {
+        type: Number,
+        min: 0,
+        default: 4
+      },
+      allowedCourses: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Course'
+      }],
+      description: {
+        type: String,
+        trim: true
+      }
+    }],
+    minCredits: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    maxCredits: {
+      type: Number,
+      min: 0,
+      default: 24
+    },
+    notes: {
+      type: String,
+      trim: true
+    }
+  }],
   isActive: {
     type: Boolean,
     default: true
@@ -71,6 +144,7 @@ const programSchema = new mongoose.Schema({
 // Indexes
 programSchema.index({ programCode: 1 });
 programSchema.index({ department: 1 });
+programSchema.index({ 'curriculum.semesterNumber': 1 });
 programSchema.index({ isDeleted: 1 });
 
 // Query middleware to exclude soft-deleted documents by default
