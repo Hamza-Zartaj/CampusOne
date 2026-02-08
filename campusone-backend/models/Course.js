@@ -52,6 +52,11 @@ const courseSchema = new mongoose.Schema({
     enum: ['core', 'elective', 'lab', 'project', 'internship', 'thesis'],
     default: 'core'
   },
+  domain: {
+    type: String,
+    trim: true
+    // e.g., "Mathematics", "Computer Science", "Physics", "Humanities"
+  },
   prerequisites: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Course'
@@ -60,6 +65,11 @@ const courseSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Course'
   }],
+  pairCourse: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course'
+    // For paired lab/theory courses
+  },
   syllabus: {
     type: String,
     trim: true
@@ -92,6 +102,8 @@ const courseSchema = new mongoose.Schema({
 courseSchema.index({ courseCode: 1 });
 courseSchema.index({ department: 1 });
 courseSchema.index({ program: 1 });
+courseSchema.index({ domain: 1 });
+courseSchema.index({ courseType: 1 });
 courseSchema.index({ isDeleted: 1 });
 
 // Query middleware to exclude soft-deleted documents by default

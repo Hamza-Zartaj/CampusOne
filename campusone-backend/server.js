@@ -7,6 +7,9 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import admissionRoutes from './routes/admissionRoutes.js';
+import departmentRoutes from './routes/departmentRoutes.js';
+import programRoutes from './routes/programRoutes.js';
+import courseRoutes from './routes/courseRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -57,6 +60,9 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admissions', admissionRoutes);
+app.use('/api/departments', departmentRoutes);
+app.use('/api/programs', programRoutes);
+app.use('/api/courses', courseRoutes);
 
 // 404 Handler - Route not found
 app.use((req, res, next) => {
