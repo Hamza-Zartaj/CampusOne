@@ -12,6 +12,7 @@ import SemesterView from './pages/SemesterView';
 import CourseOfferingManagement from './pages/CourseOfferingManagement';
 import StudentEnrollment from './pages/StudentEnrollment';
 import DepartmentManagement from './pages/DepartmentManagement';
+import ProgramManagement from './pages/ProgramManagement';
 import DashboardLayout from './components/DashboardLayout';
 import { Toaster } from 'react-hot-toast';
 
@@ -48,6 +49,7 @@ function App() {
           <Route path="/qna" element={<div style={{ padding: '20px' }}>Q&A Forum - Coming Soon</div>} />
           <Route path="/notifications" element={<div style={{ padding: '20px' }}>Notifications Page - Coming Soon</div>} />
           <Route path="/departments" element={<DepartmentManagement />} />
+          <Route path="/programs" element={<ProgramManagement />} />
           <Route path="/users" element={<UserManagement />} />
           <Route path="/admissions" element={<AdmissionSettings />} />
           <Route path="/reports" element={<div style={{ padding: '20px' }}>Reports Page - Coming Soon</div>} />

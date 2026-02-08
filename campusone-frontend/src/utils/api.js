@@ -221,6 +221,21 @@ export const programAPI = {
   getProgramsByDepartment: (departmentId, params = {}) =>
     api.get(`/programs/department/${departmentId}`, { params }),
 
+  createProgram: (data) =>
+    api.post('/programs', data),
+
+  updateProgram: (id, data) =>
+    api.put(`/programs/${id}`, data),
+
+  deleteProgram: (id) =>
+    api.delete(`/programs/${id}`),
+
+  restoreProgram: (id) =>
+    api.post(`/programs/${id}/restore`),
+
+  permanentDeleteProgram: (id) =>
+    api.delete(`/programs/${id}/permanent`),
+
   // Curriculum
   getCurriculum: (programId) =>
     api.get(`/programs/${programId}/curriculum`),

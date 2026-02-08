@@ -38,6 +38,7 @@ const Sidebar = ({ isOpen }) => {
         { path: '/admissions', icon: UserPlus, label: 'Admissions' },
         { path: '/courses', icon: BookOpen, label: 'Courses' },
         { path: '/departments', icon: Building2, label: 'Departments' },
+        { path: '/programs', icon: GraduationCap, label: 'Programs' },
         { path: '/offerings', icon: CalendarRange, label: 'Offerings' },
         { path: '/curriculum', icon: Layers, label: 'Curriculum' },
         { path: '/semesters', icon: Eye, label: 'Semesters' },
