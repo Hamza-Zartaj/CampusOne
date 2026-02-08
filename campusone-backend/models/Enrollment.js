@@ -31,8 +31,18 @@ const enrollmentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['enrolled', 'active', 'completed', 'dropped', 'withdrawn', 'failed', 'incomplete'],
+    enum: ['enrolled', 'active', 'completed', 'dropped', 'withdrawn', 'failed', 'incomplete', 'waitlisted'],
     default: 'enrolled'
+  },
+  waitlistPosition: {
+    type: Number,
+    min: 1
+  },
+  waitlistAddedAt: {
+    type: Date
+  },
+  promotedFromWaitlistAt: {
+    type: Date
   },
   enrollmentType: {
     type: String,
@@ -118,6 +128,7 @@ enrollmentSchema.index({ semesterNumber: 1 });
 enrollmentSchema.index({ status: 1 });
 enrollmentSchema.index({ student: 1, courseOffering: 1 }, { unique: true });
 enrollmentSchema.index({ student: 1, academicYear: 1, semesterNumber: 1 });
+enrollmentSchema.index({ courseOffering: 1, status: 1, waitlistPosition: 1 });
 enrollmentSchema.index({ isDeleted: 1 });
 
 // Query middleware to exclude soft-deleted documents by default
