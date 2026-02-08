@@ -16,7 +16,8 @@ import {
   Layers,
   Eye,
   CalendarRange,
-  ClipboardCheck
+  ClipboardCheck,
+  Building2
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen }) => {
@@ -36,6 +37,7 @@ const Sidebar = ({ isOpen }) => {
         { path: '/users', icon: Users, label: 'Users' },
         { path: '/admissions', icon: UserPlus, label: 'Admissions' },
         { path: '/courses', icon: BookOpen, label: 'Courses' },
+        { path: '/departments', icon: Building2, label: 'Departments' },
         { path: '/offerings', icon: CalendarRange, label: 'Offerings' },
         { path: '/curriculum', icon: Layers, label: 'Curriculum' },
         { path: '/semesters', icon: Eye, label: 'Semesters' },

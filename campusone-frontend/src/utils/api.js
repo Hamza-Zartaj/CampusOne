@@ -190,6 +190,24 @@ export const courseAPI = {
 export const departmentAPI = {
   getAllDepartments: (params = {}) =>
     api.get('/departments', { params }),
+
+  getDepartmentById: (id) =>
+    api.get(`/departments/${id}`),
+
+  createDepartment: (data) =>
+    api.post('/departments', data),
+
+  updateDepartment: (id, data) =>
+    api.put(`/departments/${id}`, data),
+
+  deleteDepartment: (id) =>
+    api.delete(`/departments/${id}`),
+
+  restoreDepartment: (id) =>
+    api.post(`/departments/${id}/restore`),
+
+  permanentDeleteDepartment: (id) =>
+    api.delete(`/departments/${id}/permanent`),
 };
 
 // Program API
