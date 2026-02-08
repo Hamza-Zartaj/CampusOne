@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   BookOpen, 
   Users, 
@@ -12,11 +13,25 @@ import {
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
     setUser(userData);
-  }, []);
+
+    // Redirect to role-specific dashboard
+    const role = userData?.role?.toLowerCase();
+    if (role === 'teacher') {
+      navigate('/teacher/dashboard', { replace: true });
+      return;
+    } else if (role === 'student') {
+      navigate('/student/dashboard', { replace: true });
+      return;
+    } else if (role === 'admin') {
+      navigate('/admin/dashboard', { replace: true });
+      return;
+    }
+  }, [navigate]);
 
   const userRole = user?.role?.toLowerCase() || 'student';
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { admissionAPI } from '../utils/api';
+import { admissionAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
 import { 
   Settings, 

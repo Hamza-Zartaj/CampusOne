@@ -391,6 +391,81 @@ export const semesterInchargeAPI = {
     api.put(`/semester-incharges/${id}/relieve`, { remarks }),
 };
 
+// Teacher Tools API
+export const teacherToolsAPI = {
+  getMyOfferings: (params = {}) =>
+    api.get('/teacher-tools/my-offerings', { params }),
+
+  getEnrolledStudents: (offeringId, params = {}) =>
+    api.get(`/teacher-tools/offerings/${offeringId}/students`, { params }),
+
+  getMarksTemplate: (offeringId) =>
+    api.get(`/teacher-tools/offerings/${offeringId}/marks-template`),
+
+  uploadStudentMarks: (enrollmentId, marks) =>
+    api.put(`/teacher-tools/enrollments/${enrollmentId}/marks`, marks),
+
+  bulkUploadMarks: (offeringId, marks) =>
+    api.put(`/teacher-tools/offerings/${offeringId}/bulk-marks`, { marks }),
+
+  submitStudentGrade: (enrollmentId, gradeData) =>
+    api.put(`/teacher-tools/enrollments/${enrollmentId}/grade`, gradeData),
+
+  submitFinalGrades: (offeringId, data) =>
+    api.put(`/teacher-tools/offerings/${offeringId}/submit-grades`, data),
+
+  getGradeSummary: (offeringId) =>
+    api.get(`/teacher-tools/offerings/${offeringId}/grade-summary`),
+
+  exportGrades: (offeringId, format = 'json') =>
+    api.get(`/teacher-tools/offerings/${offeringId}/export-grades`, { params: { format } }),
+
+  lockResults: (offeringId) =>
+    api.put(`/teacher-tools/offerings/${offeringId}/lock-results`),
+
+  unlockResults: (offeringId, reason) =>
+    api.put(`/teacher-tools/offerings/${offeringId}/unlock-results`, { reason }),
+};
+
+// Student Portal API
+export const studentPortalAPI = {
+  getMyProfile: () =>
+    api.get('/student/profile'),
+
+  getCurrentCourses: (params = {}) =>
+    api.get('/student/current-courses', { params }),
+
+  getMyTimetable: (params = {}) =>
+    api.get('/student/timetable', { params }),
+
+  getAvailableOfferings: (params = {}) =>
+    api.get('/student/available-offerings', { params }),
+
+  enrollInCourse: (courseOfferingId, enrollmentType = 'regular') =>
+    api.post('/student/enroll', { courseOfferingId, enrollmentType }),
+
+  dropCourse: (enrollmentId, reason = '') =>
+    api.put(`/student/drop/${enrollmentId}`, { reason }),
+
+  swapSection: (currentEnrollmentId, newOfferingId) =>
+    api.put('/student/swap', { currentEnrollmentId, newOfferingId }),
+
+  getMyWaitlist: () =>
+    api.get('/student/waitlist'),
+
+  getMyGrades: (params = {}) =>
+    api.get('/student/grades', { params }),
+
+  getMyTranscript: () =>
+    api.get('/student/transcript'),
+
+  getMyCGPA: () =>
+    api.get('/student/cgpa'),
+
+  checkMyPrerequisites: (courseId) =>
+    api.get(`/student/check-prerequisites/${courseId}`),
+};
+
 // Admission API
 export const admissionAPI = {
   // Get admission settings (public)

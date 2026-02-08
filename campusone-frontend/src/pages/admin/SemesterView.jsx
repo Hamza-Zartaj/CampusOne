@@ -16,7 +16,7 @@ import {
   MapPin,
   Briefcase,
 } from 'lucide-react';
-import { programAPI, semesterInchargeAPI, courseOfferingAPI } from '../utils/api';
+import { programAPI, semesterInchargeAPI, courseOfferingAPI } from '../../utils/api';
 
 const inputClass = "w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] transition-all focus:outline-none focus:border-primary-500 focus:ring-[3px] focus:ring-primary-500/10";
 const labelClass = "block text-[0.9rem] font-medium text-slate-800 mb-2";

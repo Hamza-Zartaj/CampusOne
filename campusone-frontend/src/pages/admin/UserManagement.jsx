@@ -24,7 +24,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import { userAPI } from '../utils/api';
+import { userAPI } from '../../utils/api';
 
 const UserManagement = () => {
   const [stats, setStats] = useState({
