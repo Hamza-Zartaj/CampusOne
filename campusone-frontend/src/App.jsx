@@ -6,6 +6,7 @@ import UserManagement from './pages/UserManagement';
 import AdmissionSettings from './pages/AdmissionSettings';
 import AdmissionApplication from './pages/AdmissionApplication';
 import Profile from './pages/Profile';
+import CourseManagement from './pages/CourseManagement';
 import DashboardLayout from './components/DashboardLayout';
 import { Toaster } from 'react-hot-toast';
 
@@ -31,7 +32,7 @@ function App() {
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="/courses" element={<div style={{ padding: '20px' }}>Courses Page - Coming Soon</div>} />
+          <Route path="/courses" element={<CourseManagement />} />
           <Route path="/attendance" element={<div style={{ padding: '20px' }}>Attendance Page - Coming Soon</div>} />
           <Route path="/assignments" element={<div style={{ padding: '20px' }}>Assignments Page - Coming Soon</div>} />
           <Route path="/quizzes" element={<div style={{ padding: '20px' }}>Quizzes Page - Coming Soon</div>} />

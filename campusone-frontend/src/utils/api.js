@@ -147,6 +147,57 @@ export const userAPI = {
     api.delete(`/users/${userId}`)
 };
 
+// Course API
+export const courseAPI = {
+  getAllCourses: (params = {}) =>
+    api.get('/courses', { params }),
+
+  getCourseById: (id) =>
+    api.get(`/courses/${id}`),
+
+  getCourseByCode: (code) =>
+    api.get(`/courses/code/${code}`),
+
+  createCourse: (courseData) =>
+    api.post('/courses', courseData),
+
+  updateCourse: (id, courseData) =>
+    api.put(`/courses/${id}`, courseData),
+
+  deleteCourse: (id) =>
+    api.delete(`/courses/${id}`),
+
+  restoreCourse: (id) =>
+    api.post(`/courses/${id}/restore`),
+
+  permanentDeleteCourse: (id) =>
+    api.delete(`/courses/${id}/permanent`),
+
+  getDomains: () =>
+    api.get('/courses/domains'),
+
+  getPrereqTree: (id) =>
+    api.get(`/courses/${id}/prereq-tree`),
+
+  getCoursesByDepartment: (departmentId, params = {}) =>
+    api.get(`/courses/department/${departmentId}`, { params }),
+
+  getCoursesByProgram: (programId, params = {}) =>
+    api.get(`/courses/program/${programId}`, { params }),
+};
+
+// Department API
+export const departmentAPI = {
+  getAllDepartments: (params = {}) =>
+    api.get('/departments', { params }),
+};
+
+// Program API
+export const programAPI = {
+  getAllPrograms: (params = {}) =>
+    api.get('/programs', { params }),
+};
+
 // Admission API
 export const admissionAPI = {
   // Get admission settings (public)
