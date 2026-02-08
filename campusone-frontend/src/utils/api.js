@@ -196,6 +196,79 @@ export const departmentAPI = {
 export const programAPI = {
   getAllPrograms: (params = {}) =>
     api.get('/programs', { params }),
+
+  getProgramById: (id) =>
+    api.get(`/programs/${id}`),
+
+  getProgramsByDepartment: (departmentId, params = {}) =>
+    api.get(`/programs/department/${departmentId}`, { params }),
+
+  // Curriculum
+  getCurriculum: (programId) =>
+    api.get(`/programs/${programId}/curriculum`),
+
+  getCurriculumBySemester: (programId, semesterNumber) =>
+    api.get(`/programs/${programId}/curriculum/semester/${semesterNumber}`),
+
+  updateCurriculum: (programId, curriculum) =>
+    api.put(`/programs/${programId}/curriculum`, { curriculum }),
+
+  updateSemesterCurriculum: (programId, semesterNumber, data) =>
+    api.put(`/programs/${programId}/curriculum/semester/${semesterNumber}`, data),
+
+  addCourseToSemester: (programId, semesterNumber, courseId, isCompulsory = true) =>
+    api.post(`/programs/${programId}/curriculum/semester/${semesterNumber}/course`, { courseId, isCompulsory }),
+
+  removeCourseFromSemester: (programId, semesterNumber, courseId) =>
+    api.delete(`/programs/${programId}/curriculum/semester/${semesterNumber}/course/${courseId}`),
+
+  addElectiveSlot: (programId, semesterNumber, slotData) =>
+    api.post(`/programs/${programId}/curriculum/semester/${semesterNumber}/elective`, slotData),
+
+  removeElectiveSlot: (programId, semesterNumber, slotIndex) =>
+    api.delete(`/programs/${programId}/curriculum/semester/${semesterNumber}/elective/${slotIndex}`),
+};
+
+// Course Offering API
+export const courseOfferingAPI = {
+  getAllOfferings: (params = {}) =>
+    api.get('/course-offerings', { params }),
+
+  getOfferingById: (id) =>
+    api.get(`/course-offerings/${id}`),
+
+  getOfferingsByProgramSemester: (programId, params = {}) =>
+    api.get(`/course-offerings/program/${programId}/semester`, { params }),
+
+  getOfferingsByTeacher: (teacherId, params = {}) =>
+    api.get(`/course-offerings/teacher/${teacherId}`, { params }),
+};
+
+// Semester Incharge API
+export const semesterInchargeAPI = {
+  getAll: (params = {}) =>
+    api.get('/semester-incharges', { params }),
+
+  getById: (id) =>
+    api.get(`/semester-incharges/${id}`),
+
+  lookup: (params) =>
+    api.get('/semester-incharges/lookup', { params }),
+
+  getByTeacher: (teacherId, params = {}) =>
+    api.get(`/semester-incharges/teacher/${teacherId}`, { params }),
+
+  assign: (data) =>
+    api.post('/semester-incharges', data),
+
+  replace: (data) =>
+    api.put('/semester-incharges/replace', data),
+
+  update: (id, data) =>
+    api.put(`/semester-incharges/${id}`, data),
+
+  relieve: (id, remarks) =>
+    api.put(`/semester-incharges/${id}/relieve`, { remarks }),
 };
 
 // Admission API

@@ -12,7 +12,9 @@ import {
   GraduationCap,
   UserCheck,
   BarChart,
-  UserPlus
+  UserPlus,
+  Layers,
+  Eye
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen }) => {
@@ -32,6 +34,8 @@ const Sidebar = ({ isOpen }) => {
         { path: '/users', icon: Users, label: 'Users' },
         { path: '/admissions', icon: UserPlus, label: 'Admissions' },
         { path: '/courses', icon: BookOpen, label: 'Courses' },
+        { path: '/curriculum', icon: Layers, label: 'Curriculum' },
+        { path: '/semesters', icon: Eye, label: 'Semesters' },
         { path: '/announcements', icon: Bell, label: 'Announcements' },
         { path: '/reports', icon: BarChart, label: 'Reports' }
       ],
