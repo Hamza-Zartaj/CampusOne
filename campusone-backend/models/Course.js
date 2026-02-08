@@ -17,63 +17,105 @@ const courseSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  teacher: {
+  department: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Teacher',
-    required: true
+    ref: 'Department',
+    required: [true, 'Please provide department']
   },
-  tas: [{
+  program: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'TA'
-  }],
-  students: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Student'
-  }],
-  semester: {
-    type: String,
-    required: true
+    ref: 'Program'
   },
   creditHours: {
     type: Number,
-    required: true,
+    required: [true, 'Please provide credit hours'],
     min: 1,
     max: 6
   },
-  materials: [{
-    title: {
-      type: String,
-      required: true
-    },
-    type: {
-      type: String,
-      enum: ['notes', 'slides', 'reading', 'video', 'other'],
-      default: 'notes'
-    },
-    fileUrl: {
-      type: String,
-      required: true
-    },
-    uploadedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    },
-    uploadedAt: {
-      type: Date,
-      default: Date.now
-    }
+  lectureHours: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  labHours: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  tutorialHours: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  courseType: {
+    type: String,
+    enum: ['core', 'elective', 'lab', 'project', 'internship', 'thesis'],
+    default: 'core'
+  },
+  prerequisites: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course'
+  }],
+  corequisites: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course'
+  }],
+  syllabus: {
+    type: String,
+    trim: true
+  },
+  learningOutcomes: [{
+    type: String,
+    trim: true
   }],
   isActive: {
     type: Boolean,
     default: true
+  },
+  // Soft delete fields
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: {
+    type: Date
+  },
+  deletedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }
 }, {
   timestamps: true
 });
 
-// Index for faster queries
+// Indexes
 courseSchema.index({ courseCode: 1 });
-courseSchema.index({ teacher: 1 });
+courseSchema.index({ department: 1 });
+courseSchema.index({ program: 1 });
+courseSchema.index({ isDeleted: 1 });
+
+// Query middleware to exclude soft-deleted documents by default
+courseSchema.pre(/^find/, function(next) {
+  if (this.getOptions().includeSoftDeleted !== true) {
+    this.where({ isDeleted: { $ne: true } });
+  }
+  next();
+});
+
+// Soft delete method
+courseSchema.methods.softDelete = function(userId) {
+  this.isDeleted = true;
+  this.deletedAt = new Date();
+  this.deletedBy = userId;
+  return this.save();
+};
+
+// Restore method
+courseSchema.methods.restore = function() {
+  this.isDeleted = false;
+  this.deletedAt = undefined;
+  this.deletedBy = undefined;
+  return this.save();
+};
 
 export default mongoose.model('Course', courseSchema);
