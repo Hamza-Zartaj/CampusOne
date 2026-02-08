@@ -193,10 +193,10 @@ export const validatePagination = (req, res, next) => {
 
   if (limit !== undefined) {
     const limitNum = parseInt(limit);
-    if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 1000) {
       return res.status(400).json({
         success: false,
-        message: 'Limit must be a number between 1 and 100'
+        message: 'Limit must be a number between 1 and 1000'
       });
     }
   }

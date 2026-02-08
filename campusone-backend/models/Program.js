@@ -148,11 +148,10 @@ programSchema.index({ 'curriculum.semesterNumber': 1 });
 programSchema.index({ isDeleted: 1 });
 
 // Query middleware to exclude soft-deleted documents by default
-programSchema.pre(/^find/, function(next) {
+programSchema.pre(/^find/, async function() {
   if (this.getOptions().includeSoftDeleted !== true) {
     this.where({ isDeleted: { $ne: true } });
   }
-  next();
 });
 
 // Soft delete method

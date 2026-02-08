@@ -40,7 +40,11 @@ export const getAllDepartments = async (req, res) => {
     // Get departments
     const departments = await Department.find(query)
       .setOptions(queryOptions)
-      .populate('headOfDepartment', 'userId employeeId designation')
+      .populate({
+        path: 'headOfDepartment',
+        select: 'userId employeeId designation',
+        strictPopulate: false
+      })
       .sort({ departmentCode: 1 })
       .skip(skip)
       .limit(limitNum);
@@ -62,6 +66,7 @@ export const getAllDepartments = async (req, res) => {
       data: departments
     });
   } catch (error) {
+    console.error('Error fetching departments:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching departments',
@@ -80,7 +85,11 @@ export const getDepartmentById = async (req, res) => {
     const { id } = req.params;
 
     const department = await Department.findById(id)
-      .populate('headOfDepartment', 'userId employeeId designation');
+      .populate({
+        path: 'headOfDepartment',
+        select: 'userId employeeId designation',
+        strictPopulate: false
+      });
 
     if (!department) {
       return res.status(404).json({
@@ -94,6 +103,7 @@ export const getDepartmentById = async (req, res) => {
       data: department
     });
   } catch (error) {
+    console.error('Error fetching department:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching department',

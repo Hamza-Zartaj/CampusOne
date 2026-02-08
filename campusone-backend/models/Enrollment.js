@@ -132,11 +132,10 @@ enrollmentSchema.index({ courseOffering: 1, status: 1, waitlistPosition: 1 });
 enrollmentSchema.index({ isDeleted: 1 });
 
 // Query middleware to exclude soft-deleted documents by default
-enrollmentSchema.pre(/^find/, function(next) {
+enrollmentSchema.pre(/^find/, async function() {
   if (this.getOptions().includeSoftDeleted !== true) {
     this.where({ isDeleted: { $ne: true } });
   }
-  next();
 });
 
 // Soft delete method

@@ -59,11 +59,10 @@ departmentSchema.index({ departmentCode: 1 });
 departmentSchema.index({ isDeleted: 1 });
 
 // Query middleware to exclude soft-deleted documents by default
-departmentSchema.pre(/^find/, function(next) {
+departmentSchema.pre(/^find/, async function() {
   if (this.getOptions().includeSoftDeleted !== true) {
     this.where({ isDeleted: { $ne: true } });
   }
-  next();
 });
 
 // Soft delete method

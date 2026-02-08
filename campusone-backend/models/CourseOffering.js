@@ -170,11 +170,10 @@ courseOfferingSchema.index({ course: 1, program: 1, academicYear: 1, semesterNum
 courseOfferingSchema.index({ isDeleted: 1 });
 
 // Query middleware to exclude soft-deleted documents by default
-courseOfferingSchema.pre(/^find/, function(next) {
+courseOfferingSchema.pre(/^find/, async function() {
   if (this.getOptions().includeSoftDeleted !== true) {
     this.where({ isDeleted: { $ne: true } });
   }
-  next();
 });
 
 // Soft delete method

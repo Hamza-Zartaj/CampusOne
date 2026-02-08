@@ -88,11 +88,10 @@ semesterInchargeSchema.index({ program: 1, batch: 1, academicYear: 1, semesterNu
 semesterInchargeSchema.index({ isDeleted: 1 });
 
 // Query middleware to exclude soft-deleted documents by default
-semesterInchargeSchema.pre(/^find/, function(next) {
+semesterInchargeSchema.pre(/^find/, async function() {
   if (this.getOptions().includeSoftDeleted !== true) {
     this.where({ isDeleted: { $ne: true } });
   }
-  next();
 });
 
 // Soft delete method
