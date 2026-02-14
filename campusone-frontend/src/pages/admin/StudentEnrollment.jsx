@@ -309,7 +309,7 @@ const StudentEnrollment = () => {
   }, 0);
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto max-md:p-4">
+    <div className="p-8 max-w-350 mx-auto max-md:p-4">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-[2rem] font-bold text-slate-800 m-0">Enrollment</h1>
@@ -391,7 +391,7 @@ const StudentEnrollment = () => {
         <div>
           {/* Filter row */}
           <div className="flex gap-3 mb-5 max-md:flex-col">
-            <select value={enrollmentFilter} onChange={(e) => setEnrollmentFilter(e.target.value)} className={`${inputClass} max-w-[200px] max-md:max-w-none`}>
+            <select value={enrollmentFilter} onChange={(e) => setEnrollmentFilter(e.target.value)} className={`${inputClass} max-w-50 max-md:max-w-none`}>
               <option value="">All Statuses</option>
               <option value="enrolled">Enrolled</option>
               <option value="active">Active</option>
@@ -434,7 +434,7 @@ const StudentEnrollment = () => {
                   <div key={enrollment._id} className="bg-white rounded-xl shadow-sm overflow-hidden">
                     <div className="flex items-center justify-between p-5 max-md:flex-col max-md:items-start max-md:gap-3">
                       <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary-500 to-cyan-500 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                        <div className="w-12 h-12 rounded-lg bg-linear-to-br from-primary-500 to-cyan-500 text-white flex items-center justify-center font-bold text-sm shrink-0">
                           {course.courseCode?.slice(0, 3) || 'N/A'}
                         </div>
                         <div className="min-w-0">
@@ -655,8 +655,8 @@ const StudentEnrollment = () => {
 
       {/* ============ ENROLL MODAL ============ */}
       {enrollModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in" onClick={() => setEnrollModal(null)}>
-          <div className="bg-white rounded-xl max-w-[500px] w-full max-h-[80vh] overflow-y-auto shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-modal p-4 animate-fade-in" onClick={() => setEnrollModal(null)}>
+          <div className="bg-white rounded-xl max-w-125 w-full max-h-[80vh] overflow-y-auto shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center p-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-slate-800 m-0">Confirm Enrollment</h2>
               <button onClick={() => setEnrollModal(null)} className="bg-transparent border-none cursor-pointer text-slate-500 hover:text-slate-800 p-1"><X size={20} /></button>
@@ -716,8 +716,8 @@ const StudentEnrollment = () => {
 
       {/* ============ DROP MODAL ============ */}
       {dropModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in" onClick={() => setDropModal(null)}>
-          <div className="bg-white rounded-xl max-w-[450px] w-full shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-modal p-4 animate-fade-in" onClick={() => setDropModal(null)}>
+          <div className="bg-white rounded-xl max-w-112.5 w-full shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 text-center">
               <div className="w-14 h-14 rounded-full bg-red-50 mx-auto mb-4 flex items-center justify-center">
                 <LogOut size={24} className="text-red-500" />
@@ -751,8 +751,8 @@ const StudentEnrollment = () => {
 
       {/* ============ SWAP MODAL ============ */}
       {swapModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in" onClick={() => setSwapModal(null)}>
-          <div className="bg-white rounded-xl max-w-[600px] w-full max-h-[85vh] overflow-y-auto shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-modal p-4 animate-fade-in" onClick={() => setSwapModal(null)}>
+          <div className="bg-white rounded-xl max-w-150 w-full max-h-[85vh] overflow-y-auto shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center p-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-slate-800 m-0">Swap Course</h2>
               <button onClick={() => setSwapModal(null)} className="bg-transparent border-none cursor-pointer text-slate-500 hover:text-slate-800 p-1"><X size={20} /></button>
@@ -863,8 +863,8 @@ const StudentEnrollment = () => {
 
       {/* ============ DETAIL MODAL ============ */}
       {detailEnrollment && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in" onClick={() => setDetailEnrollment(null)}>
-          <div className="bg-white rounded-xl max-w-[550px] w-full max-h-[85vh] overflow-y-auto shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-modal p-4 animate-fade-in" onClick={() => setDetailEnrollment(null)}>
+          <div className="bg-white rounded-xl max-w-137.5 w-full max-h-[85vh] overflow-y-auto shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center p-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-slate-800 m-0">Enrollment Details</h2>
               <button onClick={() => setDetailEnrollment(null)} className="bg-transparent border-none cursor-pointer text-slate-500 hover:text-slate-800 p-1"><X size={20} /></button>

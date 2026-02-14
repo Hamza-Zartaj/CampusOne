@@ -70,8 +70,8 @@ const Landing = () => {
   return (
     <div className="min-h-screen bg-gradient-main relative overflow-x-hidden">
       {/* Header/Navigation */}
-      <nav className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-md shadow-[0_2px_10px_rgba(0,0,0,0.1)] z-[1000] py-4">
-        <div className="max-w-[1200px] mx-auto px-8 flex justify-between items-center max-md:px-4">
+      <nav className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-md shadow-[0_2px_10px_rgba(0,0,0,0.1)] z-modal py-4">
+        <div className="max-w-300 mx-auto px-8 flex justify-between items-center max-md:px-4">
           <div className="flex items-center gap-3 text-primary-500 font-bold text-2xl max-md:text-xl">
             <BookOpen size={32} strokeWidth={2.5} />
             <h2 className="m-0">CampusOne</h2>
@@ -102,10 +102,10 @@ const Landing = () => {
         {/* Background decorative elements */}
         <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_50%,rgba(255,255,255,0.1)_0%,transparent_50%),radial-gradient(circle_at_80%_80%,rgba(255,255,255,0.1)_0%,transparent_50%)]"></div>
         
-        <div className="max-w-[1200px] mx-auto grid grid-cols-2 gap-16 items-center relative z-[1] max-lg:grid-cols-1 max-lg:text-center">
+        <div className="max-w-300 mx-auto grid grid-cols-2 gap-16 items-center relative z-1 max-lg:grid-cols-1 max-lg:text-center">
           <div className="text-white">
             <h1 className="text-[3.5rem] font-extrabold leading-[1.2] mb-6 max-md:text-[2.5rem] max-sm:text-[2rem]">
-              Welcome to <span className="bg-gradient-to-r from-white to-[#f0f0ff] bg-clip-text text-transparent">CampusOne</span>
+              Welcome to <span className="bg-linear-to-r from-white to-[#f0f0ff] bg-clip-text text-transparent">CampusOne</span>
             </h1>
             <p className="text-xl leading-relaxed mb-10 opacity-95 max-md:text-base">
               The all-in-one platform for modern education management. 
@@ -114,7 +114,7 @@ const Landing = () => {
             <div className="flex gap-4 flex-wrap max-lg:justify-center">
               {!loading && admissionsOpen && (
                 <button 
-                  className="bg-white text-primary-500 border-none py-4 px-8 rounded-full font-bold text-lg cursor-pointer transition-all duration-300 flex items-center gap-2 shadow-[0_4px_20px_rgba(255,255,255,0.3)] hover:-translate-y-[3px] hover:scale-105 hover:shadow-[0_8px_30px_rgba(255,255,255,0.5)] max-md:w-full max-md:justify-center"
+                  className="bg-white text-primary-500 border-none py-4 px-8 rounded-full font-bold text-lg cursor-pointer transition-all duration-300 flex items-center gap-2 shadow-[0_4px_20px_rgba(255,255,255,0.3)] hover:-translate-y-0.75 hover:scale-105 hover:shadow-[0_8px_30px_rgba(255,255,255,0.5)] max-md:w-full max-md:justify-center"
                   onClick={handleApplyClick}
                 >
                   <UserPlus size={20} />
@@ -122,7 +122,7 @@ const Landing = () => {
                 </button>
               )}
               <button 
-                className="bg-white text-primary-500 border-none py-4 px-8 rounded-full font-semibold text-lg cursor-pointer transition-all duration-300 flex items-center gap-2 hover:-translate-y-[3px] hover:shadow-lg"
+                className="bg-white text-primary-500 border-none py-4 px-8 rounded-full font-semibold text-lg cursor-pointer transition-all duration-300 flex items-center gap-2 hover:-translate-y-0.75 hover:shadow-lg"
                 onClick={() => navigate('/login')}
               >
                 Get Started
@@ -131,7 +131,7 @@ const Landing = () => {
           </div>
           
           {/* Floating Cards - Hidden on mobile */}
-          <div className="relative h-[400px] max-lg:hidden">
+          <div className="relative h-100 max-lg:hidden">
             <div className="absolute bg-white py-6 px-8 rounded-2xl shadow-lg flex items-center gap-4 animate-float top-[10%] left-[10%]">
               <BookOpen size={24} className="text-primary-500" />
               <span className="font-semibold text-slate-800 text-lg">20+ Courses</span>
@@ -150,7 +150,7 @@ const Landing = () => {
 
       {/* Features Section */}
       <section className="bg-white py-24 px-8 max-md:py-16">
-        <div className="max-w-[1200px] mx-auto">
+        <div className="max-w-300 mx-auto">
           <h2 className="text-[2.5rem] font-bold text-center text-slate-800 mb-4 max-md:text-[2rem]">
             Everything You Need
           </h2>
@@ -176,7 +176,7 @@ const Landing = () => {
 
       {/* Benefits Section */}
       <section className="bg-slate-100 py-24 px-8 max-md:py-16">
-        <div className="max-w-[1200px] mx-auto">
+        <div className="max-w-300 mx-auto">
           <div className="grid grid-cols-2 gap-16 items-center max-lg:grid-cols-1">
             <div className="text-left max-lg:text-center">
               <h2 className="text-[2.5rem] font-bold text-slate-800 mb-4 max-lg:text-center max-md:text-[2rem]">
@@ -185,7 +185,7 @@ const Landing = () => {
               <p className="text-slate-500 text-lg mb-0 max-lg:text-center">
                 Built for the modern educational ecosystem with cutting-edge technology
               </p>
-              <ul className="list-none p-0 my-8 max-lg:max-w-[500px] max-lg:mx-auto">
+              <ul className="list-none p-0 my-8 max-lg:max-w-125 max-lg:mx-auto">
                 {benefits.map((benefit, index) => (
                   <li key={index} className="flex items-center gap-4 py-3 text-slate-800 text-lg">
                     <CheckCircle size={20} className="text-primary-500 shrink-0" />
@@ -194,7 +194,7 @@ const Landing = () => {
                 ))}
               </ul>
               <button 
-                className="bg-white text-primary-500 border-none py-4 px-8 rounded-full font-semibold text-lg cursor-pointer transition-all duration-300 flex items-center gap-2 hover:-translate-y-[3px] hover:shadow-lg"
+                className="bg-white text-primary-500 border-none py-4 px-8 rounded-full font-semibold text-lg cursor-pointer transition-all duration-300 flex items-center gap-2 hover:-translate-y-0.75 hover:shadow-lg"
                 onClick={() => navigate('/login')}
               >
                 Start Your Journey
@@ -222,7 +222,7 @@ const Landing = () => {
 
       {/* Footer */}
       <footer className="bg-[#1a1a2e] text-white py-12 px-8">
-        <div className="max-w-[1200px] mx-auto">
+        <div className="max-w-300 mx-auto">
           <div className="text-center">
             <div className="flex items-center justify-center gap-3 mb-4">
               <BookOpen size={28} />

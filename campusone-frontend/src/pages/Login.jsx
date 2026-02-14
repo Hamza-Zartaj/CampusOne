@@ -214,7 +214,7 @@ export default function Login() {
 
   return (
     <>
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 p-4 relative overflow-hidden">
+      <div className="min-h-screen flex items-center justify-center bg-liner-to-br from-blue-600 via-blue-500 to-cyan-400 p-4 relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
@@ -228,12 +228,12 @@ export default function Login() {
           {/* Logo/Header */}
           <div className="text-center mb-8">
             <Link to="/" className="inline-block group">
-              <div className="inline-block p-3 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl mb-4 shadow-lg transition-transform group-hover:scale-105">
+              <div className="inline-block p-3 bg-linear-to-br from-blue-600 to-cyan-500 rounded-2xl mb-4 shadow-lg transition-transform group-hover:scale-105">
                 <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
               </div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent mb-2 transition-opacity group-hover:opacity-80">
+              <h1 className="text-4xl font-bold bg-liner-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent mb-2 transition-opacity group-hover:opacity-80">
                 CampusOne
               </h1>
             </Link>
@@ -331,7 +331,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white py-3.5 rounded-xl font-semibold hover:from-blue-700 hover:to-cyan-600 focus:outline-none focus:ring-4 focus:ring-blue-300 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg hover:shadow-xl mt-6"
+              className="w-full bg-linear-to-r from-blue-600 to-cyan-500 text-white py-3.5 rounded-xl font-semibold hover:from-blue-700 hover:to-cyan-600 focus:outline-none focus:ring-4 focus:ring-blue-300 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg hover:shadow-xl mt-6"
             >
               {isLoading ? (
                 <div className="flex items-center justify-center">
