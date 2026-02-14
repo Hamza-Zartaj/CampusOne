@@ -63,8 +63,4 @@ const teacherSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for faster queries
-teacherSchema.index({ userId: 1 });
-teacherSchema.index({ employeeId: 1 });
-
 export default mongoose.model('Teacher', teacherSchema);

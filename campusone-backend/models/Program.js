@@ -142,7 +142,6 @@ const programSchema = new mongoose.Schema({
 });
 
 // Indexes
-programSchema.index({ programCode: 1 });
 programSchema.index({ department: 1 });
 programSchema.index({ 'curriculum.semesterNumber': 1 });
 programSchema.index({ isDeleted: 1 });

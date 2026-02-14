@@ -96,8 +96,4 @@ const studentSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for faster queries
-studentSchema.index({ userId: 1 });
-studentSchema.index({ studentId: 1 });
-
 export default mongoose.model('Student', studentSchema);

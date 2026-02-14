@@ -99,7 +99,6 @@ const courseSchema = new mongoose.Schema({
 });
 
 // Indexes
-courseSchema.index({ courseCode: 1 });
 courseSchema.index({ department: 1 });
 courseSchema.index({ program: 1 });
 courseSchema.index({ domain: 1 });

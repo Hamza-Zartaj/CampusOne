@@ -55,7 +55,6 @@ const departmentSchema = new mongoose.Schema({
 });
 
 // Indexes
-departmentSchema.index({ departmentCode: 1 });
 departmentSchema.index({ isDeleted: 1 });
 
 // Query middleware to exclude soft-deleted documents by default

@@ -53,8 +53,4 @@ const adminSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for faster queries
-adminSchema.index({ userId: 1 });
-adminSchema.index({ employeeId: 1 });
-
 export default mongoose.model('Admin', adminSchema);

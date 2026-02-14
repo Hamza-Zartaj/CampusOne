@@ -53,7 +53,4 @@ const taSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
-taSchema.index({ userId: 1 });
-
 export default mongoose.model('TA', taSchema);
