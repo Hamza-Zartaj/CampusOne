@@ -1,16 +1,16 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { useUserManagement } from './UserManagement/hooks/useUserManagement';
-import { getRoleStats } from './UserManagement/config/userManagementConfig';
-import PageHeader from './UserManagement/components/PageHeader';
-import StatsGrid from './UserManagement/components/StatsGrid';
-import UserTable from './UserManagement/components/UserTable';
-import CreateUserModal from './UserManagement/components/modals/CreateUserModal';
-import PromoteToTAModal from './UserManagement/components/modals/PromoteToTAModal';
-import BulkUploadModal from './UserManagement/components/modals/BulkUploadModal';
-import EditUserModal from './UserManagement/components/modals/EditUserModal';
-import DeleteConfirmationModal from './UserManagement/components/modals/DeleteConfirmationModal';
-import ResetSettingsModal from './UserManagement/components/modals/ResetSettingsModal';
+import { useUserManagement } from './hooks/useUserManagement';
+import { getRoleStats } from './config/userManagementConfig';
+import PageHeader from './components/PageHeader';
+import StatsGrid from './components/StatsGrid';
+import UserTable from './components/UserTable';
+import CreateUserModal from './components/modals/CreateUserModal';
+import PromoteToTAModal from './components/modals/PromoteToTAModal';
+import BulkUploadModal from './components/modals/BulkUploadModal';
+import EditUserModal from './components/modals/EditUserModal';
+import DeleteConfirmationModal from './components/modals/DeleteConfirmationModal';
+import ResetSettingsModal from './components/modals/ResetSettingsModal';
 
 const UserManagement = () => {
   const {
