@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { authAPI } from '../utils/api';
+import { authAPI } from '../../../utils/api';
 
 const ForgotPassword = ({ isOpen, onClose, onVerificationNeeded }) => {
   const [email, setEmail] = useState('');

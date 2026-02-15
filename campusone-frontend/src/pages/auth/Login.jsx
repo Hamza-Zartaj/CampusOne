@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { authAPI } from '../utils/api';
+import { authAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
-import FirstTimeSetup from '../components/FirstTimeSetup';
-import TwoFactorVerification from '../components/TwoFactorVerification';
-import ForgotPassword from '../components/ForgotPassword';
-import PasswordReset from '../components/PasswordReset';
+import FirstTimeSetup from './components/FirstTimeSetup';
+import TwoFactorVerification from './components/TwoFactorVerification';
+import ForgotPassword from './components/ForgotPassword';
+import PasswordReset from './components/PasswordReset';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -306,18 +306,8 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Remember me & Forgot Password */}
-            <div className="flex items-center justify-between pt-1">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="remember"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded cursor-pointer"
-                />
-                <label htmlFor="remember" className="ml-2 block text-sm text-slate-600 cursor-pointer select-none">
-                  Remember me
-                </label>
-              </div>
+            {/* Forgot Password */}
+            <div className="flex items-center justify-end pt-1">
               <a 
                 href="#" 
                 onClick={handleForgotPasswordClick}

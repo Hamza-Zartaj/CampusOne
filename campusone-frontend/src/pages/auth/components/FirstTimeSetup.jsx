@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { authAPI } from '../utils/api';
+import { authAPI } from '../../../utils/api';
 import toast from 'react-hot-toast';
 
 export default function FirstTimeSetup({ user, token, onComplete }) {

@@ -192,11 +192,11 @@ All MongoDB schemas have been created with proper relationships:
 
 | Component | File | Status | Description |
 |-----------|------|--------|-------------|
-| Login Page | `pages/Login.jsx` | ✅ | Full login with 2FA support |
-| First Time Setup | `components/FirstTimeSetup.jsx` | ✅ | Password change + 2FA setup |
-| 2FA Verification | `components/TwoFactorVerification.jsx` | ✅ | TOTP/Email OTP verification |
-| Forgot Password | `components/ForgotPassword.jsx` | ✅ | Request password reset |
-| Password Reset | `components/PasswordReset.jsx` | ✅ | Reset password flow |
+| Login Page | `pages/auth/Login.jsx` | ✅ | Full login with 2FA support |
+| First Time Setup | `pages/auth/components/FirstTimeSetup.jsx` | ✅ | Password change + 2FA setup |
+| 2FA Verification | `pages/auth/components/TwoFactorVerification.jsx` | ✅ | TOTP/Email OTP verification |
+| Forgot Password | `pages/auth/components/ForgotPassword.jsx` | ✅ | Request password reset |
+| Password Reset | `pages/auth/components/PasswordReset.jsx` | ✅ | Reset password flow |
 
 ---
 
@@ -826,15 +826,10 @@ CampusOne/
         │   ├── DashboardLayout.jsx      # ✅ Layout
         │   ├── Sidebar.jsx              # ✅ Navigation
         │   ├── Header.jsx               # ✅ Header
-        │   ├── CourseModal.jsx          # ✅ Course modal
-        │   ├── FirstTimeSetup.jsx       # ✅ First login
-        │   ├── TwoFactorVerification.jsx # ✅ 2FA
-        │   ├── ForgotPassword.jsx        # ✅ Password reset
-        │   └── PasswordReset.jsx         # ✅ Reset flow
+        │   └── CourseModal.jsx          # ✅ Course modal
         │
         ├── pages/
         │   ├── Landing.jsx              # ✅ Landing page
-        │   ├── Login.jsx                # ✅ Login
         │   ├── Dashboard.jsx            # ✅ Dashboard
         │   ├── Profile.jsx              # ✅ User profile
         │   ├── UserManagement.jsx       # ✅ Admin user mgmt
@@ -846,7 +841,15 @@ CampusOne/
         │   ├── StudentEnrollment.jsx    # ✅ Student enrollment
         │   ├── SemesterView.jsx         # ✅ Semester view
         │   ├── AdmissionSettings.jsx    # ✅ Admission config
-        │   └── AdmissionApplication.jsx # ✅ Apply form
+        │   ├── AdmissionApplication.jsx # ✅ Apply form
+        │   │
+        │   └── auth/                    # ✅ Authentication folder
+        │       ├── Login.jsx            # ✅ Login page
+        │       └── components/
+        │           ├── FirstTimeSetup.jsx       # ✅ First login
+        │           ├── TwoFactorVerification.jsx # ✅ 2FA
+        │           ├── ForgotPassword.jsx        # ✅ Password reset request
+        │           └── PasswordReset.jsx         # ✅ Reset flow
         │
         ├── utils/
         │   └── api.js                   # ✅ Complete API service

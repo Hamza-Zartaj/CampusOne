@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, Eye, EyeOff, ShieldCheck, Mail, Smartphone } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { authAPI } from '../utils/api';
+import { authAPI } from '../../../utils/api';
 
 const PasswordReset = ({ isOpen, onClose, resetData }) => {
   const [step, setStep] = useState(1); // 1: Verify Code, 2: New Password
