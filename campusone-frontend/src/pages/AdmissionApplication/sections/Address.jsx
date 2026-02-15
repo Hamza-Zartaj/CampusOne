@@ -4,11 +4,13 @@ import { FormField, SelectField, FileField } from '../components/FormFields';
 import { NATIONALITY_OPTIONS } from '../utils/constants';
 
 /**
- * Step 3: Address & Nationality Section
+ * Step 2: Address Section
  */
-export const AddressNationality = ({ formData, handleChange, handleFileChange }) => {
+export const Address = ({ formData, handleChange, handleFileChange }) => {
+  const isPakistani = formData.address.nationality === 'Pakistani';
+
   return (
-    <section className="mb-8 pb-6 border-b border-gray-200">
+    <section className="mb-8 pb-6 border-gray-200">
       <h2 className="text-slate-800 text-2xl m-0 mb-6 flex items-center gap-2">
         <MapPin size={20} />
         Address
@@ -25,7 +27,7 @@ export const AddressNationality = ({ formData, handleChange, handleFileChange })
           required
         />
 
-        {formData.address.nationality === 'Pakistani' && (
+        {isPakistani && (
           <FileField
             label="Domicile Upload (PDF, JPG, PNG - Max 5MB)"
             name="domicileUpload"
@@ -44,12 +46,14 @@ export const AddressNationality = ({ formData, handleChange, handleFileChange })
           value={formData.address.street}
           onChange={(e) => handleChange(e, 'address')}
           placeholder="123 Main Street"
+          required
         />
         <FormField
           label="Zip/Postal Code"
           name="zipCode"
           value={formData.address.zipCode}
           onChange={(e) => handleChange(e, 'address')}
+          required
         />
       </div>
 
@@ -60,18 +64,23 @@ export const AddressNationality = ({ formData, handleChange, handleFileChange })
           name="city"
           value={formData.address.city}
           onChange={(e) => handleChange(e, 'address')}
+          required
         />
         <FormField
           label="State/Province"
           name="state"
           value={formData.address.state}
           onChange={(e) => handleChange(e, 'address')}
+          required
         />
         <FormField
           label="Country"
           name="country"
-          value={formData.address.country}
+          value={isPakistani ? 'Pakistan' : formData.address.country}
           onChange={(e) => handleChange(e, 'address')}
+          disabled={isPakistani}
+          placeholder={isPakistani ? 'Pakistan' : 'Enter country'}
+          required
         />
       </div>
     </section>

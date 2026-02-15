@@ -1,7 +1,6 @@
 export { PersonalInformation } from './PersonalInformation';
-export { FatherGuardianInfo } from './FatherGuardianInfo';
+export { GuardianInfo } from './GuardianInfo';
 export { PreviousEducation } from './PreviousEducation';
-export { AddressNationality } from './AddressNationality';
+export { Address } from './Address';
 export { ProgramSelection } from './ProgramSelection';
-export { PersonalStatement } from './PersonalStatement';
 export { ReviewSubmit } from './ReviewSubmit';

@@ -23,7 +23,7 @@ export const ReviewSubmit = ({ formData }) => {
   );
 
   return (
-    <section className="mb-8 pb-6 border-b border-gray-200">
+    <section className="mb-8 pb-6 border-gray-200">
       <h2 className="text-slate-800 text-2xl m-0 mb-6 flex items-center gap-2">
         Review Your Application
       </h2>
@@ -40,20 +40,20 @@ export const ReviewSubmit = ({ formData }) => {
         <ReviewItem label="CNIC Back" value={formData.cnicBack?.name || 'Not uploaded'} />
       </ReviewSection>
 
-      {/* Father/Guardian Information Review */}
-      {(formData.fatherGuardian.name || formData.fatherGuardian.relation) && (
+      {/* Guardian Information Review */}
+      {(formData.guardian.name || formData.guardian.relation) && (
         <ReviewSection title="Father/Guardian Information">
-          {formData.fatherGuardian.relation && (
-            <ReviewItem label="Relation" value={formData.fatherGuardian.relation} />
+          {formData.guardian.relation && (
+            <ReviewItem label="Relation" value={formData.guardian.relation} />
           )}
-          {formData.fatherGuardian.name && (
-            <ReviewItem label="Name" value={formData.fatherGuardian.name} />
+          {formData.guardian.name && (
+            <ReviewItem label="Name" value={formData.guardian.name} />
           )}
-          {formData.fatherGuardian.phone && (
-            <ReviewItem label="Phone" value={formData.fatherGuardian.phone} />
+          {formData.guardian.phone && (
+            <ReviewItem label="Phone" value={formData.guardian.phone} />
           )}
-          {formData.fatherGuardian.cnic && (
-            <ReviewItem label="CNIC" value={formData.fatherGuardian.cnic} />
+          {formData.guardian.cnic && (
+            <ReviewItem label="CNIC" value={formData.guardian.cnic} />
           )}
         </ReviewSection>
       )}
@@ -101,18 +101,6 @@ export const ReviewSubmit = ({ formData }) => {
       <ReviewSection title="Program Details">
         <ReviewItem label="Selected Program" value={formData.program} />
       </ReviewSection>
-
-      {/* Personal Statement Review */}
-      {formData.personalStatement && (
-        <div className="mb-8 p-6 bg-slate-50 rounded-lg border border-gray-200">
-          <h3 className="text-slate-800 text-xl m-0 mb-4 pb-3 border-b-2 border-gray-300">
-            Personal Statement
-          </h3>
-          <p className="p-4 bg-white rounded-lg text-slate-500 leading-relaxed whitespace-pre-wrap">
-            {formData.personalStatement}
-          </p>
-        </div>
-      )}
     </section>
   );
 };

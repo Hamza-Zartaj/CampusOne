@@ -22,9 +22,11 @@ export const SuccessMessage = ({ applicationNumber, email, onHomeClick }) => {
           will receive updates via email at <strong>{email}</strong>.
         </p>
         <p className="text-slate-400 text-sm mb-8">Please save your application number for future reference.</p>
-        <button className={TAILWIND_CLASSES.btnPrimary} onClick={onHomeClick}>
-          Back to Home
-        </button>
+        <div className="flex justify-center">
+          <button className={TAILWIND_CLASSES.btnPrimary} onClick={onHomeClick}>
+            Back to Home
+          </button>
+        </div>
       </div>
     </div>
   );

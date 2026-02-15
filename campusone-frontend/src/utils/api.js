@@ -494,7 +494,24 @@ export const admissionAPI = {
   
   // Get application statistics (admin only)
   getStatistics: () => 
-    api.get('/admissions/statistics')
+    api.get('/admissions/statistics'),
+
+  // Upload documents for an application
+  uploadApplicationDocuments: (applicationId, formData) => {
+    return api.post(`/admissions/applications/${applicationId}/documents`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // Get application documents
+  getApplicationDocuments: (applicationId) =>
+    api.get(`/admissions/applications/${applicationId}/documents`),
+
+  // Delete application document
+  deleteApplicationDocument: (applicationId, docIndex) =>
+    api.delete(`/admissions/applications/${applicationId}/documents/${docIndex}`)
 };
 
 export default api;

@@ -10,6 +10,7 @@ export const useEducationRecords = (onEducationAdd, onEducationUpdate, onEducati
   const [currentEducation, setCurrentEducation] = useState(INITIAL_EDUCATION);
   const [editingIndex, setEditingIndex] = useState(null);
   const [educationErrors, setEducationErrors] = useState({});
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   const handleEducationChange = (e) => {
     const { name, value } = e.target;
@@ -109,6 +110,7 @@ export const useEducationRecords = (onEducationAdd, onEducationUpdate, onEducati
     setCurrentEducation(INITIAL_EDUCATION);
     setEditingIndex(null);
     setEducationErrors({});
+    setFileInputKey(prev => prev + 1);  // Force file input to reset
   };
 
   return {
@@ -118,6 +120,7 @@ export const useEducationRecords = (onEducationAdd, onEducationUpdate, onEducati
     setEditingIndex,
     educationErrors,
     setEducationErrors,
+    fileInputKey,
     handleEducationChange,
     handleEducationFileChange,
     validateEducation,

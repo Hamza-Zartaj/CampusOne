@@ -7,7 +7,7 @@ import { GENDER_OPTIONS, TAILWIND_CLASSES } from '../utils/constants';
  */
 export const PersonalInformation = ({ formData, handleChange, handleFileChange }) => {
   return (
-    <section className="mb-8 pb-6 border-b border-gray-200">
+    <section className="mb-8 pb-6 border-gray-200">
       <h2 className="text-slate-800 text-2xl m-0 mb-6 flex items-center gap-2">
         Personal Information
       </h2>

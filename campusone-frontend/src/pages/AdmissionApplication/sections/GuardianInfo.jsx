@@ -3,13 +3,13 @@ import { FormField, SelectField, FileField } from '../components/FormFields';
 import { GUARDIAN_RELATIONS } from '../utils/constants';
 
 /**
- * Step 1: Father/Guardian Information Section
+ * Step 1: Guardian Information Section
  */
-export const FatherGuardianInfo = ({ formData, handleChange, handleFileChange }) => {
+export const GuardianInfo = ({ formData, handleChange, handleFileChange }) => {
   return (
-    <section className="mb-8 pb-6 border-b border-gray-200">
+    <section className="mb-8 pb-6 border-gray-200">
       <h2 className="text-slate-800 text-2xl m-0 mb-6 flex items-center gap-2">
-        Father / Guardian Information
+        Guardian Information
       </h2>
 
       {/* Relation and Name */}
@@ -17,15 +17,15 @@ export const FatherGuardianInfo = ({ formData, handleChange, handleFileChange })
         <SelectField
           label="Relation"
           name="relation"
-          value={formData.fatherGuardian.relation}
-          onChange={(e) => handleChange(e, 'fatherGuardian')}
+          value={formData.guardian.relation}
+          onChange={(e) => handleChange(e, 'guardian')}
           options={GUARDIAN_RELATIONS}
         />
         <FormField
           label="Name"
           name="name"
-          value={formData.fatherGuardian.name}
-          onChange={(e) => handleChange(e, 'fatherGuardian')}
+          value={formData.guardian.name}
+          onChange={(e) => handleChange(e, 'guardian')}
           placeholder="Enter name"
         />
       </div>
@@ -36,15 +36,15 @@ export const FatherGuardianInfo = ({ formData, handleChange, handleFileChange })
           label="Phone Number"
           name="phone"
           type="tel"
-          value={formData.fatherGuardian.phone}
-          onChange={(e) => handleChange(e, 'fatherGuardian')}
+          value={formData.guardian.phone}
+          onChange={(e) => handleChange(e, 'guardian')}
           placeholder="03XX-XXXXXXX"
         />
         <FormField
           label="CNIC Number"
           name="cnic"
-          value={formData.fatherGuardian.cnic}
-          onChange={(e) => handleChange(e, 'fatherGuardian')}
+          value={formData.guardian.cnic}
+          onChange={(e) => handleChange(e, 'guardian')}
           placeholder="XXXXX-XXXXXXX-X"
         />
       </div>
@@ -54,8 +54,8 @@ export const FatherGuardianInfo = ({ formData, handleChange, handleFileChange })
         <FileField
           label="CNIC Upload (PDF, JPG, PNG - Max 5MB)"
           name="cnicUpload"
-          onChange={(e) => handleFileChange(e, 'cnicUpload', 'fatherGuardian')}
-          fileName={formData.fatherGuardian.cnicUpload?.name}
+          onChange={(e) => handleFileChange(e, 'cnicUpload', 'guardian')}
+          fileName={formData.guardian.cnicUpload?.name}
         />
       </div>
     </section>

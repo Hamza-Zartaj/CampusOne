@@ -1,11 +1,10 @@
 // Step definitions
 export const STEPS = [
   { title: 'Personal Information', icon: 'UserPlus' },
-  { title: 'Father/Guardian Info', icon: 'UserPlus' },
+  { title: 'Guardian Info', icon: 'UserPlus' },
+  { title: 'Address', icon: 'MapPin' },
   { title: 'Previous Education', icon: 'FileText' },
-  { title: 'Address & Nationality', icon: 'MapPin' },
   { title: 'Program Details', icon: 'FileText' },
-  { title: 'Personal Statement', icon: 'FileText' },
   { title: 'Review & Submit', icon: 'CheckCircle' }
 ];
 
@@ -19,7 +18,7 @@ export const INITIAL_FORM_DATA = {
   gender: 'Prefer not to say',
   cnicFront: null,
   cnicBack: null,
-  fatherGuardian: {
+  guardian: {
     relation: '',
     name: '',
     phone: '',
@@ -36,8 +35,7 @@ export const INITIAL_FORM_DATA = {
     domicileUpload: null
   },
   educationRecords: [],
-  program: '',
-  personalStatement: ''
+  program: ''
 };
 
 // Education record default state
@@ -100,8 +98,7 @@ export const GUARDIAN_RELATIONS = [
 
 // Nationality options
 export const NATIONALITY_OPTIONS = [
-  'Pakistani',
-  'Foreigner'
+  'Pakistani'
 ];
 
 // Tailwind CSS classes

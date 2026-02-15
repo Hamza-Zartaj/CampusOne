@@ -9,6 +9,7 @@ export const PreviousEducation = ({
   formData,
   currentEducation,
   educationErrors,
+  fileInputKey,
   handleEducationChange,
   handleEducationFileChange,
   onAddEducation,
@@ -47,7 +48,7 @@ export const PreviousEducation = ({
   };
 
   return (
-    <section className="mb-8 pb-6 border-b border-gray-200" id="education-form-section">
+    <section className="mb-8 pb-6 border-gray-200" id="education-form-section">
       <h2 className="text-slate-800 text-2xl m-0 mb-6 flex items-center gap-2">
         Previous Education
       </h2>
@@ -142,6 +143,7 @@ export const PreviousEducation = ({
         {/* Transcript Upload */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6 mb-6">
           <FileField
+            key={fileInputKey}
             label="Transcript Upload"
             name="transcript"
             onChange={handleEducationFileChange}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { admissionAPI } from '../../utils/api';
@@ -20,11 +20,10 @@ import {
 // Import sections
 import {
   PersonalInformation,
-  FatherGuardianInfo,
+  GuardianInfo,
   PreviousEducation,
-  AddressNationality,
+  Address,
   ProgramSelection,
-  PersonalStatement,
   ReviewSubmit
 } from './sections';
 
@@ -49,12 +48,30 @@ const AdmissionApplication = () => {
 
   // Custom hooks
   const { formData, setFormData, handleChange, handleFileChange } = useAdmissionForm();
+
+  // Memoize callbacks to maintain stable references and prevent hook rule violations
+  const handleEducationAdd = useCallback(
+    (records) => setFormData(prev => ({ ...prev, educationRecords: records })),
+    []
+  );
+
+  const handleEducationUpdate = useCallback(
+    (records) => setFormData(prev => ({ ...prev, educationRecords: records })),
+    []
+  );
+
+  const handleEducationDelete = useCallback(
+    (records) => setFormData(prev => ({ ...prev, educationRecords: records })),
+    []
+  );
+
   const {
     currentEducation,
     setCurrentEducation,
     editingIndex,
     setEditingIndex,
     educationErrors,
+    fileInputKey,
     handleEducationChange,
     handleEducationFileChange,
     addEducation,
@@ -62,11 +79,7 @@ const AdmissionApplication = () => {
     deleteEducation,
     cancelEditEducation,
     resetEducationForm
-  } = useEducationRecords(
-    (records) => setFormData(prev => ({ ...prev, educationRecords: records })),
-    (records) => setFormData(prev => ({ ...prev, educationRecords: records })),
-    (records) => setFormData(prev => ({ ...prev, educationRecords: records }))
-  );
+  } = useEducationRecords(handleEducationAdd, handleEducationUpdate, handleEducationDelete);
 
   const {
     currentStep,
@@ -102,7 +115,8 @@ const AdmissionApplication = () => {
 
       if (!settingsData.isOpen) {
         toast.error('Admissions are currently closed');
-        navigate('/');
+        setLoading(false);
+        setTimeout(() => navigate('/'), 1000);
         return;
       }
 
@@ -110,7 +124,9 @@ const AdmissionApplication = () => {
     } catch (error) {
       console.error('Error checking admission status:', error);
       toast.error('Unable to load admission information');
-      navigate('/');
+      setLoading(false);
+      setTimeout(() => navigate('/'), 1000);
+      return;
     } finally {
       setLoading(false);
     }
@@ -159,9 +175,38 @@ const AdmissionApplication = () => {
 
     try {
       setSubmitting(true);
-      const response = await admissionAPI.submitApplication(formData);
+      
+      // Clean form data - remove File objects and set country for Pakistani nationals
+      const cleanedFormData = {
+        ...formData,
+        cnicFront: null,  // Files will be uploaded separately
+        cnicBack: null,
+        guardian: {
+          ...formData.guardian,
+          cnicUpload: null  // Files will be uploaded separately
+        },
+        address: {
+          ...formData.address,
+          country: formData.address.nationality === 'Pakistani' ? 'Pakistan' : formData.address.country,
+          domicileUpload: null  // Files will be uploaded separately
+        },
+        educationRecords: formData.educationRecords.map(edu => ({
+          ...edu,
+          transcript: null  // Files will be uploaded separately
+        }))
+      };
 
-      setApplicationNumber(response.data.data.applicationNumber);
+      const response = await admissionAPI.submitApplication(cleanedFormData);
+      
+      const applicationId = response.data.data.applicationId || response.data.data._id;
+      const appNumber = response.data.data.applicationNumber;
+      setApplicationNumber(appNumber);
+
+      // Upload files after application is created
+      if (applicationId) {
+        await uploadApplicationFiles(applicationId);
+      }
+
       setSubmitted(true);
       toast.success('Application submitted successfully!');
 
@@ -171,6 +216,67 @@ const AdmissionApplication = () => {
       toast.error(error.response?.data?.message || 'Failed to submit application');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Upload files to application
+  const uploadApplicationFiles = async (applicationId) => {
+    const filesToUpload = [];
+
+    // Collect all files from form data
+    if (formData.cnicFront) filesToUpload.push({ file: formData.cnicFront, type: 'cnic_front' });
+    if (formData.cnicBack) filesToUpload.push({ file: formData.cnicBack, type: 'cnic_back' });
+    if (formData.address?.domicileUpload) filesToUpload.push({ file: formData.address.domicileUpload, type: 'domicile' });
+    if (formData.guardian?.cnicUpload) filesToUpload.push({ file: formData.guardian.cnicUpload, type: 'guardian_cnic' });
+    
+    // Collect transcripts from education records
+    formData.educationRecords.forEach((edu, index) => {
+      if (edu.transcript) {
+        filesToUpload.push({ file: edu.transcript, type: `transcript_${index}` });
+      }
+    });
+
+    if (filesToUpload.length === 0) {
+      console.log('No files to upload');
+      return; // No files to upload
+    }
+
+    try {
+      const formDataToSend = new FormData();
+      const fileMetadata = [];
+      
+      // Append each file to the 'documents' field and track metadata
+      filesToUpload.forEach(({ file, type }) => {
+        formDataToSend.append('documents', file, file.name);
+        fileMetadata.push({
+          fileName: file.name,
+          fieldType: type  // cnic_front, cnic_back, domicile, guardian_cnic, transcript_0, etc.
+        });
+      });
+
+      // Send file metadata to backend so it knows which field each file belongs to
+      formDataToSend.append('fileMetadata', JSON.stringify(fileMetadata));
+
+      // Debug: Log FormData entries
+      console.log('FormData entries:');
+      for (let pair of formDataToSend.entries()) {
+        if (pair[0] !== 'documents') {
+          console.log(`  ${pair[0]}:`, pair[1]);
+        }
+      }
+      console.log(`  documents: ${filesToUpload.length} file(s)`);
+
+      console.log(`Uploading ${filesToUpload.length} file(s) to application ${applicationId}`);
+      
+      const response = await admissionAPI.uploadApplicationDocuments(applicationId, formDataToSend);
+      
+      if (response.data.success) {
+        toast.success(`Uploaded ${filesToUpload.length} file(s) successfully!`);
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      console.error('Error response data:', error.response?.data);
+      toast.error('Some files could not be uploaded. You can upload them later.');
     }
   };
 
@@ -202,7 +308,7 @@ const AdmissionApplication = () => {
         );
       case 1:
         return (
-          <FatherGuardianInfo
+          <GuardianInfo
             formData={formData}
             handleChange={handleChange}
             handleFileChange={handleFileChange}
@@ -210,10 +316,19 @@ const AdmissionApplication = () => {
         );
       case 2:
         return (
+          <Address
+            formData={formData}
+            handleChange={handleChange}
+            handleFileChange={handleFileChange}
+          />
+        );
+      case 3:
+        return (
           <PreviousEducation
             formData={formData}
             currentEducation={currentEducation}
             educationErrors={educationErrors}
+            fileInputKey={fileInputKey}
             handleEducationChange={handleEducationChange}
             handleEducationFileChange={handleEducationFileChange}
             onAddEducation={handleEducationAddClick}
@@ -223,21 +338,11 @@ const AdmissionApplication = () => {
             editingIndex={editingIndex}
           />
         );
-      case 3:
-        return (
-          <AddressNationality
-            formData={formData}
-            handleChange={handleChange}
-            handleFileChange={handleFileChange}
-          />
-        );
       case 4:
         return (
           <ProgramSelection formData={formData} programs={programs} handleChange={handleChange} />
         );
       case 5:
-        return <PersonalStatement formData={formData} handleChange={handleChange} />;
-      case 6:
         return <ReviewSubmit formData={formData} />;
       default:
         return null;

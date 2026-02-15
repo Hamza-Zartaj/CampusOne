@@ -13,6 +13,7 @@ export const FormField = ({
   placeholder,
   required = false,
   error = '',
+  disabled = false,
   className = ''
 }) => {
   const inputClass = error ? TAILWIND_CLASSES.inputError : TAILWIND_CLASSES.input;
@@ -32,7 +33,8 @@ export const FormField = ({
         onChange={onChange}
         placeholder={placeholder}
         required={required}
-        className={`${inputClass} ${className}`}
+        disabled={disabled}
+        className={`${inputClass} ${disabled ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''} ${className}`}
       />
       {error && <span className="block text-red-500 text-sm mt-1">{error}</span>}
     </div>
