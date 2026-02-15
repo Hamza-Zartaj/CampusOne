@@ -366,13 +366,6 @@ const Profile = () => {
                   </label>
                   <p className="text-gray-900 font-medium">@{user?.username || 'N/A'}</p>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    User ID
-                  </label>
-                  <p className="text-gray-600 font-mono text-sm">{user?._id || 'N/A'}</p>
-                </div>
               </div>
             </div>
 
