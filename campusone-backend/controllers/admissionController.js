@@ -100,12 +100,30 @@ export const submitApplication = async (req, res) => {
       }
     }
     
-    // Check if email already applied
-    const existingApplication = await AdmissionApplication.findOne({ email: req.body.email });
-    if (existingApplication) {
+    // Check for duplicate email
+    const existingEmail = await AdmissionApplication.findOne({ email: req.body.email });
+    if (existingEmail) {
       return res.status(400).json({
         success: false,
-        message: 'An application with this email already exists'
+        message: 'An application with this email already exists. Each applicant can only submit one application.'
+      });
+    }
+    
+    // Check for duplicate CNIC
+    const existingCNIC = await AdmissionApplication.findOne({ cnic: req.body.cnic });
+    if (existingCNIC) {
+      return res.status(400).json({
+        success: false,
+        message: 'An application with this CNIC already exists. Each applicant can only submit one application.'
+      });
+    }
+    
+    // Check for duplicate phone number
+    const existingPhone = await AdmissionApplication.findOne({ phone: req.body.phone });
+    if (existingPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'An application with this phone number already exists. Each applicant can only submit one application.'
       });
     }
     
@@ -369,26 +387,35 @@ export const uploadDocuments = async (req, res) => {
       const fieldType = fileMetadataMap.get(file.originalname);
       const fileUrl = getFileUrl(file.filename);
       
-      console.log(`[Upload Documents] Mapping file "${file.originalname}" (type: ${fieldType}) to URL: ${fileUrl}`);
+      console.log(`[Upload Documents] Processing file: "${file.originalname}"`);
+      console.log(`[Upload Documents] Looking for metadata with fileName: "${file.originalname}"`);
+      console.log(`[Upload Documents] Found fieldType: "${fieldType}"`);
+      console.log(`[Upload Documents] File URL: ${fileUrl}`);
+      
+      if (!fieldType) {
+        console.warn(`[Upload Documents] WARNING: No metadata found for file "${file.originalname}". Will store in documents array only.`);
+      }
       
       if (fieldType === 'cnic_front') {
         application.cnicFront = fileUrl;
-        console.log('[Upload Documents] Updated cnicFront');
+        console.log('[Upload Documents] ✓ Updated cnicFront');
       } else if (fieldType === 'cnic_back') {
         application.cnicBack = fileUrl;
-        console.log('[Upload Documents] Updated cnicBack');
+        console.log('[Upload Documents] ✓ Updated cnicBack');
       } else if (fieldType === 'domicile') {
         application.address.domicileUpload = fileUrl;
-        console.log('[Upload Documents] Updated address.domicileUpload');
+        console.log('[Upload Documents] ✓ Updated address.domicileUpload');
       } else if (fieldType === 'guardian_cnic') {
         application.guardian.cnicUpload = fileUrl;
-        console.log('[Upload Documents] Updated guardian.cnicUpload');
+        console.log('[Upload Documents] ✓ Updated guardian.cnicUpload');
       } else if (fieldType && fieldType.startsWith('transcript_')) {
         // Extract education record index from fieldType (e.g., 'transcript_0' -> 0)
         const index = parseInt(fieldType.split('_')[1]);
         if (application.educationRecords[index]) {
           application.educationRecords[index].transcript = fileUrl;
-          console.log(`[Upload Documents] Updated educationRecords[${index}].transcript`);
+          console.log(`[Upload Documents] ✓ Updated educationRecords[${index}].transcript`);
+        } else {
+          console.warn(`[Upload Documents] WARNING: educationRecords[${index}] does not exist`);
         }
       }
     });
@@ -539,6 +566,75 @@ export const getApplicationDocuments = async (req, res) => {
       success: false,
       message: 'Error fetching documents',
       error: error.message
+    });
+  }
+};
+
+// @desc    Check if email is already registered
+// @route   GET /api/admissions/check-email/:email
+// @access  Public
+export const checkDuplicateEmail = async (req, res) => {
+  try {
+    const { email } = req.params;
+    
+    const existingEmail = await AdmissionApplication.findOne({ email: email.toLowerCase() });
+    
+    res.status(200).json({
+      success: true,
+      exists: !!existingEmail,
+      message: existingEmail ? 'This email has already submitted an application' : 'Email is available'
+    });
+  } catch (error) {
+    console.error('Error checking email:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking email'
+    });
+  }
+};
+
+// @desc    Check if CNIC is already registered
+// @route   GET /api/admissions/check-cnic/:cnic
+// @access  Public
+export const checkDuplicateCNIC = async (req, res) => {
+  try {
+    const { cnic } = req.params;
+    
+    const existingCNIC = await AdmissionApplication.findOne({ cnic: cnic });
+    
+    res.status(200).json({
+      success: true,
+      exists: !!existingCNIC,
+      message: existingCNIC ? 'This CNIC has already submitted an application' : 'CNIC is available'
+    });
+  } catch (error) {
+    console.error('Error checking CNIC:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking CNIC'
+    });
+  }
+};
+
+// @desc    Check if phone is already registered
+// @route   GET /api/admissions/check-phone/:phone
+// @access  Public
+export const checkDuplicatePhone = async (req, res) => {
+  try {
+    const { phone } = req.params;
+    
+    const existingPhone = await AdmissionApplication.findOne({ phone: phone });
+    
+    res.status(200).json({
+      success: true,
+      exists: !!existingPhone,
+      message: existingPhone ? 'This phone number has already submitted an application' : 'Phone number is available'
+    });
+  } catch (error) {
+    console.error('Error checking phone:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking phone'
     });
   }
 };

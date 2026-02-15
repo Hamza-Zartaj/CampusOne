@@ -20,6 +20,7 @@ export const GuardianInfo = ({ formData, handleChange, handleFileChange }) => {
           value={formData.guardian.relation}
           onChange={(e) => handleChange(e, 'guardian')}
           options={GUARDIAN_RELATIONS}
+          required={true}
         />
         <FormField
           label="Name"
@@ -27,6 +28,7 @@ export const GuardianInfo = ({ formData, handleChange, handleFileChange }) => {
           value={formData.guardian.name}
           onChange={(e) => handleChange(e, 'guardian')}
           placeholder="Enter name"
+          required={true}
         />
       </div>
 
@@ -39,6 +41,7 @@ export const GuardianInfo = ({ formData, handleChange, handleFileChange }) => {
           value={formData.guardian.phone}
           onChange={(e) => handleChange(e, 'guardian')}
           placeholder="03XX-XXXXXXX"
+          required={true}
         />
         <FormField
           label="CNIC Number"
@@ -46,6 +49,7 @@ export const GuardianInfo = ({ formData, handleChange, handleFileChange }) => {
           value={formData.guardian.cnic}
           onChange={(e) => handleChange(e, 'guardian')}
           placeholder="XXXXX-XXXXXXX-X"
+          required={true}
         />
       </div>
 
@@ -56,6 +60,7 @@ export const GuardianInfo = ({ formData, handleChange, handleFileChange }) => {
           name="cnicUpload"
           onChange={(e) => handleFileChange(e, 'cnicUpload', 'guardian')}
           fileName={formData.guardian.cnicUpload?.name}
+          required={true}
         />
       </div>
     </section>

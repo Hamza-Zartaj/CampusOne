@@ -10,7 +10,10 @@ import {
   getApplicationStatistics,
   uploadDocuments,
   deleteDocument,
-  getApplicationDocuments
+  getApplicationDocuments,
+  checkDuplicateEmail,
+  checkDuplicateCNIC,
+  checkDuplicatePhone
 } from '../controllers/admissionController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { uploadAdmissionDocuments, handleUploadErrors } from '../middleware/uploadMiddleware.js';
@@ -18,6 +21,11 @@ import { uploadAdmissionDocuments, handleUploadErrors } from '../middleware/uplo
 // Public routes
 router.get('/settings', getAdmissionSettings);
 router.post('/apply', submitApplication);
+
+// Duplicate check routes (Public)
+router.get('/check-email/:email', checkDuplicateEmail);
+router.get('/check-cnic/:cnic', checkDuplicateCNIC);
+router.get('/check-phone/:phone', checkDuplicatePhone);
 
 // Admin only routes
 router.put('/settings', protect, authorize('admin'), updateAdmissionSettings);
@@ -29,7 +37,8 @@ router.get('/statistics', protect, authorize('admin'), getApplicationStatistics)
 // Document upload routes (Public for applicants, with app-level authorization check)
 router.post('/applications/:id/documents', 
   (req, res, next) => {
-    uploadAdmissionDocuments.array('documents', 5)(req, res, (err) => {
+    // Use .any() to accept all fields (files and non-file fields like fileMetadata)
+    uploadAdmissionDocuments.any()(req, res, (err) => {
       if (err) {
         console.error('[Upload Route] Multer error:', err);
         if (err.code === 'LIMIT_FILE_SIZE') {
@@ -42,13 +51,6 @@ router.post('/applications/:id/documents',
           return res.status(400).json({
             success: false,
             message: 'Too many files. Maximum is 5 files'
-          });
-        }
-        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-          console.error('[Upload Route] Unexpected field in form data:', err.field);
-          return res.status(400).json({
-            success: false,
-            message: 'Unexpected field in form data. Only "documents" field is allowed.'
           });
         }
         return res.status(400).json({

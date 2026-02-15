@@ -188,8 +188,10 @@ const admissionApplicationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
-admissionApplicationSchema.index({ email: 1 });
+// Index for faster queries and uniqueness
+admissionApplicationSchema.index({ email: 1 }, { unique: true });
+admissionApplicationSchema.index({ cnic: 1 }, { unique: true });
+admissionApplicationSchema.index({ phone: 1 }, { unique: true });
 admissionApplicationSchema.index({ status: 1 });
 admissionApplicationSchema.index({ submittedAt: -1 });
 

@@ -223,18 +223,53 @@ const AdmissionApplication = () => {
   const uploadApplicationFiles = async (applicationId) => {
     const filesToUpload = [];
 
+    console.log('[File Upload] Starting file collection...');
+    console.log('[File Upload] formData.cnicFront:', formData.cnicFront);
+    console.log('[File Upload] formData.cnicBack:', formData.cnicBack);
+    console.log('[File Upload] formData.address?.domicileUpload:', formData.address?.domicileUpload);
+    console.log('[File Upload] formData.guardian?.cnicUpload:', formData.guardian?.cnicUpload);
+    console.log('[File Upload] formData.educationRecords:', formData.educationRecords);
+
     // Collect all files from form data
-    if (formData.cnicFront) filesToUpload.push({ file: formData.cnicFront, type: 'cnic_front' });
-    if (formData.cnicBack) filesToUpload.push({ file: formData.cnicBack, type: 'cnic_back' });
-    if (formData.address?.domicileUpload) filesToUpload.push({ file: formData.address.domicileUpload, type: 'domicile' });
-    if (formData.guardian?.cnicUpload) filesToUpload.push({ file: formData.guardian.cnicUpload, type: 'guardian_cnic' });
+    if (formData.cnicFront) {
+      console.log('[File Upload] Adding cnicFront:', formData.cnicFront.name);
+      filesToUpload.push({ file: formData.cnicFront, type: 'cnic_front' });
+    } else {
+      console.log('[File Upload] cnicFront is missing/null');
+    }
+
+    if (formData.cnicBack) {
+      console.log('[File Upload] Adding cnicBack:', formData.cnicBack.name);
+      filesToUpload.push({ file: formData.cnicBack, type: 'cnic_back' });
+    } else {
+      console.log('[File Upload] cnicBack is missing/null');
+    }
+
+    if (formData.address?.domicileUpload) {
+      console.log('[File Upload] Adding domicileUpload:', formData.address.domicileUpload.name);
+      filesToUpload.push({ file: formData.address.domicileUpload, type: 'domicile' });
+    } else {
+      console.log('[File Upload] domicileUpload is missing/null');
+    }
+
+    if (formData.guardian?.cnicUpload) {
+      console.log('[File Upload] Adding guardian.cnicUpload:', formData.guardian.cnicUpload.name);
+      filesToUpload.push({ file: formData.guardian.cnicUpload, type: 'guardian_cnic' });
+    } else {
+      console.log('[File Upload] guardian.cnicUpload is missing/null');
+    }
     
     // Collect transcripts from education records
     formData.educationRecords.forEach((edu, index) => {
       if (edu.transcript) {
+        console.log(`[File Upload] Adding educationRecords[${index}].transcript:`, edu.transcript.name);
         filesToUpload.push({ file: edu.transcript, type: `transcript_${index}` });
+      } else {
+        console.log(`[File Upload] educationRecords[${index}].transcript is missing/null`);
       }
     });
+
+    console.log(`[File Upload] Total files to upload: ${filesToUpload.length}`);
 
     if (filesToUpload.length === 0) {
       console.log('No files to upload');
@@ -247,6 +282,7 @@ const AdmissionApplication = () => {
       
       // Append each file to the 'documents' field and track metadata
       filesToUpload.forEach(({ file, type }) => {
+        console.log(`[File Upload] Appending file: "${file.name}" with type: "${type}"`);
         formDataToSend.append('documents', file, file.name);
         fileMetadata.push({
           fileName: file.name,
@@ -255,6 +291,7 @@ const AdmissionApplication = () => {
       });
 
       // Send file metadata to backend so it knows which field each file belongs to
+      console.log('[File Upload] Metadata being sent:', fileMetadata);
       formDataToSend.append('fileMetadata', JSON.stringify(fileMetadata));
 
       // Debug: Log FormData entries

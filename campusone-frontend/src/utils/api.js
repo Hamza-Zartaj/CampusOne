@@ -480,6 +480,18 @@ export const admissionAPI = {
   submitApplication: (applicationData) => 
     api.post('/admissions/apply', applicationData),
   
+  // Check for duplicate email
+  checkDuplicateEmail: (email) =>
+    api.get(`/admissions/check-email/${email}`),
+  
+  // Check for duplicate CNIC
+  checkDuplicateCNIC: (cnic) =>
+    api.get(`/admissions/check-cnic/${cnic}`),
+  
+  // Check for duplicate phone
+  checkDuplicatePhone: (phone) =>
+    api.get(`/admissions/check-phone/${phone}`),
+  
   // Get all applications (admin only)
   getAllApplications: (params = {}) => 
     api.get('/admissions/applications', { params }),
