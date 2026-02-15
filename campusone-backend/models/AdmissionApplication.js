@@ -143,15 +143,6 @@ const admissionApplicationSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
-  
-  // Additional Information
-  references: [{
-    name: String,
-    email: String,
-    phone: String,
-    relationship: String
-  }],
-  
   // Application Status
   status: {
     type: String,
