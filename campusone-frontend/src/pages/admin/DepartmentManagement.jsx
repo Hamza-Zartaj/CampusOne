@@ -13,14 +13,9 @@ import {
   ChevronRight,
   Eye,
   Check,
-  MapPin,
-  Mail,
-  Phone,
   User,
-  BookOpen,
-  Users,
 } from 'lucide-react';
-import { departmentAPI, userAPI } from '../../utils/api';
+import { departmentAPI, teacherAPI } from '../../utils/api';
 
 const inputClass = "w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] transition-all focus:outline-none focus:border-primary-500 focus:ring-[3px] focus:ring-primary-500/10";
 const labelClass = "block text-[0.9rem] font-medium text-slate-800 mb-2";
@@ -60,23 +55,23 @@ const DepartmentManagement = () => {
 
   // Form
   const [form, setForm] = useState({
-    departmentCode: '',
     name: '',
     description: '',
     headOfDepartment: '',
-    contactEmail: '',
-    contactPhone: '',
-    location: '',
   });
   const [formLoading, setFormLoading] = useState(false);
 
   // Load teachers for HOD search
   useEffect(() => {
-    userAPI.getAllUsers({ role: 'teacher', limit: 500, isActive: true })
+    teacherAPI.getAllTeachers({ isActive: true, limit: 500 })
       .then(res => {
-        if (res.data.success) setTeachers(res.data.data || res.data.users || []);
+        if (res.data.success) setTeachers(res.data.data || []);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error('Failed to load teachers:', err);
+        // Don't block the page if teachers fail to load
+        setTeachers([]);
+      });
   }, []);
 
   // Fetch departments
@@ -107,7 +102,7 @@ const DepartmentManagement = () => {
     if (!q.trim()) return [];
     const lq = q.toLowerCase();
     return teachers.filter(t => {
-      const name = `${t.firstName || ''} ${t.lastName || ''} ${t.username || ''}`.toLowerCase();
+      const name = `${t.name || ''} ${t.designation || ''} ${t.username || ''}`.toLowerCase();
       return name.includes(lq) || (t.email || '').toLowerCase().includes(lq);
     }).slice(0, 8);
   };
@@ -115,7 +110,7 @@ const DepartmentManagement = () => {
   // Form handlers
   const openCreateModal = () => {
     setEditingDept(null);
-    setForm({ departmentCode: '', name: '', description: '', headOfDepartment: '', contactEmail: '', contactPhone: '', location: '' });
+    setForm({ name: '', description: '', headOfDepartment: '' });
     setSelectedTeacher(null);
     setTeacherSearch('');
     setShowFormModal(true);
@@ -124,27 +119,23 @@ const DepartmentManagement = () => {
   const openEditModal = (dept) => {
     setEditingDept(dept);
     const hod = dept.headOfDepartment;
-    const hodUser = hod && typeof hod === 'object' ? hod.userId || hod : null;
-    const hodName = hodUser ? `${hodUser.firstName || ''} ${hodUser.lastName || ''}`.trim() : '';
+    const hodUser = hod && typeof hod === 'object' ? hod : null;
+    const hodName = hodUser ? (hodUser.name || '').trim() : '';
 
     setForm({
-      departmentCode: dept.departmentCode || '',
       name: dept.name || '',
       description: dept.description || '',
       headOfDepartment: hod && typeof hod === 'object' ? hod._id : (hod || ''),
-      contactEmail: dept.contactEmail || '',
-      contactPhone: dept.contactPhone || '',
-      location: dept.location || '',
     });
-    setSelectedTeacher(hodUser ? { ...hodUser, _teacherId: hod?._id } : null);
+    setSelectedTeacher(hodUser);
     setTeacherSearch(hodName);
     setShowFormModal(true);
   };
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-    if (!form.departmentCode.trim() || !form.name.trim()) {
-      setError('Department code and name are required');
+    if (!form.name.trim()) {
+      setError('Department name is required');
       return;
     }
     setFormLoading(true);
@@ -153,9 +144,6 @@ const DepartmentManagement = () => {
       const payload = { ...form };
       if (!payload.headOfDepartment) delete payload.headOfDepartment;
       if (!payload.description) delete payload.description;
-      if (!payload.contactEmail) delete payload.contactEmail;
-      if (!payload.contactPhone) delete payload.contactPhone;
-      if (!payload.location) delete payload.location;
 
       if (editingDept) {
         await departmentAPI.updateDepartment(editingDept._id, payload);
@@ -213,8 +201,13 @@ const DepartmentManagement = () => {
   const getHodName = (dept) => {
     const hod = dept.headOfDepartment;
     if (!hod || typeof hod !== 'object') return '—';
-    const u = hod.userId || hod;
-    return `${u.firstName || ''} ${u.lastName || ''}`.trim() || '—';
+    return (hod.name || '').trim() || '—';
+  };
+
+  const getHodDesignation = (dept) => {
+    const hod = dept.headOfDepartment;
+    if (!hod || typeof hod !== 'object') return '';
+    return (hod.designation || 'Lecturer').trim();
   };
 
   // Stats
@@ -346,24 +339,6 @@ const DepartmentManagement = () => {
                   <User size={14} className="text-slate-400 shrink-0" />
                   <span className="truncate">HOD: {getHodName(dept)}</span>
                 </div>
-                {dept.location && (
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <MapPin size={14} className="text-slate-400 shrink-0" />
-                    <span className="truncate">{dept.location}</span>
-                  </div>
-                )}
-                {dept.contactEmail && (
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <Mail size={14} className="text-slate-400 shrink-0" />
-                    <span className="truncate">{dept.contactEmail}</span>
-                  </div>
-                )}
-                {dept.contactPhone && (
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <Phone size={14} className="text-slate-400 shrink-0" />
-                    <span>{dept.contactPhone}</span>
-                  </div>
-                )}
               </div>
 
               {/* Card actions */}
@@ -416,25 +391,14 @@ const DepartmentManagement = () => {
               <button onClick={() => setShowFormModal(false)} className="bg-transparent border-none cursor-pointer text-slate-500 hover:text-slate-800 p-1"><X size={20} /></button>
             </div>
             <form onSubmit={handleFormSubmit} className="p-6">
-              <div className="grid grid-cols-2 gap-4 mb-4 max-md:grid-cols-1">
-                <div>
-                  <label className={labelClass}>Department Code *</label>
-                  <input
-                    type="text" value={form.departmentCode}
-                    onChange={(e) => setForm(prev => ({ ...prev, departmentCode: e.target.value.toUpperCase() }))}
-                    placeholder="e.g. CSE"
-                    className={inputClass} maxLength={10} required
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Department Name *</label>
-                  <input
-                    type="text" value={form.name}
-                    onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g. Computer Science & Engineering"
-                    className={inputClass} required
-                  />
-                </div>
+              <div className="mb-4">
+                <label className={labelClass}>Department Name *</label>
+                <input
+                  type="text" value={form.name}
+                  onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g. Computer Science & Engineering"
+                  className={inputClass} required
+                />
               </div>
 
               <div className="mb-4">
@@ -462,14 +426,16 @@ const DepartmentManagement = () => {
                     <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto mt-1">
                       {teacherResults.map(t => (
                         <button key={t._id} type="button" onClick={() => {
-                          const teacherId = t.profile?._id || t._id;
-                          setForm(prev => ({ ...prev, headOfDepartment: teacherId }));
+                          setForm(prev => ({ ...prev, headOfDepartment: t._id }));
                           setSelectedTeacher(t);
-                          setTeacherSearch(`${t.firstName || ''} ${t.lastName || ''}`.trim());
+                          setTeacherSearch(t.name || '');
                           setTeacherResults([]);
                         }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 cursor-pointer border-none bg-transparent border-b border-gray-50">
-                          <span className="font-semibold text-slate-800">{t.firstName} {t.lastName}</span>
-                          <span className="text-slate-400 ml-2 text-xs">{t.email}</span>
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-800">{t.name}</span>
+                            <span className="text-slate-500 text-xs bg-slate-100 px-2 py-0.5 rounded">{t.designation || 'Lecturer'}</span>
+                          </div>
+                          <span className="text-slate-400 text-xs">{t.email}</span>
                         </button>
                       ))}
                     </div>
@@ -477,42 +443,17 @@ const DepartmentManagement = () => {
                 </div>
                 {selectedTeacher && (
                   <div className="mt-2 flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-lg text-sm text-green-700">
-                    <Check size={14} /> {selectedTeacher.firstName || ''} {selectedTeacher.lastName || ''}
+                    <Check size={14} /> 
+                    <div className="flex-1">
+                      <span className="font-medium">{selectedTeacher.name || ''}</span>
+                      <span className="text-slate-500 text-xs ml-1">({selectedTeacher.designation || 'Lecturer'})</span>
+                    </div>
                     <button type="button" onClick={() => { setSelectedTeacher(null); setForm(prev => ({ ...prev, headOfDepartment: '' })); setTeacherSearch(''); }} className="ml-auto bg-transparent border-none text-green-400 hover:text-green-700 cursor-pointer p-0"><X size={14} /></button>
                   </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-4 max-md:grid-cols-1">
-                <div>
-                  <label className={labelClass}>Contact Email</label>
-                  <input
-                    type="email" value={form.contactEmail}
-                    onChange={(e) => setForm(prev => ({ ...prev, contactEmail: e.target.value }))}
-                    placeholder="dept@campus.edu"
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Contact Phone</label>
-                  <input
-                    type="text" value={form.contactPhone}
-                    onChange={(e) => setForm(prev => ({ ...prev, contactPhone: e.target.value }))}
-                    placeholder="+91-..."
-                    className={inputClass}
-                  />
-                </div>
-              </div>
 
-              <div className="mb-6">
-                <label className={labelClass}>Location</label>
-                <input
-                  type="text" value={form.location}
-                  onChange={(e) => setForm(prev => ({ ...prev, location: e.target.value }))}
-                  placeholder="e.g. Block A, 2nd Floor"
-                  className={inputClass}
-                />
-              </div>
 
               <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
                 <button type="button" className={btnSecondaryClass} onClick={() => setShowFormModal(false)}>Cancel</button>
@@ -560,36 +501,14 @@ const DepartmentManagement = () => {
                   <User size={16} className="text-slate-400 shrink-0" />
                   <div>
                     <p className="text-xs text-slate-500 m-0">Head of Department</p>
-                    <p className="text-sm font-medium text-slate-700 m-0">{getHodName(detailDept)}</p>
+                    <p className="text-sm font-medium text-slate-700 m-0">
+                      {getHodName(detailDept)}
+                      {getHodName(detailDept) !== '—' && getHodDesignation(detailDept) && (
+                        <span className="text-slate-500 text-xs ml-2">({getHodDesignation(detailDept)})</span>
+                      )}
+                    </p>
                   </div>
                 </div>
-                {detailDept.location && (
-                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                    <MapPin size={16} className="text-slate-400 shrink-0" />
-                    <div>
-                      <p className="text-xs text-slate-500 m-0">Location</p>
-                      <p className="text-sm font-medium text-slate-700 m-0">{detailDept.location}</p>
-                    </div>
-                  </div>
-                )}
-                {detailDept.contactEmail && (
-                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                    <Mail size={16} className="text-slate-400 shrink-0" />
-                    <div>
-                      <p className="text-xs text-slate-500 m-0">Email</p>
-                      <p className="text-sm font-medium text-slate-700 m-0">{detailDept.contactEmail}</p>
-                    </div>
-                  </div>
-                )}
-                {detailDept.contactPhone && (
-                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                    <Phone size={16} className="text-slate-400 shrink-0" />
-                    <div>
-                      <p className="text-xs text-slate-500 m-0">Phone</p>
-                      <p className="text-sm font-medium text-slate-700 m-0">{detailDept.contactPhone}</p>
-                    </div>
-                  </div>
-                )}
               </div>
 
               <p className="text-xs text-slate-400 m-0">

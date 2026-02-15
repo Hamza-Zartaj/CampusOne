@@ -38,16 +38,37 @@ export const getAllDepartments = async (req, res) => {
     const total = await Department.countDocuments(query).setOptions(queryOptions);
 
     // Get departments
-    const departments = await Department.find(query)
+    let departments = await Department.find(query)
       .setOptions(queryOptions)
       .populate({
         path: 'headOfDepartment',
         select: 'userId employeeId designation',
+        populate: {
+          path: 'userId',
+          select: 'name email username'
+        },
         strictPopulate: false
       })
       .sort({ departmentCode: 1 })
       .skip(skip)
       .limit(limitNum);
+
+    // Transform HOD to flatten user info for easier frontend access
+    departments = departments.map(dept => {
+      const deptObj = dept.toObject ? dept.toObject() : dept;
+      if (deptObj.headOfDepartment && deptObj.headOfDepartment.userId) {
+        deptObj.headOfDepartment = {
+          _id: deptObj.headOfDepartment._id,
+          userId: deptObj.headOfDepartment.userId._id,
+          employeeId: deptObj.headOfDepartment.employeeId,
+          designation: deptObj.headOfDepartment.designation,
+          name: deptObj.headOfDepartment.userId.name,
+          email: deptObj.headOfDepartment.userId.email,
+          username: deptObj.headOfDepartment.userId.username
+        };
+      }
+      return deptObj;
+    });
 
     // Calculate pagination info
     const totalPages = Math.ceil(total / limitNum);
@@ -88,6 +109,10 @@ export const getDepartmentById = async (req, res) => {
       .populate({
         path: 'headOfDepartment',
         select: 'userId employeeId designation',
+        populate: {
+          path: 'userId',
+          select: 'name email username'
+        },
         strictPopulate: false
       });
 
@@ -98,9 +123,23 @@ export const getDepartmentById = async (req, res) => {
       });
     }
 
+    // Transform HOD to flatten user info for easier frontend access
+    let deptData = department.toObject ? department.toObject() : department;
+    if (deptData.headOfDepartment && deptData.headOfDepartment.userId) {
+      deptData.headOfDepartment = {
+        _id: deptData.headOfDepartment._id,
+        userId: deptData.headOfDepartment.userId._id,
+        employeeId: deptData.headOfDepartment.employeeId,
+        designation: deptData.headOfDepartment.designation,
+        name: deptData.headOfDepartment.userId.name,
+        email: deptData.headOfDepartment.userId.email,
+        username: deptData.headOfDepartment.userId.username
+      };
+    }
+
     res.status(200).json({
       success: true,
-      data: department
+      data: deptData
     });
   } catch (error) {
     console.error('Error fetching department:', error);
@@ -120,34 +159,40 @@ export const getDepartmentById = async (req, res) => {
 export const createDepartment = async (req, res) => {
   try {
     const {
-      departmentCode,
       name,
       description,
-      headOfDepartment,
-      contactEmail,
-      contactPhone,
-      location
+      headOfDepartment
     } = req.body;
 
-    // Check if department code already exists
-    const existingDepartment = await Department.findOne({ departmentCode: departmentCode.toUpperCase() })
-      .setOptions({ includeSoftDeleted: true });
-    
-    if (existingDepartment) {
+    if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Department with this code already exists'
+        message: 'Department name is required'
       });
     }
 
+    // Generate department code from name
+    const words = name.trim().split(/\s+/);
+    let code = words.map(word => word.substring(0, 1).toUpperCase()).join('').substring(0, 10);
+    
+    // Ensure code is unique by appending counter if needed
+    let uniqueCode = code;
+    let counter = 1;
+    let existingCount = await Department.countDocuments({ departmentCode: uniqueCode })
+      .setOptions({ includeSoftDeleted: true });
+    
+    while (existingCount > 0) {
+      uniqueCode = code + counter;
+      counter++;
+      existingCount = await Department.countDocuments({ departmentCode: uniqueCode })
+        .setOptions({ includeSoftDeleted: true });
+    }
+
     const department = await Department.create({
-      departmentCode,
-      name,
-      description,
-      headOfDepartment,
-      contactEmail,
-      contactPhone,
-      location
+      departmentCode: uniqueCode,
+      name: name.trim(),
+      description: description ? description.trim() : undefined,
+      headOfDepartment: headOfDepartment || undefined
     });
 
     res.status(201).json({
@@ -173,13 +218,9 @@ export const updateDepartment = async (req, res) => {
   try {
     const { id } = req.params;
     const {
-      departmentCode,
       name,
       description,
       headOfDepartment,
-      contactEmail,
-      contactPhone,
-      location,
       isActive
     } = req.body;
 
@@ -192,29 +233,10 @@ export const updateDepartment = async (req, res) => {
       });
     }
 
-    // Check if updating to a code that already exists
-    if (departmentCode && departmentCode.toUpperCase() !== department.departmentCode) {
-      const existingDepartment = await Department.findOne({ 
-        departmentCode: departmentCode.toUpperCase(),
-        _id: { $ne: id }
-      }).setOptions({ includeSoftDeleted: true });
-      
-      if (existingDepartment) {
-        return res.status(400).json({
-          success: false,
-          message: 'Department with this code already exists'
-        });
-      }
-    }
-
     // Update fields
-    if (departmentCode) department.departmentCode = departmentCode;
-    if (name) department.name = name;
-    if (description !== undefined) department.description = description;
+    if (name && name.trim()) department.name = name.trim();
+    if (description !== undefined) department.description = description ? description.trim() : '';
     if (headOfDepartment !== undefined) department.headOfDepartment = headOfDepartment || null;
-    if (contactEmail !== undefined) department.contactEmail = contactEmail;
-    if (contactPhone !== undefined) department.contactPhone = contactPhone;
-    if (location !== undefined) department.location = location;
     if (isActive !== undefined) department.isActive = isActive;
 
     await department.save();

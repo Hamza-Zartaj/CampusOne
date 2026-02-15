@@ -3,10 +3,10 @@ import mongoose from 'mongoose';
 const departmentSchema = new mongoose.Schema({
   departmentCode: {
     type: String,
-    required: [true, 'Please provide department code'],
     unique: true,
     uppercase: true,
-    trim: true
+    trim: true,
+    sparse: true
   },
   name: {
     type: String,
@@ -20,19 +20,6 @@ const departmentSchema = new mongoose.Schema({
   headOfDepartment: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Teacher'
-  },
-  contactEmail: {
-    type: String,
-    trim: true,
-    lowercase: true
-  },
-  contactPhone: {
-    type: String,
-    trim: true
-  },
-  location: {
-    type: String,
-    trim: true
   },
   isActive: {
     type: Boolean,

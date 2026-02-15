@@ -144,7 +144,23 @@ export const userAPI = {
     api.put(`/users/${userId}/unlock`),
   
   deleteUser: (userId) => 
-    api.delete(`/users/${userId}`)
+    api.delete(`/users/${userId}`),
+
+  // Get teachers with designation info
+  getTeachers: (params = {}) => 
+    api.get('/teachers', { params })
+};
+
+// Teacher API
+export const teacherAPI = {
+  getAllTeachers: (params = {}) => 
+    api.get('/teachers', { params }),
+
+  getTeacherById: (id) => 
+    api.get(`/teachers/${id}`),
+
+  getTeacherByUserId: (userId) => 
+    api.get(`/teachers/user/${userId}`)
 };
 
 // Course API

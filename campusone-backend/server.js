@@ -20,6 +20,7 @@ import courseOfferingRoutes from './routes/courseOfferingRoutes.js';
 import semesterInchargeRoutes from './routes/semesterInchargeRoutes.js';
 import enrollmentRoutes from './routes/enrollmentRoutes.js';
 import teacherToolsRoutes from './routes/teacherToolsRoutes.js';
+import teacherRoutes from './routes/teacherRoutes.js';
 import studentPortalRoutes from './routes/studentPortalRoutes.js';
 import importRoutes from './routes/importRoutes.js';
 
@@ -74,6 +75,7 @@ app.get('/api/health', (req, res) => {
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/teachers', teacherRoutes);
 app.use('/api/admissions', admissionRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/programs', programRoutes);
