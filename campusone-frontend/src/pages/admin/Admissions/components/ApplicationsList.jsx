@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { RefreshCw, Search } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { RefreshCw, Search, ArrowUpDown } from 'lucide-react';
 import ApplicationCard from './ApplicationCard';
 import ApplicationDetail from './ApplicationDetail';
 
@@ -18,6 +18,7 @@ const ApplicationsList = ({
 }) => {
   const [selectedApp, setSelectedApp] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('date');
 
   const filteredApps = applications.filter(
     (app) =>
@@ -25,12 +26,34 @@ const ApplicationsList = ({
       (app.email && app.email.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  const sortedApps = useMemo(() => {
+    const apps = [...filteredApps];
+    
+    switch (sortBy) {
+      case 'program':
+        return apps.sort((a, b) => {
+          const programA = a.program || '';
+          const programB = b.program || '';
+          return programA.localeCompare(programB);
+        });
+      case 'name':
+        return apps.sort((a, b) => {
+          const nameA = a.fullName || '';
+          const nameB = b.fullName || '';
+          return nameA.localeCompare(nameB);
+        });
+      case 'date':
+      default:
+        return apps.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+    }
+  }, [filteredApps, sortBy]);
+
   const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
     <div className="space-y-4">
-      {/* Search and Refresh */}
-      <div className="flex gap-3 items-center flex-wrap">
+      {/* Search, Filter, and Refresh */}
+      <div className="flex gap-3 items-end flex-wrap">
         <div className="flex-1 min-w-[250px] relative">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -41,6 +64,20 @@ const ApplicationsList = ({
             className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-primary-500"
           />
         </div>
+        
+        <div className="flex gap-2 items-center">
+          <ArrowUpDown size={18} className="text-slate-500" />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary-500"
+          >
+            <option value="date">Sort by Date (Newest)</option>
+            <option value="program">Sort by Program</option>
+            <option value="name">Sort by Name</option>
+          </select>
+        </div>
+
         <button
           onClick={onRefresh}
           disabled={loading}
@@ -60,7 +97,7 @@ const ApplicationsList = ({
       )}
 
       {/* Empty State */}
-      {!loading && filteredApps.length === 0 && (
+      {!loading && sortedApps.length === 0 && (
         <div className="text-center py-12 text-slate-500">
           <p className="text-lg">No applications found</p>
           {searchTerm && <p className="text-sm">Try adjusting your search criteria</p>}
@@ -68,9 +105,9 @@ const ApplicationsList = ({
       )}
 
       {/* Applications List */}
-      {!loading && filteredApps.length > 0 && (
+      {!loading && sortedApps.length > 0 && (
         <div className="space-y-3">
-          {filteredApps.map((app) => (
+          {sortedApps.map((app) => (
             <ApplicationCard
               key={app._id}
               application={app}

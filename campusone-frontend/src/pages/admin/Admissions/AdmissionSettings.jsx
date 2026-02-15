@@ -3,8 +3,10 @@ import { admissionAPI } from '../../../utils/api';
 import toast from 'react-hot-toast';
 import { Settings, RefreshCw } from 'lucide-react';
 import AdmissionStatusToggle from './components/AdmissionStatusToggle';
-import StatisticsCards from './components/StatisticsCards';
+import ApplicationsTabs from './components/StatisticsCards';
 import ApplicationSettings from './components/ApplicationSettings';
+import { useApplications } from './hooks/useApplications';
+import ApplicationsList from './components/ApplicationsList';
 
 const AdmissionSettingsPage = () => {
   const [settings, setSettings] = useState({
@@ -20,11 +22,31 @@ const AdmissionSettingsPage = () => {
   const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [selectedTab, setSelectedTab] = useState('pending');
+  const [filterProgram, setFilterProgram] = useState('');
+
+  const {
+    applications,
+    loading: appsLoading,
+    currentPage,
+    pageSize,
+    totalCount,
+    fetchApplications,
+    acceptApplication,
+    rejectApplication,
+    putUnderReview,
+    setCurrentPage,
+    setPageSize,
+  } = useApplications();
 
   useEffect(() => {
     fetchSettings();
     fetchStatistics();
   }, []);
+
+  useEffect(() => {
+    fetchApplications(selectedTab, currentPage, pageSize);
+  }, [selectedTab, currentPage, pageSize]);
 
   const fetchSettings = async () => {
     try {
@@ -135,9 +157,6 @@ const AdmissionSettingsPage = () => {
         </p>
       </div>
 
-      {/* Statistics Cards */}
-      <StatisticsCards statistics={statistics} isLoading={loading} />
-
       {/* Admission Status Toggle */}
       <AdmissionStatusToggle
         isOpen={settings.isOpen}
@@ -146,7 +165,52 @@ const AdmissionSettingsPage = () => {
         isLoading={loading}
       />
 
-      
+      {/* Applications Tabs */}
+      <div className="mb-8">
+        <ApplicationsTabs 
+          statistics={statistics} 
+          isLoading={loading}
+          selectedTab={selectedTab}
+          onTabChange={(tab) => {
+            setSelectedTab(tab);
+            setCurrentPage(1);
+          }}
+        />
+      </div>
+
+      {/* Applications List */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 mb-8">
+        <div className="mb-4 flex gap-4 items-end flex-wrap">
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Filter by Program
+            </label>
+            <input
+              type="text"
+              placeholder="Search program name..."
+              value={filterProgram}
+              onChange={(e) => setFilterProgram(e.target.value)}
+              className="w-full p-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-primary-500"
+            />
+          </div>
+        </div>
+
+        <ApplicationsList
+          applications={applications.filter(app => 
+            !filterProgram || (app.program && app.program.toLowerCase().includes(filterProgram.toLowerCase()))
+          )}
+          loading={appsLoading}
+          totalCount={totalCount}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          onAccept={acceptApplication}
+          onReject={rejectApplication}
+          onReview={putUnderReview}
+          onRefresh={() => fetchApplications(selectedTab, currentPage, pageSize)}
+        />
+      </div>
 
       {/* Application Settings */}
       <ApplicationSettings

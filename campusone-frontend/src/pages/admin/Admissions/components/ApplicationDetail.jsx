@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+const API_SERVER_URL = 'http://localhost:5000';
+
 const ApplicationDetail = ({
   application,
   onClose,
@@ -14,6 +16,14 @@ const ApplicationDetail = ({
   const [actionType, setActionType] = useState(null);
   const [reason, setReason] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [selectedDocTab, setSelectedDocTab] = useState('personal');
+
+  // Helper function to get proper file URL
+  const getFileUrl = (filePath) => {
+    if (!filePath) return '#';
+    if (filePath.startsWith('http')) return filePath;
+    return `${API_SERVER_URL}${filePath.startsWith('/') ? filePath : '/' + filePath}`;
+  };
 
   const handleAction = async () => {
     if (actionType === 'reject' && !reason.trim()) {
@@ -59,6 +69,73 @@ const ApplicationDetail = ({
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
+  };
+
+  // Document organization helper
+  const documentTabs = [
+    { id: 'personal', label: 'Personal', icon: '👤' },
+    { id: 'education', label: 'Education', icon: '📚' },
+    { id: 'address', label: 'Address', icon: '🏠' },
+    { id: 'guardian', label: 'Guardian', icon: '👨‍👩‍👧' },
+    { id: 'other', label: 'Other', icon: '📄' }
+  ];
+
+  const categorizeDocument = (docName) => {
+    const nameLower = docName.toLowerCase();
+    if (nameLower.includes('cnic') || nameLower.includes('id') || nameLower.includes('nid')) return 'personal';
+    if (nameLower.includes('transcript') || nameLower.includes('certificate') || nameLower.includes('result')) return 'education';
+    if (nameLower.includes('domicile') || nameLower.includes('address')) return 'address';
+    if (nameLower.includes('guardian')) return 'guardian';
+    return 'other';
+  };
+
+  const getDocumentsByTab = (tab) => {
+    const docs = [];
+    
+    if (tab === 'personal') {
+      if (application.cnicFront) {
+        docs.push({ name: 'CNIC Front', url: application.cnicFront, type: 'image' });
+      }
+      if (application.cnicBack) {
+        docs.push({ name: 'CNIC Back', url: application.cnicBack, type: 'image' });
+      }
+    } else if (tab === 'education') {
+      if (application.educationRecords && application.educationRecords.length > 0) {
+        application.educationRecords.forEach((record, idx) => {
+          if (record.transcript) {
+            docs.push({ 
+              name: `${record.level} - ${record.degreeName}`, 
+              url: record.transcript, 
+              type: 'document' 
+            });
+          }
+        });
+      }
+    } else if (tab === 'address') {
+      if (application.address?.domicileUpload) {
+        docs.push({ name: 'Domicile Certificate', url: application.address.domicileUpload, type: 'document' });
+      }
+    } else if (tab === 'guardian') {
+      if (application.guardian?.cnicUpload) {
+        docs.push({ name: 'Guardian CNIC', url: application.guardian.cnicUpload, type: 'image' });
+      }
+    }
+    
+    // Add documents from generic documents array, categorized by filename
+    if (application.documents && application.documents.length > 0) {
+      application.documents.forEach(doc => {
+        const docCategory = categorizeDocument(doc.fileName || doc.type || '');
+        if (docCategory === tab) {
+          docs.push({
+            name: doc.fileName || doc.type,
+            url: doc.url,
+            type: 'document'
+          });
+        }
+      });
+    }
+    
+    return docs;
   };
 
   return (
@@ -147,6 +224,56 @@ const ApplicationDetail = ({
             </div>
           )}
 
+          {/* Documents Section */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Documents</h3>
+            
+            {/* Document Tabs */}
+            <div className="flex gap-2 mb-4 border-b border-gray-200 overflow-x-auto">
+              {documentTabs.map((tab) => {
+                const docCount = getDocumentsByTab(tab.id).length;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setSelectedDocTab(tab.id)}
+                    className={`px-4 py-3 font-medium text-sm whitespace-nowrap border-b-2 transition-all ${
+                      selectedDocTab === tab.id
+                        ? 'border-primary-500 text-primary-600'
+                        : 'border-transparent text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    {tab.icon} {tab.label} {docCount > 0 && <span className="ml-1 text-xs bg-gray-200 px-2 py-0.5 rounded-full">{docCount}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Document List */}
+            <div className="space-y-2">
+              {getDocumentsByTab(selectedDocTab).length > 0 ? (
+                getDocumentsByTab(selectedDocTab).map((doc, idx) => (
+                  <a
+                    key={idx}
+                    href={getFileUrl(doc.url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">{doc.type === 'image' ? '🖼️' : '📄'}</span>
+                      <span className="text-slate-700 font-medium group-hover:text-primary-600">{doc.name}</span>
+                    </div>
+                    <span className="text-sm text-slate-500">View ↗</span>
+                  </a>
+                ))
+              ) : (
+                <div className="p-4 bg-gray-50 rounded-lg text-center text-slate-500">
+                  No documents available in this category
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Review Notes */}
           {application.reviewNotes && (
             <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -156,7 +283,29 @@ const ApplicationDetail = ({
           )}
 
           {/* Action Section */}
-          {!actionType ? (
+          {application.status === 'Accepted' ? (
+            <div className="border-t border-gray-200 pt-6 mt-8 p-6 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <CheckCircle size={24} className="text-green-600" />
+                <div>
+                  <h3 className="text-lg font-semibold text-green-800">Application Accepted</h3>
+                </div>
+              </div>
+            </div>
+          ) : application.status === 'Rejected' ? (
+            <div className="border-t border-gray-200 pt-6 mt-8 p-6 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <XCircle size={24} className="text-red-600" />
+                <div>
+                  <h3 className="text-lg font-semibold text-red-800">Application Rejected</h3>
+                  {application.reviewNotes && (
+                    <p className="text-sm text-red-700 mt-2">Reason: {application.reviewNotes}</p>
+                  )}
+                  
+                </div>
+              </div>
+            </div>
+          ) : !actionType ? (
             <div className="border-t border-gray-200 pt-6 mt-8">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">Actions</h3>
               <div className="grid grid-cols-3 gap-3">

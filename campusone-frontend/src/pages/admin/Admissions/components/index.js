@@ -1,5 +1,5 @@
 export { default as AdmissionStatusToggle } from './AdmissionStatusToggle';
-export { default as StatisticsCards } from './StatisticsCards';
+export { default as ApplicationsTabs } from './StatisticsCards';
 export { default as ApplicationSettings } from './ApplicationSettings';
 export { default as ApplicationCard } from './ApplicationCard';
 export { default as ApplicationsList } from './ApplicationsList';
