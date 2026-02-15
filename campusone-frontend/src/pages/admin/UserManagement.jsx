@@ -543,12 +543,8 @@ const UserManagement = () => {
   const availablePermissions = [
     { id: 'manage_users', label: 'Manage Users' },
     { id: 'manage_courses', label: 'Manage Courses' },
-    { id: 'manage_assignments', label: 'Manage Assignments' },
     { id: 'manage_attendance', label: 'Manage Attendance' },
-    { id: 'manage_announcements', label: 'Manage Announcements' },
-    { id: 'view_reports', label: 'View Reports' },
-    { id: 'manage_ta_eligibility', label: 'Manage TA Eligibility' },
-    { id: 'manage_quiz', label: 'Manage Quiz' }
+    { id: 'manage_announcements', label: 'Manage Announcements' }
   ];
 
   // Reusable classes
@@ -862,10 +858,8 @@ const UserManagement = () => {
                         <select id="designation" name="designation" value={createUserForm.designation} onChange={handleCreateUserChange} className={inputClass}>
                           <option value="">Select designation</option>
                           <option value="Professor">Professor</option>
-                          <option value="Associate Professor">Associate Professor</option>
                           <option value="Assistant Professor">Assistant Professor</option>
                           <option value="Lecturer">Lecturer</option>
-                          <option value="Visiting Faculty">Visiting Faculty</option>
                         </select>
                       ) : (
                         <input type="text" id="designation" name="designation" value={createUserForm.designation} onChange={handleCreateUserChange} placeholder="e.g., Administrator" className={inputClass} />
@@ -1187,10 +1181,8 @@ const UserManagement = () => {
                         <select id="edit-designation" name="designation" value={editForm.designation} onChange={handleEditFormChange} className={inputClass}>
                           <option value="">Select designation</option>
                           <option value="Professor">Professor</option>
-                          <option value="Associate Professor">Associate Professor</option>
                           <option value="Assistant Professor">Assistant Professor</option>
                           <option value="Lecturer">Lecturer</option>
-                          <option value="Visiting Faculty">Visiting Faculty</option>
                         </select>
                       ) : (
                         <input type="text" id="edit-designation" name="designation" value={editForm.designation} onChange={handleEditFormChange} placeholder="e.g., Administrator" className={inputClass} />

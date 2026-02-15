@@ -139,42 +139,6 @@ const AdmissionSettings = () => {
         </p>
       </div>
 
-      {/* Statistics Cards */}
-      {statistics && (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-8">
-          <div className="bg-white rounded-xl p-6 flex items-center gap-4 shadow-sm border border-gray-200 transition-all hover:shadow-md hover:-translate-y-0.5">
-            <Users size={24} className="text-primary-500 shrink-0" />
-            <div>
-              <h3 className="text-[2rem] font-bold text-slate-800 m-0">{statistics.total}</h3>
-              <p className="text-sm text-slate-500 m-0">Total Applications</p>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-6 flex items-center gap-4 shadow-sm border border-gray-200 transition-all hover:shadow-md hover:-translate-y-0.5">
-            <div className="text-warning">
-              <div>
-                <h3 className="text-[2rem] font-bold text-slate-800 m-0">{statistics.pending}</h3>
-                <p className="text-sm text-slate-500 m-0">Pending</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-6 flex items-center gap-4 shadow-sm border border-gray-200 transition-all hover:shadow-md hover:-translate-y-0.5">
-            <div className="text-info">
-              <div>
-                <h3 className="text-[2rem] font-bold text-slate-800 m-0">{statistics.underReview}</h3>
-                <p className="text-sm text-slate-500 m-0">Under Review</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-6 flex items-center gap-4 shadow-sm border border-gray-200 transition-all hover:shadow-md hover:-translate-y-0.5">
-            <CheckCircle size={24} className="text-success shrink-0" />
-            <div>
-              <h3 className="text-[2rem] font-bold text-slate-800 m-0">{statistics.accepted}</h3>
-              <p className="text-sm text-slate-500 m-0">Accepted</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Admission Toggle */}
       <div className="bg-white rounded-xl p-8 mb-6 shadow-sm border-2 border-gray-200">
         <div className="flex justify-between items-center gap-4 mb-4 flex-wrap max-md:flex-col max-md:items-start">
@@ -214,6 +178,44 @@ const AdmissionSettings = () => {
             : '❌ Admission applications are currently closed'}
         </div>
       </div>
+
+      {/* Statistics Cards */}
+      {statistics && (
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-8">
+          <div className="bg-white rounded-xl p-6 flex items-center gap-4 shadow-sm border border-gray-200 transition-all hover:shadow-md hover:-translate-y-0.5">
+            <Users size={24} className="text-primary-500 shrink-0" />
+            <div>
+              <h3 className="text-[2rem] font-bold text-slate-800 m-0">{statistics.total}</h3>
+              <p className="text-sm text-slate-500 m-0">Total Applications</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl p-6 flex items-center gap-4 shadow-sm border border-gray-200 transition-all hover:shadow-md hover:-translate-y-0.5">
+            <div className="text-warning">
+              <div>
+                <h3 className="text-[2rem] font-bold text-slate-800 m-0">{statistics.pending}</h3>
+                <p className="text-sm text-slate-500 m-0">Pending</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl p-6 flex items-center gap-4 shadow-sm border border-gray-200 transition-all hover:shadow-md hover:-translate-y-0.5">
+            <div className="text-info">
+              <div>
+                <h3 className="text-[2rem] font-bold text-slate-800 m-0">{statistics.underReview}</h3>
+                <p className="text-sm text-slate-500 m-0">Under Review</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl p-6 flex items-center gap-4 shadow-sm border border-gray-200 transition-all hover:shadow-md hover:-translate-y-0.5">
+            <CheckCircle size={24} className="text-success shrink-0" />
+            <div>
+              <h3 className="text-[2rem] font-bold text-slate-800 m-0">{statistics.accepted}</h3>
+              <p className="text-sm text-slate-500 m-0">Accepted</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      
 
       {/* Application Settings */}
       <div className="bg-white rounded-xl p-8 mb-6 shadow-sm border border-gray-200">

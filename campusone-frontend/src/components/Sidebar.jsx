@@ -42,8 +42,7 @@ const Sidebar = ({ isOpen }) => {
         { path: '/admin/offerings', icon: CalendarRange, label: 'Offerings' },
         { path: '/admin/curriculum', icon: Layers, label: 'Curriculum' },
         { path: '/admin/semesters', icon: Eye, label: 'Semesters' },
-        { path: '/admin/announcements', icon: Bell, label: 'Announcements' },
-        { path: '/admin/reports', icon: BarChart, label: 'Reports' }
+        { path: '/admin/announcements', icon: Bell, label: 'Announcements' }
       ],
       teacher: [
         { path: '/teacher/dashboard', icon: LayoutDashboard, label: 'Dashboard' },

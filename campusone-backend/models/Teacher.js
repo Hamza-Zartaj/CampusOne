@@ -20,7 +20,7 @@ const teacherSchema = new mongoose.Schema({
   },
   designation: {
     type: String,
-    enum: ['Professor', 'Associate Professor', 'Assistant Professor', 'Lecturer', 'Visiting Faculty'],
+    enum: ['Professor', 'Assistant Professor', 'Lecturer'],
     default: 'Lecturer'
   },
   qualification: {
