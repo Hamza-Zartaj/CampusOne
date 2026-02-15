@@ -262,12 +262,6 @@ CampusOne Security Team
   }
 };
 
-export default {
-  generateOTP,
-  sendOTPEmail,
-  send2FAEnabledEmail,
-};
-
 /**
  * Send admission application confirmation email
  */
@@ -449,4 +443,583 @@ CampusOne Admissions Team
     console.error('Error sending admission application confirmation email:', error);
     return { success: false, error: error.message };
   }
+};
+
+/**
+ * Send admission application under review email
+ */
+export const sendApplicationUnderReviewEmail = async (email, name, applicationNumber, reviewNotes) => {
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"CampusOne" <${process.env.SMTP_USER || 'noreply@campusone.edu'}>`,
+      to: email,
+      subject: 'Your Application is Under Review - CampusOne',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header {
+              background: linear-gradient(135deg, #0891b2 0%, #0369a1 100%);
+              color: white;
+              padding: 30px;
+              text-align: center;
+              border-radius: 10px 10px 0 0;
+            }
+            .content {
+              background: #f9fafb;
+              padding: 30px;
+              border: 1px solid #e5e7eb;
+              border-top: none;
+            }
+            .app-box {
+              background: white;
+              border: 2px solid #0891b2;
+              border-radius: 8px;
+              padding: 20px;
+              margin: 20px 0;
+            }
+            .app-number {
+              font-size: 18px;
+              font-weight: bold;
+              color: #0891b2;
+              font-family: 'Courier New', monospace;
+            }
+            .info-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 8px 0;
+              border-bottom: 1px solid #e5e7eb;
+            }
+            .info-label {
+              color: #6b7280;
+              font-weight: bold;
+            }
+            .info-value {
+              color: #1f2937;
+            }
+            .status-box {
+              background: #cffafe;
+              border-left: 4px solid #0891b2;
+              padding: 15px;
+              margin: 20px 0;
+              border-radius: 4px;
+            }
+            .review-notes {
+              background: #f0f9ff;
+              border-left: 4px solid #0284c7;
+              padding: 15px;
+              margin: 20px 0;
+              border-radius: 4px;
+              font-style: italic;
+            }
+            .next-steps {
+              background: #eff6ff;
+              padding: 15px;
+              border-radius: 4px;
+              margin: 20px 0;
+            }
+            .footer {
+              text-align: center;
+              color: #6b7280;
+              font-size: 12px;
+              margin-top: 20px;
+              padding-top: 20px;
+              border-top: 1px solid #e5e7eb;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 style="margin: 0;">🎓 CampusOne</h1>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">Admission Portal</p>
+          </div>
+          <div class="content">
+            <p>Hello <strong>${name}</strong>,</p>
+            
+            <p>We are writing to inform you that your admission application is now under review.</p>
+
+            <div class="app-box">
+              <div class="info-row">
+                <span class="info-label">Application Number:</span>
+                <span class="app-number">${applicationNumber}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Current Status:</span>
+                <span class="info-value" style="color: #0891b2; font-weight: bold;">Under Review</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Review Date:</span>
+                <span class="info-value">${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              </div>
+            </div>
+
+            <div class="status-box">
+              <strong>📋 Application Status Update:</strong><br>
+              Your application has been reviewed by our admissions team and is currently being evaluated. We will notify you of the final decision shortly.
+            </div>
+
+            ${reviewNotes ? `
+            <div class="review-notes">
+              <strong>📝 Review Notes:</strong><br>
+              ${reviewNotes}
+            </div>
+            ` : ''}
+
+            <div class="next-steps">
+              <strong>📌 What Next?</strong>
+              <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Your application is being carefully reviewed</li>
+                <li>We may contact you for additional information if needed</li>
+                <li>Keep your email and phone number updated</li>
+                <li>You will receive a final decision notification soon</li>
+              </ul>
+            </div>
+
+            <p>We appreciate your patience and interest in CampusOne. If you have any questions, please feel free to contact our admissions office.</p>
+
+            <p style="margin-top: 30px;">
+              Best regards,<br>
+              <strong>CampusOne Admissions Team</strong>
+            </p>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} CampusOne. All rights reserved.</p>
+            <p>This is an automated message, please do not reply to this email. Contact admissions@campusone.edu for support.</p>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+Hello ${name},
+
+We are writing to inform you that your admission application is now under review.
+
+Application Number: ${applicationNumber}
+Current Status: Under Review
+Review Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+
+Your application has been reviewed by our admissions team and is currently being evaluated. We will notify you of the final decision shortly.
+
+${reviewNotes ? `Review Notes:\n${reviewNotes}\n` : ''}
+
+What Next?
+- Your application is being carefully reviewed
+- We may contact you for additional information if needed
+- Keep your email and phone number updated
+- You will receive a final decision notification soon
+
+We appreciate your patience and interest in CampusOne. If you have any questions, please feel free to contact our admissions office.
+
+Best regards,
+CampusOne Admissions Team
+
+© ${new Date().getFullYear()} CampusOne. All rights reserved.
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending under review email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Send admission application acceptance email
+ */
+export const sendApplicationAcceptanceEmail = async (email, name, applicationNumber, program) => {
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"CampusOne" <${process.env.SMTP_USER || 'noreply@campusone.edu'}>`,
+      to: email,
+      subject: 'Congratulations! Your Application is Accepted - CampusOne',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header {
+              background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+              color: white;
+              padding: 30px;
+              text-align: center;
+              border-radius: 10px 10px 0 0;
+            }
+            .content {
+              background: #f9fafb;
+              padding: 30px;
+              border: 1px solid #e5e7eb;
+              border-top: none;
+            }
+            .app-box {
+              background: white;
+              border: 2px solid #10b981;
+              border-radius: 8px;
+              padding: 20px;
+              margin: 20px 0;
+            }
+            .app-number {
+              font-size: 18px;
+              font-weight: bold;
+              color: #10b981;
+              font-family: 'Courier New', monospace;
+            }
+            .info-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 8px 0;
+              border-bottom: 1px solid #e5e7eb;
+            }
+            .info-label {
+              color: #6b7280;
+              font-weight: bold;
+            }
+            .info-value {
+              color: #1f2937;
+            }
+            .status-box {
+              background: #d1fae5;
+              border-left: 4px solid #10b981;
+              padding: 15px;
+              margin: 20px 0;
+              border-radius: 4px;
+              text-align: center;
+            }
+            .acceptance-message {
+              font-size: 20px;
+              font-weight: bold;
+              color: #10b981;
+            }
+            .next-steps {
+              background: #eff6ff;
+              padding: 15px;
+              border-radius: 4px;
+              margin: 20px 0;
+            }
+            .footer {
+              text-align: center;
+              color: #6b7280;
+              font-size: 12px;
+              margin-top: 20px;
+              padding-top: 20px;
+              border-top: 1px solid #e5e7eb;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 style="margin: 0;">🎓 CampusOne</h1>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">Admission Portal</p>
+          </div>
+          <div class="content">
+            <p>Hello <strong>${name}</strong>,</p>
+
+            <div class="status-box">
+              <div class="acceptance-message">🎉 Congratulations! 🎉</div>
+              <p style="margin: 10px 0 0 0;">Your application has been <strong>ACCEPTED</strong></p>
+            </div>
+            
+            <p>We are delighted to inform you that your admission application to CampusOne has been approved. Welcome to our community!</p>
+
+            <div class="app-box">
+              <div class="info-row">
+                <span class="info-label">Application Number:</span>
+                <span class="app-number">${applicationNumber}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Program Accepted:</span>
+                <span class="info-value">${program}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Current Status:</span>
+                <span class="info-value" style="color: #10b981; font-weight: bold;">Accepted</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Decision Date:</span>
+                <span class="info-value">${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              </div>
+            </div>
+
+            <div class="next-steps">
+              <strong>📌 Next Steps:</strong>
+              <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Complete your enrollment registration</li>
+                <li>Provide any outstanding documents</li>
+                <li>Finalize your course selection</li>
+                <li>Complete the admission formalities</li>
+                <li>Attend the orientation program (if applicable)</li>
+              </ul>
+            </div>
+
+            <p>Our admissions team will contact you shortly with further instructions regarding enrollment and registration. If you have any questions, please don't hesitate to reach out to us.</p>
+
+            <p style="margin-top: 30px;">
+              Best regards,<br>
+              <strong>CampusOne Admissions Team</strong>
+            </p>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} CampusOne. All rights reserved.</p>
+            <p>This is an automated message, please do not reply to this email. Contact admissions@campusone.edu for support.</p>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+Hello ${name},
+
+Congratulations! 🎉
+
+We are delighted to inform you that your admission application to CampusOne has been approved. Welcome to our community!
+
+Application Number: ${applicationNumber}
+Program Accepted: ${program}
+Current Status: Accepted
+Decision Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+
+Next Steps:
+- Complete your enrollment registration
+- Provide any outstanding documents
+- Finalize your course selection
+- Complete the admission formalities
+- Attend the orientation program (if applicable)
+
+Our admissions team will contact you shortly with further instructions regarding enrollment and registration. If you have any questions, please don't hesitate to reach out to us.
+
+Best regards,
+CampusOne Admissions Team
+
+© ${new Date().getFullYear()} CampusOne. All rights reserved.
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending acceptance email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Send admission application rejection email
+ */
+export const sendApplicationRejectionEmail = async (email, name, applicationNumber, rejectionReason) => {
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"CampusOne" <${process.env.SMTP_USER || 'noreply@campusone.edu'}>`,
+      to: email,
+      subject: 'Application Decision - CampusOne',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header {
+              background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+              color: white;
+              padding: 30px;
+              text-align: center;
+              border-radius: 10px 10px 0 0;
+            }
+            .content {
+              background: #f9fafb;
+              padding: 30px;
+              border: 1px solid #e5e7eb;
+              border-top: none;
+            }
+            .app-box {
+              background: white;
+              border: 2px solid #dc2626;
+              border-radius: 8px;
+              padding: 20px;
+              margin: 20px 0;
+            }
+            .app-number {
+              font-size: 18px;
+              font-weight: bold;
+              color: #dc2626;
+              font-family: 'Courier New', monospace;
+            }
+            .info-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 8px 0;
+              border-bottom: 1px solid #e5e7eb;
+            }
+            .info-label {
+              color: #6b7280;
+              font-weight: bold;
+            }
+            .info-value {
+              color: #1f2937;
+            }
+            .status-box {
+              background: #fee2e2;
+              border-left: 4px solid #dc2626;
+              padding: 15px;
+              margin: 20px 0;
+              border-radius: 4px;
+            }
+            .rejection-reason {
+              background: #fef2f2;
+              border-left: 4px solid #ef4444;
+              padding: 15px;
+              margin: 20px 0;
+              border-radius: 4px;
+              font-style: italic;
+            }
+            .next-steps {
+              background: #eff6ff;
+              padding: 15px;
+              border-radius: 4px;
+              margin: 20px 0;
+            }
+            .footer {
+              text-align: center;
+              color: #6b7280;
+              font-size: 12px;
+              margin-top: 20px;
+              padding-top: 20px;
+              border-top: 1px solid #e5e7eb;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 style="margin: 0;">🎓 CampusOne</h1>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">Admission Portal</p>
+          </div>
+          <div class="content">
+            <p>Hello <strong>${name}</strong>,</p>
+            
+            <p>Thank you for your interest in CampusOne. We have reviewed your application carefully.</p>
+
+            <div class="app-box">
+              <div class="info-row">
+                <span class="info-label">Application Number:</span>
+                <span class="app-number">${applicationNumber}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Current Status:</span>
+                <span class="info-value" style="color: #dc2626; font-weight: bold;">Not Accepted</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Decision Date:</span>
+                <span class="info-value">${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              </div>
+            </div>
+
+            <div class="status-box">
+              <strong>📋 Application Decision:</strong><br>
+              Unfortunately, we are unable to offer you admission at this time. However, we encourage you to apply again in future admission cycles.
+            </div>
+
+            ${rejectionReason ? `
+            <div class="rejection-reason">
+              <strong>📝 Reason:</strong><br>
+              ${rejectionReason}
+            </div>
+            ` : ''}
+
+            <div class="next-steps">
+              <strong>📌 Feedback & Future Opportunities:</strong>
+              <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Consider addressing the areas mentioned in the rejection reason</li>
+                <li>You are welcome to apply in the next admission cycle</li>
+                <li>Feel free to contact our admissions office for feedback</li>
+                <li>We wish you the best in your academic pursuits</li>
+              </ul>
+            </div>
+
+            <p>We appreciate the time you took to apply and wish you success in your future endeavors. If you have any questions or would like feedback on your application, please contact our admissions office.</p>
+
+            <p style="margin-top: 30px;">
+              Best regards,<br>
+              <strong>CampusOne Admissions Team</strong>
+            </p>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} CampusOne. All rights reserved.</p>
+            <p>This is an automated message, please do not reply to this email. Contact admissions@campusone.edu for support.</p>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+Hello ${name},
+
+Thank you for your interest in CampusOne. We have reviewed your application carefully.
+
+Application Number: ${applicationNumber}
+Current Status: Not Accepted
+Decision Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+
+Unfortunately, we are unable to offer you admission at this time. However, we encourage you to apply again in future admission cycles.
+
+${rejectionReason ? `Reason:\n${rejectionReason}\n` : ''}
+
+Feedback & Future Opportunities:
+- Consider addressing the areas mentioned in the rejection reason
+- You are welcome to apply in the next admission cycle
+- Feel free to contact our admissions office for feedback
+- We wish you the best in your academic pursuits
+
+We appreciate the time you took to apply and wish you success in your future endeavors. If you have any questions or would like feedback on your application, please contact our admissions office.
+
+Best regards,
+CampusOne Admissions Team
+
+© ${new Date().getFullYear()} CampusOne. All rights reserved.
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending rejection email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export default {
+  generateOTP,
+  sendOTPEmail,
+  send2FAEnabledEmail,
+  sendAdmissionApplicationConfirmationEmail,
+  sendApplicationUnderReviewEmail,
+  sendApplicationAcceptanceEmail,
+  sendApplicationRejectionEmail,
 };

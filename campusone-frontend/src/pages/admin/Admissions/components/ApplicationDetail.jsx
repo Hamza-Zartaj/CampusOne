@@ -1,0 +1,242 @@
+import React, { useState } from 'react';
+import { X, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+const ApplicationDetail = ({
+  application,
+  onClose,
+  onAccept,
+  onReject,
+  onReview,
+  loading = false,
+}) => {
+  const [modalOpen, setModalOpen] = useState(true);
+  const [actionType, setActionType] = useState(null);
+  const [reason, setReason] = useState('');
+  const [processing, setProcessing] = useState(false);
+
+  const handleAction = async () => {
+    if (actionType === 'reject' && !reason.trim()) {
+      toast.error('Please provide a reason for rejection');
+      return;
+    }
+
+    if (actionType === 'review' && !reason.trim()) {
+      toast.error('Please provide a reason for putting under review');
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      if (actionType === 'accept') {
+        await onAccept(application._id);
+      } else if (actionType === 'reject') {
+        await onReject(application._id, reason);
+      } else if (actionType === 'review') {
+        await onReview(application._id, reason);
+      }
+      setModalOpen(false);
+      onClose();
+    } catch (error) {
+      console.error('Error performing action:', error);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  if (!modalOpen) return null;
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Pending':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'Under Review':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'Accepted':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'Rejected':
+        return 'bg-red-100 text-red-800 border-red-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 m-0">Application Details</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              ID: {application._id?.substring(0, 12)}...
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setModalOpen(false);
+              onClose();
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-all"
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          {/* Status Badge */}
+          <div className={`inline-block px-4 py-2 rounded-lg border mb-6 font-semibold ${getStatusColor(application.status)}`}>
+            {application.status}
+          </div>
+
+          {/* Applicant Information */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Applicant Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm text-slate-500 block mb-1">Full Name</label>
+                <p className="text-slate-800 font-medium">{application.fullName}</p>
+              </div>
+              <div>
+                <label className="text-sm text-slate-500 block mb-1">Email</label>
+                <p className="text-slate-800 font-medium">{application.email}</p>
+              </div>
+              <div>
+                <label className="text-sm text-slate-500 block mb-1">Phone</label>
+                <p className="text-slate-800 font-medium">{application.phone}</p>
+              </div>
+              <div>
+                <label className="text-sm text-slate-500 block mb-1">CNIC</label>
+                <p className="text-slate-800 font-medium">{application.cnic}</p>
+              </div>
+              {application.dateOfBirth && (
+                <div>
+                  <label className="text-sm text-slate-500 block mb-1">Date of Birth</label>
+                  <p className="text-slate-800 font-medium">
+                    {new Date(application.dateOfBirth).toLocaleDateString()}
+                  </p>
+                </div>
+              )}
+              {application.gender && (
+                <div>
+                  <label className="text-sm text-slate-500 block mb-1">Gender</label>
+                  <p className="text-slate-800 font-medium">{application.gender}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Program */}
+          {application.program && (
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">Applied Program</h3>
+              <p className="text-slate-700">{application.program}</p>
+            </div>
+          )}
+
+          {/* Address */}
+          {application.address && (
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">Address</h3>
+              <div className="text-slate-700">
+                <p>{application.address.street}</p>
+                <p>{application.address.city}, {application.address.state} {application.address.zipCode}</p>
+                <p>{application.address.country}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Review Notes */}
+          {application.reviewNotes && (
+            <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h3 className="text-lg font-semibold text-slate-800 mb-2">Review Notes</h3>
+              <p className="text-slate-700">{application.reviewNotes}</p>
+            </div>
+          )}
+
+          {/* Action Section */}
+          {!actionType ? (
+            <div className="border-t border-gray-200 pt-6 mt-8">
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">Actions</h3>
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  onClick={() => setActionType('accept')}
+                  className="flex items-center justify-center gap-2 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all font-semibold"
+                  disabled={loading || processing}
+                >
+                  <CheckCircle size={18} />
+                  Accept
+                </button>
+                <button
+                  onClick={() => setActionType('review')}
+                  className="flex items-center justify-center gap-2 py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all font-semibold"
+                  disabled={loading || processing}
+                >
+                  <AlertCircle size={18} />
+                  Under Review
+                </button>
+                <button
+                  onClick={() => setActionType('reject')}
+                  className="flex items-center justify-center gap-2 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all font-semibold"
+                  disabled={loading || processing}
+                >
+                  <XCircle size={18} />
+                  Reject
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="border-t border-gray-200 pt-6 mt-8">
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                {actionType === 'accept'
+                  ? 'Accept Application'
+                  : actionType === 'reject'
+                  ? 'Reject Application'
+                  : 'Put Under Review'}
+              </h3>
+
+              {(actionType === 'reject' || actionType === 'review') && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-slate-800 mb-2">
+                    {actionType === 'reject' ? 'Rejection Reason *' : 'Review Notes *'}
+                  </label>
+                  <textarea
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-primary-500"
+                    rows="4"
+                    placeholder={
+                      actionType === 'reject'
+                        ? 'Provide reason for rejection...'
+                        : 'Add review notes...'
+                    }
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleAction}
+                  className="flex-1 py-2 px-4 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-all font-semibold disabled:opacity-60"
+                  disabled={processing}
+                >
+                  {processing ? 'Processing...' : 'Confirm'}
+                </button>
+                <button
+                  onClick={() => setActionType(null)}
+                  className="flex-1 py-2 px-4 bg-gray-200 text-slate-800 rounded-lg hover:bg-gray-300 transition-all font-semibold"
+                  disabled={processing}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ApplicationDetail;

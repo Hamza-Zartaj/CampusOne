@@ -1,7 +1,12 @@
 import AdmissionSettings from '../models/AdmissionSettings.js';
 import AdmissionApplication from '../models/AdmissionApplication.js';
 import { deleteFile, getFileUrl } from '../middleware/uploadMiddleware.js';
-import { sendAdmissionApplicationConfirmationEmail } from '../services/emailService.js';
+import { 
+  sendAdmissionApplicationConfirmationEmail,
+  sendApplicationUnderReviewEmail,
+  sendApplicationAcceptanceEmail,
+  sendApplicationRejectionEmail
+} from '../services/emailService.js';
 
 // @desc    Get admission settings
 // @route   GET /api/admissions/settings
@@ -254,6 +259,7 @@ export const updateApplicationStatus = async (req, res) => {
       });
     }
     
+    const previousStatus = application.status;
     application.status = status;
     application.reviewedAt = new Date();
     application.reviewedBy = req.user.id;
@@ -263,6 +269,35 @@ export const updateApplicationStatus = async (req, res) => {
     }
     
     await application.save();
+
+    // Send email based on status change
+    try {
+      if (status === 'Under Review') {
+        await sendApplicationUnderReviewEmail(
+          application.email,
+          application.fullName,
+          application.applicationNumber,
+          reviewNotes
+        );
+      } else if (status === 'Accepted') {
+        await sendApplicationAcceptanceEmail(
+          application.email,
+          application.fullName,
+          application.applicationNumber,
+          application.program
+        );
+      } else if (status === 'Rejected') {
+        await sendApplicationRejectionEmail(
+          application.email,
+          application.fullName,
+          application.applicationNumber,
+          reviewNotes
+        );
+      }
+    } catch (emailError) {
+      console.error('Email sending failed (non-blocking):', emailError);
+      // Continue even if email fails - application status is already updated
+    }
     
     res.status(200).json({
       success: true,

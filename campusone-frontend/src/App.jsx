@@ -9,7 +9,8 @@ import { Toaster } from 'react-hot-toast';
 
 // Admin Pages
 import UserManagement from './pages/admin/UserManagement';
-import AdmissionSettings from './pages/admin/AdmissionSettings';
+import AdmissionSettings from './pages/admin/Admissions/AdmissionSettings';
+import ApplicationsManagement from './pages/admin/Admissions/ApplicationsManagement';
 import CourseManagement from './pages/admin/CourseManagement';
 import ProgramCurriculum from './pages/admin/ProgramCurriculum';
 import SemesterView from './pages/admin/SemesterView';
@@ -64,6 +65,7 @@ function App() {
           <Route path="/admin/programs" element={<ProgramManagement />} />
           <Route path="/admin/users" element={<UserManagement />} />
           <Route path="/admin/admissions" element={<AdmissionSettings />} />
+          <Route path="/admin/admissions/applications/:status" element={<ApplicationsManagement />} />
           <Route path="/admin/reports" element={<div style={{ padding: '20px' }}>Reports Page - Coming Soon</div>} />
           <Route path="/admin/announcements" element={<div style={{ padding: '20px' }}>Announcements Page - Coming Soon</div>} />
 
