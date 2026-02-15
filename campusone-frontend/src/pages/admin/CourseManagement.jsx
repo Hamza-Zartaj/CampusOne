@@ -64,13 +64,11 @@ const CourseManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
-  const [filterDomain, setFilterDomain] = useState('');
   const [filterActive, setFilterActive] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
   // Reference data
   const [departments, setDepartments] = useState([]);
-  const [domains, setDomains] = useState([]);
 
   // Modal states
   const [showCourseModal, setShowCourseModal] = useState(false);
@@ -89,12 +87,8 @@ const CourseManagement = () => {
   useEffect(() => {
     const loadRefs = async () => {
       try {
-        const [deptRes, domainRes] = await Promise.all([
-          departmentAPI.getAllDepartments({ limit: 200 }),
-          courseAPI.getDomains(),
-        ]);
+        const deptRes = await departmentAPI.getAllDepartments({ limit: 200 });
         if (deptRes.data.success) setDepartments(deptRes.data.data);
-        if (domainRes.data.success) setDomains(domainRes.data.data);
       } catch (err) {
         console.error('Error loading reference data:', err);
       }
@@ -111,7 +105,6 @@ const CourseManagement = () => {
       if (searchQuery.trim()) params.search = searchQuery.trim();
       if (filterType) params.courseType = filterType;
       if (filterDepartment) params.department = filterDepartment;
-      if (filterDomain) params.domain = filterDomain;
       if (filterActive !== '') params.isActive = filterActive;
 
       const response = await courseAPI.getAllCourses(params);
@@ -124,7 +117,7 @@ const CourseManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, searchQuery, filterType, filterDepartment, filterDomain, filterActive]);
+  }, [page, searchQuery, filterType, filterDepartment, filterActive]);
 
   useEffect(() => {
     fetchCourses();
@@ -229,18 +222,24 @@ const CourseManagement = () => {
     setSearchQuery('');
     setFilterType('');
     setFilterDepartment('');
-    setFilterDomain('');
     setFilterActive('');
     setPage(1);
   };
 
-  const hasActiveFilters = filterType || filterDepartment || filterDomain || filterActive !== '';
+  const hasActiveFilters = filterType || filterDepartment || filterActive !== '';
 
   const getDepartmentName = (dept) => {
     if (!dept) return 'N/A';
-    if (typeof dept === 'object') return dept.departmentCode || dept.departmentName || dept.name || 'N/A';
+    if (typeof dept === 'object') {
+      const name = dept.departmentName || dept.name || 'N/A';
+      const code = dept.departmentCode ? `${dept.departmentCode} - ` : '';
+      return `${code}${name}`;
+    }
     const found = departments.find(d => d._id === dept);
-    return found ? (found.departmentCode || found.departmentName || found.name) : 'N/A';
+    if (!found) return 'N/A';
+    const name = found.departmentName || found.name || 'N/A';
+    const code = found.departmentCode ? `${found.departmentCode} - ` : '';
+    return `${code}${name}`;
   };
 
   const statCards = [
@@ -317,7 +316,7 @@ const CourseManagement = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search by code, name, description, or domain..."
+              placeholder="Search by code, name, or description..."
               className={`${inputClass} pl-11`}
             />
           </div>
@@ -349,15 +348,6 @@ const CourseManagement = () => {
                 <option value="">All Departments</option>
                 {departments.map(d => (
                   <option key={d._id} value={d._id}>{d.departmentCode || d.departmentName || d.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Domain</label>
-              <select value={filterDomain} onChange={(e) => { setFilterDomain(e.target.value); setPage(1); }} className={inputClass}>
-                <option value="">All Domains</option>
-                {domains.map(d => (
-                  <option key={d} value={d}>{d}</option>
                 ))}
               </select>
             </div>
@@ -420,12 +410,7 @@ const CourseManagement = () => {
                           <span className="font-semibold text-slate-800 text-[0.95rem]">{course.courseCode}</span>
                         </td>
                         <td className="py-3.5 px-5">
-                          <div>
-                            <p className="font-medium text-slate-700 m-0 text-[0.92rem]">{course.courseName}</p>
-                            {course.domain && (
-                              <p className="text-xs text-slate-400 m-0 mt-0.5">{course.domain}</p>
-                            )}
-                          </div>
+                          <p className="font-medium text-slate-700 m-0 text-[0.92rem]">{course.courseName}</p>
                         </td>
                         <td className="py-3.5 px-5 text-slate-600 text-sm max-lg:hidden">
                           {getDepartmentName(course.department)}
@@ -633,34 +618,10 @@ const CourseManagement = () => {
                 </div>
               </div>
 
-              {/* Hours breakdown */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="text-center p-3 bg-blue-50 rounded-lg">
-                  <p className="text-xs text-blue-600 mb-1 font-medium">Lecture</p>
-                  <p className="text-lg font-bold text-blue-800 m-0">{detailCourse.lectureHours || 0}h</p>
-                </div>
-                <div className="text-center p-3 bg-emerald-50 rounded-lg">
-                  <p className="text-xs text-emerald-600 mb-1 font-medium">Lab</p>
-                  <p className="text-lg font-bold text-emerald-800 m-0">{detailCourse.labHours || 0}h</p>
-                </div>
-                <div className="text-center p-3 bg-purple-50 rounded-lg">
-                  <p className="text-xs text-purple-600 mb-1 font-medium">Tutorial</p>
-                  <p className="text-lg font-bold text-purple-800 m-0">{detailCourse.tutorialHours || 0}h</p>
-                </div>
-              </div>
-
-              {/* Department & Domain */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div>
-                  <p className="text-xs text-slate-500 mb-1 font-medium">Department</p>
-                  <p className="text-sm text-slate-800 font-medium m-0">{getDepartmentName(detailCourse.department)}</p>
-                </div>
-                {detailCourse.domain && (
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1 font-medium">Domain</p>
-                    <p className="text-sm text-slate-800 font-medium m-0">{detailCourse.domain}</p>
-                  </div>
-                )}
+              {/* Department */}
+              <div className="mb-6">
+                <p className="text-xs text-slate-500 mb-1 font-medium">Department</p>
+                <p className="text-sm text-slate-800 font-medium m-0">{getDepartmentName(detailCourse.department)}</p>
               </div>
 
               {/* Description */}
@@ -695,51 +656,7 @@ const CourseManagement = () => {
                 </div>
               )}
 
-              {/* Corequisites */}
-              {detailCourse.corequisites?.length > 0 && (
-                <div className="mb-6">
-                  <p className="text-xs text-slate-500 mb-2 font-medium">Corequisites</p>
-                  <div className="flex flex-wrap gap-2">
-                    {detailCourse.corequisites.map((c, i) => (
-                      <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium border border-purple-200">
-                        {typeof c === 'object' ? `${c.courseCode} - ${c.courseName}` : c}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
 
-              {/* Pair Course */}
-              {detailCourse.pairCourse && (
-                <div className="mb-6">
-                  <p className="text-xs text-slate-500 mb-2 font-medium">Pair Course</p>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-sm font-medium border border-amber-200">
-                    {typeof detailCourse.pairCourse === 'object' ? `${detailCourse.pairCourse.courseCode} - ${detailCourse.pairCourse.courseName}` : detailCourse.pairCourse}
-                  </span>
-                </div>
-              )}
-
-              {/* Learning Outcomes */}
-              {detailCourse.learningOutcomes?.length > 0 && (
-                <div className="mb-6">
-                  <p className="text-xs text-slate-500 mb-2 font-medium">Learning Outcomes</p>
-                  <ol className="m-0 pl-5 text-sm text-slate-700 space-y-1">
-                    {detailCourse.learningOutcomes.map((outcome, i) => (
-                      <li key={i} className="leading-relaxed">{outcome}</li>
-                    ))}
-                  </ol>
-                </div>
-              )}
-
-              {/* Syllabus */}
-              {detailCourse.syllabus && (
-                <div className="mb-4">
-                  <p className="text-xs text-slate-500 mb-2 font-medium">Syllabus</p>
-                  <div className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-lg whitespace-pre-line">
-                    {detailCourse.syllabus}
-                  </div>
-                </div>
-              )}
 
               {/* Footer Actions */}
               <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 mt-6">

@@ -13,7 +13,6 @@ export const getAllCourses = async (req, res) => {
       search, 
       department, 
       program, 
-      domain, 
       courseType, 
       isActive, 
       includeSoftDeleted 
@@ -32,11 +31,6 @@ export const getAllCourses = async (req, res) => {
       query.program = program;
     }
 
-    // Filter by domain
-    if (domain) {
-      query.domain = { $regex: domain, $options: 'i' };
-    }
-
     // Filter by course type
     if (courseType) {
       query.courseType = courseType;
@@ -52,8 +46,7 @@ export const getAllCourses = async (req, res) => {
       query.$or = [
         { courseCode: { $regex: search, $options: 'i' } },
         { courseName: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { domain: { $regex: search, $options: 'i' } }
+        { description: { $regex: search, $options: 'i' } }
       ];
     }
 
@@ -74,8 +67,6 @@ export const getAllCourses = async (req, res) => {
       .populate('department', 'departmentCode name')
       .populate('program', 'programCode name')
       .populate('prerequisites', 'courseCode courseName')
-      .populate('corequisites', 'courseCode courseName')
-      .populate('pairCourse', 'courseCode courseName')
       .sort({ courseCode: 1 })
       .skip(skip)
       .limit(limitNum);
@@ -117,9 +108,7 @@ export const getCourseById = async (req, res) => {
     const course = await Course.findById(id)
       .populate('department', 'departmentCode name')
       .populate('program', 'programCode name')
-      .populate('prerequisites', 'courseCode courseName creditHours')
-      .populate('corequisites', 'courseCode courseName creditHours')
-      .populate('pairCourse', 'courseCode courseName creditHours');
+      .populate('prerequisites', 'courseCode courseName creditHours');
 
     if (!course) {
       return res.status(404).json({
@@ -153,9 +142,7 @@ export const getCourseByCode = async (req, res) => {
     const course = await Course.findOne({ courseCode: code.toUpperCase() })
       .populate('department', 'departmentCode name')
       .populate('program', 'programCode name')
-      .populate('prerequisites', 'courseCode courseName creditHours')
-      .populate('corequisites', 'courseCode courseName creditHours')
-      .populate('pairCourse', 'courseCode courseName creditHours');
+      .populate('prerequisites', 'courseCode courseName creditHours');
 
     if (!course) {
       return res.status(404).json({
@@ -196,7 +183,7 @@ export const getPrereqTree = async (req, res) => {
       visited.add(courseId.toString());
 
       const course = await Course.findById(courseId)
-        .select('courseCode courseName creditHours domain courseType prerequisites')
+        .select('courseCode courseName creditHours courseType prerequisites')
         .lean();
 
       if (!course) {
@@ -208,7 +195,6 @@ export const getPrereqTree = async (req, res) => {
         courseCode: course.courseCode,
         courseName: course.courseName,
         creditHours: course.creditHours,
-        domain: course.domain,
         courseType: course.courseType,
         depth,
         prerequisites: []
@@ -281,16 +267,12 @@ export const getPrereqTree = async (req, res) => {
 export const getCoursesByDepartment = async (req, res) => {
   try {
     const { departmentId } = req.params;
-    const { isActive, domain, courseType } = req.query;
+    const { isActive, courseType } = req.query;
 
     const query = { department: departmentId };
     
     if (isActive !== undefined && isActive !== '' && isActive !== 'all') {
       query.isActive = isActive === 'true';
-    }
-
-    if (domain) {
-      query.domain = { $regex: domain, $options: 'i' };
     }
 
     if (courseType) {
@@ -301,7 +283,6 @@ export const getCoursesByDepartment = async (req, res) => {
       .populate('department', 'departmentCode name')
       .populate('program', 'programCode name')
       .populate('prerequisites', 'courseCode courseName')
-      .populate('pairCourse', 'courseCode courseName')
       .sort({ courseCode: 1 });
 
     res.status(200).json({
@@ -326,16 +307,12 @@ export const getCoursesByDepartment = async (req, res) => {
 export const getCoursesByProgram = async (req, res) => {
   try {
     const { programId } = req.params;
-    const { isActive, domain, courseType } = req.query;
+    const { isActive, courseType } = req.query;
 
     const query = { program: programId };
     
     if (isActive !== undefined && isActive !== '' && isActive !== 'all') {
       query.isActive = isActive === 'true';
-    }
-
-    if (domain) {
-      query.domain = { $regex: domain, $options: 'i' };
     }
 
     if (courseType) {
@@ -346,7 +323,6 @@ export const getCoursesByProgram = async (req, res) => {
       .populate('department', 'departmentCode name')
       .populate('program', 'programCode name')
       .populate('prerequisites', 'courseCode courseName')
-      .populate('pairCourse', 'courseCode courseName')
       .sort({ courseCode: 1 });
 
     res.status(200).json({
@@ -377,16 +353,8 @@ export const createCourse = async (req, res) => {
       department,
       program,
       creditHours,
-      lectureHours,
-      labHours,
-      tutorialHours,
       courseType,
-      domain,
-      prerequisites,
-      corequisites,
-      pairCourse,
-      syllabus,
-      learningOutcomes
+      prerequisites
     } = req.body;
 
     // Check if course code already exists
@@ -411,28 +379,6 @@ export const createCourse = async (req, res) => {
       }
     }
 
-    // Validate corequisites exist
-    if (corequisites && corequisites.length > 0) {
-      const coreqCourses = await Course.find({ _id: { $in: corequisites } });
-      if (coreqCourses.length !== corequisites.length) {
-        return res.status(400).json({
-          success: false,
-          message: 'One or more corequisite courses not found'
-        });
-      }
-    }
-
-    // Validate pair course exists
-    if (pairCourse) {
-      const pairCourseDoc = await Course.findById(pairCourse);
-      if (!pairCourseDoc) {
-        return res.status(400).json({
-          success: false,
-          message: 'Pair course not found'
-        });
-      }
-    }
-
     const course = await Course.create({
       courseCode,
       courseName,
@@ -440,25 +386,15 @@ export const createCourse = async (req, res) => {
       department,
       program,
       creditHours,
-      lectureHours,
-      labHours,
-      tutorialHours,
       courseType,
-      domain,
-      prerequisites,
-      corequisites,
-      pairCourse,
-      syllabus,
-      learningOutcomes
+      prerequisites
     });
 
     // Populate references before returning
     await course.populate([
       { path: 'department', select: 'departmentCode name' },
       { path: 'program', select: 'programCode name' },
-      { path: 'prerequisites', select: 'courseCode courseName' },
-      { path: 'corequisites', select: 'courseCode courseName' },
-      { path: 'pairCourse', select: 'courseCode courseName' }
+      { path: 'prerequisites', select: 'courseCode courseName' }
     ]);
 
     res.status(201).json({
@@ -490,16 +426,8 @@ export const updateCourse = async (req, res) => {
       department,
       program,
       creditHours,
-      lectureHours,
-      labHours,
-      tutorialHours,
       courseType,
-      domain,
       prerequisites,
-      corequisites,
-      pairCourse,
-      syllabus,
-      learningOutcomes,
       isActive
     } = req.body;
 
@@ -544,40 +472,6 @@ export const updateCourse = async (req, res) => {
       }
     }
 
-    // Validate corequisites exist
-    if (corequisites) {
-      if (corequisites.includes(id)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Course cannot be its own corequisite'
-        });
-      }
-      const coreqCourses = await Course.find({ _id: { $in: corequisites } });
-      if (coreqCourses.length !== corequisites.length) {
-        return res.status(400).json({
-          success: false,
-          message: 'One or more corequisite courses not found'
-        });
-      }
-    }
-
-    // Validate pair course exists
-    if (pairCourse) {
-      if (pairCourse === id) {
-        return res.status(400).json({
-          success: false,
-          message: 'Course cannot be paired with itself'
-        });
-      }
-      const pairCourseDoc = await Course.findById(pairCourse);
-      if (!pairCourseDoc) {
-        return res.status(400).json({
-          success: false,
-          message: 'Pair course not found'
-        });
-      }
-    }
-
     // Update fields
     if (courseCode) course.courseCode = courseCode;
     if (courseName) course.courseName = courseName;
@@ -585,16 +479,8 @@ export const updateCourse = async (req, res) => {
     if (department) course.department = department;
     if (program !== undefined) course.program = program || null;
     if (creditHours) course.creditHours = creditHours;
-    if (lectureHours !== undefined) course.lectureHours = lectureHours;
-    if (labHours !== undefined) course.labHours = labHours;
-    if (tutorialHours !== undefined) course.tutorialHours = tutorialHours;
     if (courseType) course.courseType = courseType;
-    if (domain !== undefined) course.domain = domain;
     if (prerequisites !== undefined) course.prerequisites = prerequisites;
-    if (corequisites !== undefined) course.corequisites = corequisites;
-    if (pairCourse !== undefined) course.pairCourse = pairCourse || null;
-    if (syllabus !== undefined) course.syllabus = syllabus;
-    if (learningOutcomes !== undefined) course.learningOutcomes = learningOutcomes;
     if (isActive !== undefined) course.isActive = isActive;
 
     await course.save();
@@ -603,9 +489,7 @@ export const updateCourse = async (req, res) => {
     await course.populate([
       { path: 'department', select: 'departmentCode name' },
       { path: 'program', select: 'programCode name' },
-      { path: 'prerequisites', select: 'courseCode courseName' },
-      { path: 'corequisites', select: 'courseCode courseName' },
-      { path: 'pairCourse', select: 'courseCode courseName' }
+      { path: 'prerequisites', select: 'courseCode courseName' }
     ]);
 
     res.status(200).json({
@@ -696,9 +580,7 @@ export const restoreCourse = async (req, res) => {
     await course.populate([
       { path: 'department', select: 'departmentCode name' },
       { path: 'program', select: 'programCode name' },
-      { path: 'prerequisites', select: 'courseCode courseName' },
-      { path: 'corequisites', select: 'courseCode courseName' },
-      { path: 'pairCourse', select: 'courseCode courseName' }
+      { path: 'prerequisites', select: 'courseCode courseName' }
     ]);
 
     res.status(200).json({
@@ -753,29 +635,6 @@ export const permanentDeleteCourse = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error permanently deleting course',
-      error: error.message
-    });
-  }
-};
-
-/**
- * @desc    Get all unique domains
- * @route   GET /api/courses/domains
- * @access  Private
- */
-export const getDomains = async (req, res) => {
-  try {
-    const domains = await Course.distinct('domain', { domain: { $ne: null, $ne: '' } });
-
-    res.status(200).json({
-      success: true,
-      count: domains.length,
-      data: domains.sort()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching domains',
       error: error.message
     });
   }

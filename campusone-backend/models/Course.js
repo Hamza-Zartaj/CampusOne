@@ -32,51 +32,14 @@ const courseSchema = new mongoose.Schema({
     min: 1,
     max: 6
   },
-  lectureHours: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  labHours: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  tutorialHours: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
   courseType: {
     type: String,
     enum: ['core', 'elective', 'lab', 'project', 'internship', 'thesis'],
     default: 'core'
   },
-  domain: {
-    type: String,
-    trim: true
-    // e.g., "Mathematics", "Computer Science", "Physics", "Humanities"
-  },
   prerequisites: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Course'
-  }],
-  corequisites: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Course'
-  }],
-  pairCourse: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Course'
-    // For paired lab/theory courses
-  },
-  syllabus: {
-    type: String,
-    trim: true
-  },
-  learningOutcomes: [{
-    type: String,
-    trim: true
   }],
   isActive: {
     type: Boolean,
@@ -101,7 +64,6 @@ const courseSchema = new mongoose.Schema({
 // Indexes
 courseSchema.index({ department: 1 });
 courseSchema.index({ program: 1 });
-courseSchema.index({ domain: 1 });
 courseSchema.index({ courseType: 1 });
 courseSchema.index({ isDeleted: 1 });
 

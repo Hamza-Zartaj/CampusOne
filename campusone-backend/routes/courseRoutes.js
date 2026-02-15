@@ -10,8 +10,7 @@ import {
   updateCourse,
   deleteCourse,
   restoreCourse,
-  permanentDeleteCourse,
-  getDomains
+  permanentDeleteCourse
 } from '../controllers/courseController.js';
 import { protect, authorize, authorizePermission } from '../middleware/auth.js';
 import {
@@ -27,13 +26,6 @@ router.use(protect);
 
 // Apply admin authorization to all routes
 router.use(authorize('admin'));
-
-// Get all unique domains
-router.get(
-  '/domains',
-  authorizePermission('manage_academic'),
-  getDomains
-);
 
 // Get all courses with pagination and search
 router.get(
