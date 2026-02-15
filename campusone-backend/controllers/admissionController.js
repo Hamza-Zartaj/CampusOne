@@ -270,40 +270,42 @@ export const updateApplicationStatus = async (req, res) => {
     
     await application.save();
 
-    // Send email based on status change
-    try {
-      if (status === 'Under Review') {
-        await sendApplicationUnderReviewEmail(
-          application.email,
-          application.fullName,
-          application.applicationNumber,
-          reviewNotes
-        );
-      } else if (status === 'Accepted') {
-        await sendApplicationAcceptanceEmail(
-          application.email,
-          application.fullName,
-          application.applicationNumber,
-          application.program
-        );
-      } else if (status === 'Rejected') {
-        await sendApplicationRejectionEmail(
-          application.email,
-          application.fullName,
-          application.applicationNumber,
-          reviewNotes
-        );
-      }
-    } catch (emailError) {
-      console.error('Email sending failed (non-blocking):', emailError);
-      // Continue even if email fails - application status is already updated
-    }
-    
+    // Send response immediately to user
     res.status(200).json({
       success: true,
       message: 'Application status updated successfully',
       data: application
     });
+
+    // Send email based on status change (non-blocking - runs in background)
+    if (status === 'Under Review') {
+      sendApplicationUnderReviewEmail(
+        application.email,
+        application.fullName,
+        application.applicationNumber,
+        reviewNotes
+      ).catch(emailError => {
+        console.error('Email sending failed (non-blocking):', emailError);
+      });
+    } else if (status === 'Accepted') {
+      sendApplicationAcceptanceEmail(
+        application.email,
+        application.fullName,
+        application.applicationNumber,
+        application.program
+      ).catch(emailError => {
+        console.error('Email sending failed (non-blocking):', emailError);
+      });
+    } else if (status === 'Rejected') {
+      sendApplicationRejectionEmail(
+        application.email,
+        application.fullName,
+        application.applicationNumber,
+        reviewNotes
+      ).catch(emailError => {
+        console.error('Email sending failed (non-blocking):', emailError);
+      });
+    }
   } catch (error) {
     console.error('Error updating application status:', error);
     res.status(500).json({
