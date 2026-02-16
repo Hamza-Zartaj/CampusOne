@@ -21,7 +21,7 @@ import {
   UserCheck,
   Hash,
 } from 'lucide-react';
-import { courseOfferingAPI, courseAPI, programAPI, departmentAPI, userAPI } from '../../utils/api';
+import { courseOfferingAPI, courseAPI, programAPI, departmentAPI, teacherAPI } from '../../utils/api';
 
 const inputClass = "w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] transition-all focus:outline-none focus:border-primary-500 focus:ring-[3px] focus:ring-primary-500/10";
 const labelClass = "block text-[0.9rem] font-medium text-slate-800 mb-2";
@@ -121,11 +121,11 @@ const CourseOfferingManagement = () => {
         const [progRes, courseRes, teacherRes] = await Promise.all([
           programAPI.getAllPrograms({ limit: 200 }),
           courseAPI.getAllCourses({ limit: 500, isActive: true }),
-          userAPI.getAllUsers({ role: 'teacher', limit: 500, isActive: true }),
+          teacherAPI.getAllTeachers({ limit: 500 }),
         ]);
         if (progRes.data.success) setPrograms(progRes.data.data);
         if (courseRes.data.success) setCourses(courseRes.data.data);
-        if (teacherRes.data.success) setTeachers(teacherRes.data.data || teacherRes.data.users || []);
+        if (teacherRes.data.success) setTeachers(teacherRes.data.data);
       } catch (err) {
         console.error('Error loading reference data:', err);
       }
@@ -171,7 +171,7 @@ const CourseOfferingManagement = () => {
     if (!q.trim()) return [];
     const lq = q.toLowerCase();
     return teachers.filter(t => {
-      const name = `${t.firstName || ''} ${t.lastName || ''} ${t.username || ''}`.toLowerCase();
+      const name = `${t.name || ''} ${t.username || ''}`.toLowerCase();
       return name.includes(lq) || (t.email || '').toLowerCase().includes(lq);
     }).slice(0, 8);
   };
@@ -199,7 +199,7 @@ const CourseOfferingManagement = () => {
       ? `${offering.course.courseCode} - ${offering.course.courseName}` : '';
     const teacherObj = typeof offering.teacher === 'object' ? offering.teacher : null;
     const teacherName = teacherObj
-      ? `${teacherObj.userId?.firstName || teacherObj.firstName || ''} ${teacherObj.userId?.lastName || teacherObj.lastName || ''}`.trim()
+      ? `${teacherObj.userId?.name || teacherObj.name || ''}`.trim()
       : '';
 
     setForm({
@@ -332,7 +332,7 @@ const CourseOfferingManagement = () => {
     if (!t) return 'TBA';
     if (typeof t === 'object') {
       const u = t.userId || t;
-      return `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'TBA';
+      return `${u.name || ''}`.trim() || 'TBA';
     }
     return 'TBA';
   };
@@ -671,16 +671,14 @@ const CourseOfferingManagement = () => {
                     <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto mt-1">
                       {teacherResults.map(t => (
                         <button key={t._id} type="button" onClick={() => {
-                          // teacher record — need to use Teacher document _id from profile, or userId
-                          // The userAPI returns User docs with role=teacher. The offering expects Teacher model _id.
-                          // We'll use the profile._id if available
-                          const teacherId = t.profile?._id || t._id;
-                          setForm(prev => ({ ...prev, teacher: teacherId }));
+                          // teacher record — using Teacher document _id
+                          // The teacherAPI returns Teacher docs with the correct _id for course offerings
+                          setForm(prev => ({ ...prev, teacher: t._id }));
                           setSelectedTeacher(t);
-                          setTeacherSearch(`${t.firstName || ''} ${t.lastName || ''}`.trim());
+                          setTeacherSearch(`${t.name || ''}`.trim());
                           setTeacherResults([]);
                         }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 cursor-pointer border-none bg-transparent border-b border-gray-50">
-                          <span className="font-semibold text-slate-800">{t.firstName} {t.lastName}</span>
+                          <span className="font-semibold text-slate-800">{t.name}</span>
                           <span className="text-slate-400 ml-2 text-xs">{t.email}</span>
                         </button>
                       ))}
@@ -689,7 +687,7 @@ const CourseOfferingManagement = () => {
                 </div>
                 {selectedTeacher && (
                   <div className="mt-2 flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-lg text-sm text-green-700">
-                    <Check size={14} /> {selectedTeacher.firstName || selectedTeacher.userId?.firstName} {selectedTeacher.lastName || selectedTeacher.userId?.lastName}
+                    <Check size={14} /> {selectedTeacher.name || selectedTeacher.userId?.name}
                     <button type="button" onClick={() => { setSelectedTeacher(null); setForm(prev => ({ ...prev, teacher: '' })); setTeacherSearch(''); }} className="ml-auto bg-transparent border-none text-green-400 hover:text-green-700 cursor-pointer p-0"><X size={14} /></button>
                   </div>
                 )}

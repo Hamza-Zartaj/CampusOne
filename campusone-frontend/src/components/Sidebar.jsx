@@ -40,6 +40,7 @@ const Sidebar = ({ isOpen }) => {
         { path: '/admin/departments', icon: Building2, label: 'Departments' },
         { path: '/admin/programs', icon: GraduationCap, label: 'Programs' },
         { path: '/admin/offerings', icon: CalendarRange, label: 'Offerings' },
+        { path: '/admin/enroll-students', icon: UserCheck, label: 'Enroll Students' },
         { path: '/admin/curriculum', icon: Layers, label: 'Curriculum' },
         { path: '/admin/semesters', icon: Eye, label: 'Semesters' },
         { path: '/admin/announcements', icon: Bell, label: 'Announcements' }

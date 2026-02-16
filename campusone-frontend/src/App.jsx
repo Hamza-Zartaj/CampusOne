@@ -15,7 +15,7 @@ import CourseManagement from './pages/admin/CourseManagement';
 import ProgramCurriculum from './pages/admin/ProgramCurriculum';
 import SemesterView from './pages/admin/SemesterView';
 import CourseOfferingManagement from './pages/admin/CourseOfferingManagement';
-import StudentEnrollment from './pages/admin/StudentEnrollment';
+import BulkStudentEnrollment from './pages/admin/BulkStudentEnrollment';
 import DepartmentManagement from './pages/admin/DepartmentManagement';
 import ProgramManagement from './pages/admin/ProgramManagement';
 
@@ -27,7 +27,6 @@ import EnrolledStudents from './pages/teacher/EnrolledStudents';
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
 import MyCourses from './pages/student/MyCourses';
-import CourseRegistration from './pages/student/CourseRegistration';
 import Timetable from './pages/student/Timetable';
 import MyGrades from './pages/student/MyGrades';
 
@@ -60,7 +59,7 @@ function App() {
           <Route path="/admin/curriculum" element={<ProgramCurriculum />} />
           <Route path="/admin/semesters" element={<SemesterView />} />
           <Route path="/admin/offerings" element={<CourseOfferingManagement />} />
-          <Route path="/admin/enrollment" element={<StudentEnrollment />} />
+          <Route path="/admin/enroll-students" element={<BulkStudentEnrollment />} />
           <Route path="/admin/departments" element={<DepartmentManagement />} />
           <Route path="/admin/programs" element={<ProgramManagement />} />
           <Route path="/admin/users" element={<UserManagement />} />
@@ -81,7 +80,6 @@ function App() {
           {/* Student Routes */}
           <Route path="/student/dashboard" element={<StudentDashboard />} />
           <Route path="/student/courses" element={<MyCourses />} />
-          <Route path="/student/register" element={<CourseRegistration />} />
           <Route path="/student/timetable" element={<Timetable />} />
           <Route path="/student/grades" element={<MyGrades />} />
           <Route path="/student/attendance" element={<div style={{ padding: '20px' }}>My Attendance - Coming Soon</div>} />
