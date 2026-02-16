@@ -102,10 +102,10 @@ const BulkStudentEnrollment = () => {
     if (!searchStudent) return true;
     const q = searchStudent.toLowerCase();
     return (
-      student.studentId?.toLowerCase().includes(q) ||
-      student.userId?.firstName?.toLowerCase().includes(q) ||
-      student.userId?.lastName?.toLowerCase().includes(q) ||
-      student.userId?.email?.toLowerCase().includes(q)
+      student.roleData?.studentId?.toLowerCase().includes(q) ||
+      student.firstName?.toLowerCase().includes(q) ||
+      student.lastName?.toLowerCase().includes(q) ||
+      student.email?.toLowerCase().includes(q)
     );
   });
 
@@ -340,9 +340,9 @@ const BulkStudentEnrollment = () => {
                       className="mt-0.5 w-4 h-4 rounded cursor-pointer"
                     />
                     <div className="flex-1">
-                      <p className="font-medium text-slate-800 text-sm">{student.userId?.firstName} {student.userId?.lastName}</p>
-                      <p className="text-xs text-slate-500">{student.studentId}</p>
-                      <p className="text-xs text-slate-400">{student.userId?.email}</p>
+                      <p className="font-medium text-slate-800 text-sm">{student.firstName} {student.lastName}</p>
+                      <p className="text-xs text-slate-500">{student.roleData?.studentId}</p>
+                      <p className="text-xs text-slate-400">{student.email}</p>
                     </div>
                   </label>
                 ))
