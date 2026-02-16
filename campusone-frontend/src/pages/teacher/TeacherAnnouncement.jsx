@@ -11,6 +11,63 @@ import {
 } from 'lucide-react';
 import { announcementAPI, teacherToolsAPI } from '../../utils/api';
 
+// Dummy data for development/demo
+const dummyCourseOfferings = [
+  {
+    _id: '1',
+    course: {
+      courseCode: 'CS101',
+      courseName: 'Introduction to Computer Science',
+      creditHours: 3
+    },
+    program: { programCode: 'BSCS' },
+    section: 'A',
+    semesterNumber: 1,
+    academicYear: '2026',
+    currentEnrollment: 45,
+    maxCapacity: 50,
+    status: 'active',
+    resultsLocked: false
+  },
+  {
+    _id: '2',
+    course: {
+      courseCode: 'CS201',
+      courseName: 'Data Structures & Algorithms',
+      creditHours: 3
+    },
+    program: { programCode: 'BSCS' },
+    section: 'B',
+    semesterNumber: 2,
+    academicYear: '2026',
+    currentEnrollment: 38,
+    maxCapacity: 40,
+    status: 'active',
+    resultsLocked: true
+  },
+];
+
+const dummyAnnouncements = [
+  {
+    _id: '1',
+    title: 'Important: Assignment Deadline Extended',
+    content: 'Due to popular request, we have extended the assignment deadline to next Friday. Please make sure to submit your work by then.',
+    priority: 'high',
+    courseId: { title: 'CS101' },
+    targetAudience: 'specific_course',
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+  },
+  {
+    _id: '2',
+    title: 'Midterm Preparation Tips',
+    content: 'Here are some tips to help you prepare for the midterm exam. Focus on chapters 1-5 from the textbook.',
+    priority: 'medium',
+    courseId: { title: 'CS101' },
+    targetAudience: 'specific_course',
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+  }
+];
+
 const inputClass =
   'w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] transition-all focus:outline-none focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/10';
 const labelClass = 'block text-[0.9rem] font-medium text-slate-800 mb-2';
@@ -24,9 +81,9 @@ const PRIORITY_BADGES = {
 };
 
 const TeacherAnnouncement = () => {
-  const [announcements, setAnnouncements] = useState([]);
-  const [courseOfferings, setCourseOfferings] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [announcements, setAnnouncements] = useState(dummyAnnouncements);
+  const [courseOfferings, setCourseOfferings] = useState(dummyCourseOfferings);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -170,7 +227,7 @@ const TeacherAnnouncement = () => {
                     <option value="">Choose a course</option>
                     {courseOfferings.map((offering) => (
                       <option key={offering._id} value={offering._id}>
-                        {offering.courseId?.title || 'Unknown Course'}
+                        {offering.course?.courseCode} - {offering.course?.courseName || 'Unknown Course'}
                       </option>
                     ))}
                   </select>
