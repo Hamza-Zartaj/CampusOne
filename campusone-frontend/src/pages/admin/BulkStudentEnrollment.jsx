@@ -44,6 +44,7 @@ const BulkStudentEnrollment = () => {
   const [allStudents, setAllStudents] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState(new Set());
   const [loadingStudents, setLoadingStudents] = useState(false);
+  const [enrolledStudentIds, setEnrolledStudentIds] = useState(new Set());
 
   // Options
   const [skipPrerequisites, setSkipPrerequisites] = useState(false);
@@ -97,8 +98,66 @@ const BulkStudentEnrollment = () => {
     fetchStudents();
   }, []);
 
+  // Load enrolled students for selected offering
+  useEffect(() => {
+    const fetchEnrolledStudents = async () => {
+      if (!selectedOffering) {
+        setEnrolledStudentIds(new Set());
+        setSelectedStudents(new Set());
+        return;
+      }
+
+      try {
+        // Fetch all enrollments without status filter first
+        const res = await enrollmentAPI.getOfferingEnrollments(selectedOffering._id, { limit: 1000 });
+        
+        console.log('Enrollment API response:', res.data);
+        
+        if (res.data.success && res.data.data && Array.isArray(res.data.data)) {
+          // Extract User IDs from enrolled students
+          const enrolledIds = new Set();
+          
+          res.data.data.forEach((enrollment, index) => {
+            console.log(`Enrollment ${index}:`, enrollment);
+            
+            // Get the User ID - handle different response structures
+            let userId = null;
+            
+            if (enrollment.student?.userId?._id) {
+              userId = enrollment.student.userId._id;
+            } else if (enrollment.student?.userId) {
+              userId = enrollment.student.userId;
+            } else if (enrollment.student?._id) {
+              userId = enrollment.student._id;
+            }
+            
+            console.log(`Extracted userId for enrollment ${index}:`, userId);
+            
+            if (userId) {
+              enrolledIds.add(userId);
+            }
+          });
+
+          console.log('Final enrolled IDs set:', enrolledIds);
+          setEnrolledStudentIds(enrolledIds);
+          setSelectedStudents(new Set());
+        }
+      } catch (err) {
+        console.error('Error loading enrolled students:', err);
+        setEnrolledStudentIds(new Set());
+      }
+    };
+
+    fetchEnrolledStudents();
+  }, [selectedOffering]);
+
   // Filter students
   const filteredStudents = allStudents.filter(student => {
+    // Exclude already enrolled students
+    if (enrolledStudentIds.has(student._id)) {
+      return false;
+    }
+
     if (!searchStudent) return true;
     const q = searchStudent.toLowerCase();
     return (
@@ -108,6 +167,17 @@ const BulkStudentEnrollment = () => {
       student.email?.toLowerCase().includes(q)
     );
   });
+
+  // Debug: Log student filtering info
+  React.useEffect(() => {
+    if (selectedOffering && allStudents.length > 0) {
+      console.log('Debugging Filter:');
+      console.log('Total students:', allStudents.length);
+      console.log('Enrolled IDs:', Array.from(enrolledStudentIds));
+      console.log('Sample student:', allStudents[0]);
+      console.log('Filtered students:', filteredStudents.length);
+    }
+  }, [selectedOffering, allStudents, enrolledStudentIds, filteredStudents]);
 
   // Filter offerings
   const filteredOfferings = offerings.filter(offering => {
@@ -289,6 +359,15 @@ const BulkStudentEnrollment = () => {
           <div className="bg-white rounded-2xl shadow-sm p-6">
             <h2 className="text-lg font-semibold text-slate-800 mb-5">Step 2: Select Students</h2>
 
+            {/* Info message */}
+            {selectedOffering && enrolledStudentIds.size > 0 && (
+              <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                <p className="text-sm text-blue-700">
+                  <span className="font-medium">{enrolledStudentIds.size}</span> student(s) already enrolled in this course
+                </p>
+              </div>
+            )}
+
             {/* Search & Select All */}
             <div className="space-y-3 mb-4">
               <div className="relative">
@@ -325,7 +404,13 @@ const BulkStudentEnrollment = () => {
               ) : filteredStudents.length === 0 ? (
                 <div className="py-6 text-center text-slate-500">
                   <AlertCircle size={20} className="mx-auto mb-2 opacity-50" />
-                  <p>No students found</p>
+                  <p>
+                    {!selectedOffering 
+                      ? 'Select a course offering to see available students'
+                      : enrolledStudentIds.size > 0
+                      ? 'All students are already enrolled in this course'
+                      : 'No students found'}
+                  </p>
                 </div>
               ) : (
                 filteredStudents.map(student => (
