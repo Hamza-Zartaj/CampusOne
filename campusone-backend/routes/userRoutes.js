@@ -12,6 +12,7 @@ import {
   getUserStats,
   getUserStatsByRole,
   promoteStudentToTA,
+  removeStudentTARole,
   searchStudents,
   downloadBulkUploadTemplate,
   bulkUploadStudents
@@ -121,6 +122,9 @@ router.put('/:id/activate', authorizePermission('manage_users'), validateObjectI
 
 // Unlock user account
 router.put('/:id/unlock', authorizePermission('manage_users'), validateObjectId('id'), unlockAccount);
+
+// Remove TA role from student (keep student status)
+router.put('/:id/remove-ta-role', authorizePermission('manage_users'), validateObjectId('id'), removeStudentTARole);
 
 // Delete user (soft delete)
 router.delete('/:id', authorizePermission('manage_users'), validateObjectId('id'), deleteUser);

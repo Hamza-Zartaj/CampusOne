@@ -18,6 +18,16 @@ const getRoleSpecificData = async (userId, role) => {
       roleData = await Student.findOne({ userId })
         .populate('enrolledCourses.courseId')
         .populate('completedCourses.courseId');
+      
+      // Also check if student is a TA
+      const taData = await TA.findOne({ userId })
+        .populate('assignedCourses.courseId');
+      
+      if (roleData && taData) {
+        // Convert to object and add TA data
+        roleData = roleData.toObject ? roleData.toObject() : roleData;
+        roleData.taInfo = taData;
+      }
       break;
     case 'teacher':
       roleData = await Teacher.findOne({ userId })
@@ -48,7 +58,8 @@ export const getAllUsers = async (req, res) => {
     // Build query
     const query = {};
 
-    // Filter by role
+    // Filter by role - special handling for TA
+    let isTAQuery = false;
     if (role) {
       const validRoles = ['student', 'teacher', 'ta', 'admin'];
       if (!validRoles.includes(role)) {
@@ -57,7 +68,14 @@ export const getAllUsers = async (req, res) => {
           message: `Invalid role. Must be one of: ${validRoles.join(', ')}`
         });
       }
-      query.role = role;
+      
+      if (role === 'ta') {
+        // Special case: TAs can be students with TA records
+        // We'll fetch from TA collection and get associated users
+        isTAQuery = true;
+      } else {
+        query.role = role;
+      }
     }
 
     // Filter by active status
@@ -86,31 +104,90 @@ export const getAllUsers = async (req, res) => {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // Get total count
-    const total = await User.countDocuments(query);
+    let data = [];
+    let totalCount = 0;
 
-    // Get users
-    const users = await User.find(query)
-      .select('-password')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum);
+    if (isTAQuery) {
+      // Fetch TAs and their associated users
+      const taRecords = await TA.find()
+        .populate('userId')
+        .populate('studentId')
+        .populate('assignedCourses.courseId');
+      
+      // Filter based on search and active status
+      let filteredTAs = taRecords.filter(ta => {
+        const user = ta.userId;
+        if (!user) return false;
+        
+        // Check active status
+        if (query.isActive !== undefined && user.isActive !== query.isActive) {
+          return false;
+        }
+        
+        // Check search
+        if (query.$or) {
+          const searchMatches = query.$or.some(condition => {
+            if (condition.name && new RegExp(condition.name.$regex, condition.name.$options).test(user.name)) {
+              return true;
+            }
+            if (condition.email && new RegExp(condition.email.$regex, condition.email.$options).test(user.email)) {
+              return true;
+            }
+            return false;
+          });
+          return searchMatches;
+        }
+        
+        return true;
+      });
+      
+      totalCount = filteredTAs.length;
+      
+      // Apply pagination
+      filteredTAs = filteredTAs.slice(skip, skip + limitNum);
+      
+      // Format data to match user response structure
+      data = filteredTAs.map(ta => ({
+        ...ta.userId.toObject(),
+        roleData: ta
+      }));
+    } else {
+      // Original logic for non-TA queries
+      // Get total count
+      totalCount = await User.countDocuments(query);
+
+      // Get users
+      const users = await User.find(query)
+        .select('-password')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum);
+
+      // Fetch role-specific data for each user
+      data = await Promise.all(users.map(async (user) => {
+        const roleData = await getRoleSpecificData(user._id, user.role);
+        return {
+          ...user.toObject(),
+          roleData: roleData || {}
+        };
+      }));
+    }
 
     // Calculate pagination info
-    const totalPages = Math.ceil(total / limitNum);
+    const totalPages = Math.ceil(totalCount / limitNum);
 
     res.status(200).json({
       success: true,
-      count: users.length,
+      count: data.length,
       pagination: {
         page: pageNum,
         limit: limitNum,
-        total,
+        total: totalCount,
         totalPages,
         hasNext: pageNum < totalPages,
         hasPrev: pageNum > 1
       },
-      data: users
+      data
     });
   } catch (error) {
     res.status(500).json({
@@ -145,8 +222,8 @@ export const getUserById = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        user,
-        roleData
+        ...user.toObject(),
+        roleData: roleData || {}
       }
     });
   } catch (error) {
@@ -609,12 +686,25 @@ export const deleteUser = async (req, res) => {
     }
 
     // Hard delete - completely remove from database
-    // Delete from role-specific collections
+    // Special handling for students who are also TAs
     if (user.role === 'student') {
+      const taRecord = await TA.findOne({ userId: id });
+      
+      // If student has a TA record, just remove the TA role
+      if (taRecord) {
+        await TA.deleteOne({ userId: id });
+        return res.status(200).json({
+          success: true,
+          message: 'TA role removed successfully. User remains as student.'
+        });
+      }
+      
+      // Otherwise delete the complete student account
       await Student.deleteOne({ userId: id });
     } else if (user.role === 'teacher') {
       await Teacher.deleteOne({ userId: id });
     } else if (user.role === 'ta') {
+      // Pure TA (not a student) - delete completely
       await TA.deleteOne({ userId: id });
     } else if (user.role === 'admin') {
       await Admin.deleteOne({ userId: id });
@@ -689,12 +779,14 @@ export const getUserStats = async (req, res) => {
 export const getUserStatsByRole = async (req, res) => {
   try {
     // Count users by each role (only active users)
-    const [adminCount, teacherCount, studentCount, taCount] = await Promise.all([
+    const [adminCount, teacherCount, studentCount] = await Promise.all([
       User.countDocuments({ role: 'admin', isActive: true }),
       User.countDocuments({ role: 'teacher', isActive: true }),
-      User.countDocuments({ role: 'student', isActive: true }),
-      User.countDocuments({ role: 'ta', isActive: true })
+      User.countDocuments({ role: 'student', isActive: true })
     ]);
+
+    // Count TAs from TA collection (students who are also TAs)
+    const taCount = await TA.countDocuments();
 
     res.status(200).json({
       success: true,
@@ -768,10 +860,7 @@ export const promoteStudentToTA = async (req, res) => {
       });
     }
 
-    // Update user role to TA
-    studentUser.role = 'ta';
-    await studentUser.save();
-
+    // Keep user role as 'student' - they will have both student and TA roles
     // Create TA record
     const assignedCourses = [];
     if (courseIds && Array.isArray(courseIds) && courseIds.length > 0) {
@@ -779,10 +868,6 @@ export const promoteStudentToTA = async (req, res) => {
       const courses = await Course.find({ _id: { $in: courseIds } });
       
       if (courses.length !== courseIds.length) {
-        // Rollback user role change
-        studentUser.role = 'student';
-        await studentUser.save();
-        
         return res.status(400).json({
           success: false,
           message: 'One or more course IDs are invalid'
@@ -819,6 +904,63 @@ export const promoteStudentToTA = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error promoting student to TA',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Remove TA role from a student (keep student status)
+ * @route   PUT /api/users/:id/remove-ta-role
+ * @access  Private/Admin
+ */
+export const removeStudentTARole = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.role !== 'student') {
+      return res.status(400).json({
+        success: false,
+        message: 'This function only works for students. User is not a student.'
+      });
+    }
+
+    // Check if user has a TA record
+    const taRecord = await TA.findOne({ userId: id });
+    if (!taRecord) {
+      return res.status(400).json({
+        success: false,
+        message: 'User is not a TA'
+      });
+    }
+
+    // Delete the TA record
+    await TA.deleteOne({ userId: id });
+
+    res.status(200).json({
+      success: true,
+      message: 'TA role successfully removed. User remains as student.',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error removing TA role',
       error: error.message
     });
   }
@@ -1146,6 +1288,7 @@ export default {
   getUserStats,
   getUserStatsByRole,
   promoteStudentToTA,
+  removeStudentTARole,
   searchStudents,
   downloadBulkUploadTemplate,
   bulkUploadStudents
