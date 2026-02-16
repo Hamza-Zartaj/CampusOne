@@ -1014,20 +1014,25 @@ export const bulkEnroll = async (req, res) => {
 
     // Audit log for bulk enrollment
     if (results.successful.length > 0) {
-      await AuditLogger.logBulkEnrollment(
-        skipPrerequisites ? 'ENROLLMENT_FORCE_CREATED' : 'ENROLLMENT_CREATED',
-        req.user.id,
-        results.successful.map(s => s.enrollmentId),
-        results.successful.map(s => s.studentId),
+      // Fetch student records to get student identifiers
+      const students = await Student.find({ _id: { $in: results.successful.map(s => s.studentId) } });
+      const studentMap = new Map(students.map(s => [s._id.toString(), s.studentId]));
+
+      await AuditLogger.logBulkEnrollment({
+        enrollments: results.successful.map(s => ({
+          enrollmentId: s.enrollmentId,
+          studentId: s.studentId,
+          studentIdentifier: studentMap.get(s.studentId.toString()) || `Student-${s.studentId}`
+        })),
+        performedBy: req.user.id,
+        performedByRole: req.user.role,
         courseOfferingId,
-        {
-          enrollmentType,
-          skipPrerequisites,
-          totalAttempted: studentIds.length,
-          successCount: results.successful.length,
-          failedCount: results.failed.length
-        }
-      );
+        courseCode: courseOffering.course.courseCode,
+        academicYear: courseOffering.academicYear,
+        semesterNumber: courseOffering.semesterNumber,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
     }
 
     res.status(200).json({

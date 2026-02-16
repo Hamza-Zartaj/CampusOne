@@ -58,7 +58,7 @@ const Sidebar = ({ isOpen }) => {
       student: [
         { path: '/student/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { path: '/student/courses', icon: BookOpen, label: 'My Courses' },
-        { path: '/student/register', icon: ClipboardCheck, label: 'Registration' },
+        // { path: '/student/register', icon: ClipboardCheck, label: 'Registration' },
         { path: '/student/timetable', icon: Calendar, label: 'Timetable' },
         { path: '/student/grades', icon: GraduationCap, label: 'Grades' },
         { path: '/student/attendance', icon: UserCheck, label: 'Attendance' },
