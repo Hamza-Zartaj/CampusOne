@@ -152,7 +152,7 @@ const MyOfferings = () => {
               <div
                 key={offering._id}
                 className="bg-white rounded-2xl shadow-sm p-5 hover:shadow-md transition-all cursor-pointer"
-                onClick={() => navigate(`/teacher/offerings/${offering._id}/students`)}
+                onClick={() => navigate(`/teacher/offerings/${offering.course?.courseCode}/students`, { state: { offeringId: offering._id } })}
               >
                 <div className="flex items-center justify-between max-sm:flex-col max-sm:items-start max-sm:gap-3">
                   <div className="flex items-center gap-4">

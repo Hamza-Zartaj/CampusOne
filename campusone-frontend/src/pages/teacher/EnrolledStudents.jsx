@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Users,
   Search,
@@ -24,8 +24,10 @@ const inputClass = "w-full py-1.5 px-2.5 border border-gray-200 rounded-lg text-
 const VALID_GRADES = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'F', 'I', 'W', 'P', 'NP'];
 
 const EnrolledStudents = () => {
-  const { offeringId } = useParams();
+  const { courseCode } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [offeringId, setOfferingId] = useState(location.state?.offeringId || null);
   const [students, setStudents] = useState([]);
   const [offering, setOffering] = useState(null);
   const [loading, setLoading] = useState(true);

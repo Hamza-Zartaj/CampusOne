@@ -84,7 +84,7 @@ function App() {
           {/* Teacher Routes */}
           <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
           <Route path="/teacher/offerings" element={<MyOfferings />} />
-          <Route path="/teacher/offerings/:offeringId/students" element={<EnrolledStudents />} />
+          <Route path="/teacher/offerings/:courseCode/students" element={<EnrolledStudents />} />
           <Route path="/teacher/attendance" element={<TeacherAttendance />} />
           <Route path="/teacher/assignments" element={<TeacherAssignments />} />
           <Route path="/teacher/quizzes" element={<TeacherQuizzes />} />

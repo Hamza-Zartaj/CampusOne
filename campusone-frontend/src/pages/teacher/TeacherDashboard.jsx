@@ -105,7 +105,7 @@ const TeacherDashboard = () => {
                 <div
                   key={offering._id}
                   className="flex items-center justify-between py-4 px-5 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-                  onClick={() => navigate(`/teacher/offerings/${offering._id}/students`)}
+                  onClick={() => navigate(`/teacher/offerings/${offering.course?.courseCode}/students`, { state: { offeringId: offering._id } })}
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-11 h-11 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
