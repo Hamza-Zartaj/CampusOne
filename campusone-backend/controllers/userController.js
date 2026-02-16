@@ -1069,19 +1069,15 @@ export const bulkUploadStudents = async (req, res) => {
         // Generate username from email
         const username = row['Email'].split('@')[0];
 
-        // Hash password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(row['Password'].toString(), salt);
-
         // Create user and student in a try-catch to handle rollback
         let user;
         try {
-          // Create user
+          // Create user (password will be hashed by pre-save hook)
           user = await User.create({
             name: row['Full Name'],
             email: row['Email'],
             username: username,
-            password: hashedPassword,
+            password: row['Password'].toString(),
             role: 'student',
             isActive: true
           });
