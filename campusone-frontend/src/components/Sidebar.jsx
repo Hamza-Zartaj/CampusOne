@@ -52,7 +52,8 @@ const Sidebar = ({ isOpen }) => {
         { path: '/teacher/assignments', icon: ClipboardList, label: 'Assignments' },
         { path: '/teacher/quizzes', icon: FileText, label: 'Quizzes' },
         { path: '/teacher/qna', icon: MessageSquare, label: 'Q&A Forum' },
-        { path: '/notifications', icon: Bell, label: 'Notifications' }
+        { path: '/teacher/announcements', icon: Bell, label: 'Announcements' },
+        { path: '/teacher/notification', icon: Bell, label: 'Notifications' }
       ],
       student: [
         { path: '/student/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -64,7 +65,7 @@ const Sidebar = ({ isOpen }) => {
         { path: '/student/assignments', icon: ClipboardList, label: 'Assignments' },
         { path: '/student/quizzes', icon: FileText, label: 'Quizzes' },
         { path: '/student/qna', icon: MessageSquare, label: 'Q&A Forum' },
-        { path: '/notifications', icon: Bell, label: 'Notifications' }
+        { path: '/student/notification', icon: Bell, label: 'Notifications' }
       ],
       ta: [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },

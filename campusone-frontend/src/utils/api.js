@@ -542,4 +542,27 @@ export const admissionAPI = {
     api.delete(`/admissions/applications/${applicationId}/documents/${docIndex}`)
 };
 
+// Announcement endpoints
+export const announcementAPI = {
+  // Get all announcements (admin)
+  getAllAnnouncements: () =>
+    api.get('/announcements/all'),
+
+  // Get my announcements (current user)
+  getMyAnnouncements: () =>
+    api.get('/announcements'),
+
+  // Send announcement (admin)
+  sendAnnouncement: (data) =>
+    api.post('/announcements/send', data),
+
+  // Send course announcement (teacher)
+  sendCourseAnnouncement: (data) =>
+    api.post('/announcements/course', data),
+
+  // Delete announcement
+  deleteAnnouncement: (id) =>
+    api.delete(`/announcements/${id}`)
+};
+
 export default api;

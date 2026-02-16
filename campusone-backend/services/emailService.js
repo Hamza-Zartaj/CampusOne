@@ -1014,6 +1014,115 @@ CampusOne Admissions Team
   }
 };
 
+/**
+ * Send announcement email
+ */
+export const sendAnnouncementEmail = async ({ email, name, title, content, priority }) => {
+  try {
+    const transporter = createTransporter();
+
+    const priorityColor = priority === 'high' ? '#dc2626' : priority === 'medium' ? '#2563eb' : '#10b981';
+    
+    const mailOptions = {
+      from: `"CampusOne Announcement" <${process.env.SMTP_USER || 'noreply@campusone.edu'}>`,
+      to: email,
+      subject: `[${priority?.toUpperCase() || 'INFO'}] ${title}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header {
+              background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
+              color: white;
+              padding: 30px;
+              text-align: center;
+              border-radius: 10px 10px 0 0;
+            }
+            .priority-badge {
+              background: ${priorityColor};
+              color: white;
+              padding: 8px 16px;
+              border-radius: 20px;
+              display: inline-block;
+              font-weight: bold;
+              margin-bottom: 15px;
+              text-transform: uppercase;
+              font-size: 12px;
+            }
+            .content {
+              background: #f9fafb;
+              padding: 30px;
+              border: 1px solid #e5e7eb;
+              border-top: none;
+            }
+            .announcement-title {
+              font-size: 24px;
+              color: #1f2937;
+              margin-bottom: 20px;
+              border-bottom: 3px solid ${priorityColor};
+              padding-bottom: 15px;
+            }
+            .announcement-body {
+              background: white;
+              padding: 20px;
+              border-radius: 8px;
+              margin: 20px 0;
+              white-space: pre-wrap;
+              word-wrap: break-word;
+            }
+            .footer {
+              text-align: center;
+              color: #6b7280;
+              font-size: 12px;
+              margin-top: 20px;
+              padding-top: 20px;
+              border-top: 1px solid #e5e7eb;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 style="margin: 0;">📢 CampusOne Announcement</h1>
+          </div>
+          <div class="content">
+            <p style="margin-top: 0;">Hi ${name},</p>
+            
+            <div class="priority-badge">${priority?.toUpperCase() || 'INFO'}</div>
+            
+            <div class="announcement-title">${title}</div>
+            
+            <div class="announcement-body">${content}</div>
+            
+            <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+              This is an official announcement from CampusOne. Please check the portal for more details.
+            </p>
+            
+            <div class="footer">
+              <p>© ${new Date().getFullYear()} CampusOne. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending announcement email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 export default {
   generateOTP,
   sendOTPEmail,
@@ -1022,4 +1131,5 @@ export default {
   sendApplicationUnderReviewEmail,
   sendApplicationAcceptanceEmail,
   sendApplicationRejectionEmail,
+  sendAnnouncementEmail,
 };

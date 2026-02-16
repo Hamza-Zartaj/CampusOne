@@ -18,17 +18,21 @@ import CourseOfferingManagement from './pages/admin/CourseOfferingManagement';
 import BulkStudentEnrollment from './pages/admin/BulkStudentEnrollment';
 import DepartmentManagement from './pages/admin/DepartmentManagement';
 import ProgramManagement from './pages/admin/ProgramManagement';
+import AnnouncementManagement from './pages/admin/AnnouncementManagement';
 
 // Teacher Pages
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import MyOfferings from './pages/teacher/MyOfferings';
 import EnrolledStudents from './pages/teacher/EnrolledStudents';
+import TeacherAnnouncement from './pages/teacher/TeacherAnnouncement';
+import TeacherNotification from './pages/teacher/TeacherNotification';
 
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
 import MyCourses from './pages/student/MyCourses';
 import Timetable from './pages/student/Timetable';
 import MyGrades from './pages/student/MyGrades';
+import StudentNotification from './pages/student/StudentNotification';
 
 function App() {
   return (
@@ -66,7 +70,7 @@ function App() {
           <Route path="/admin/admissions" element={<AdmissionSettings />} />
           <Route path="/admin/admissions/applications/:status" element={<ApplicationsManagement />} />
           <Route path="/admin/reports" element={<div style={{ padding: '20px' }}>Reports Page - Coming Soon</div>} />
-          <Route path="/admin/announcements" element={<div style={{ padding: '20px' }}>Announcements Page - Coming Soon</div>} />
+          <Route path="/admin/announcements" element={<AnnouncementManagement />} />
 
           {/* Teacher Routes */}
           <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
@@ -76,6 +80,8 @@ function App() {
           <Route path="/teacher/assignments" element={<div style={{ padding: '20px' }}>Assignments Management - Coming Soon</div>} />
           <Route path="/teacher/quizzes" element={<div style={{ padding: '20px' }}>Quiz Management - Coming Soon</div>} />
           <Route path="/teacher/qna" element={<div style={{ padding: '20px' }}>Q&A Forum - Coming Soon</div>} />
+          <Route path="/teacher/announcements" element={<TeacherAnnouncement />} />
+          <Route path="/teacher/notification" element={<TeacherNotification />} />
 
           {/* Student Routes */}
           <Route path="/student/dashboard" element={<StudentDashboard />} />
@@ -86,9 +92,7 @@ function App() {
           <Route path="/student/assignments" element={<div style={{ padding: '20px' }}>My Assignments - Coming Soon</div>} />
           <Route path="/student/quizzes" element={<div style={{ padding: '20px' }}>My Quizzes - Coming Soon</div>} />
           <Route path="/student/qna" element={<div style={{ padding: '20px' }}>Q&A Forum - Coming Soon</div>} />
-
-          {/* Shared Coming Soon */}
-          <Route path="/notifications" element={<div style={{ padding: '20px' }}>Notifications Page - Coming Soon</div>} />
+          <Route path="/student/notification" element={<StudentNotification />} />
         </Route>
       </Routes>
     </Router>
