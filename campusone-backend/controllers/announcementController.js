@@ -1,6 +1,4 @@
-import Announcement from '../models/Announcement.js';
-import User from '../models/User.js';
-import Student from '../models/Student.js';
+import prisma from '../prisma/client.js';
 import { sendAnnouncementEmail } from '../services/emailService.js';
 
 /**
@@ -10,7 +8,7 @@ import { sendAnnouncementEmail } from '../services/emailService.js';
 export const sendAnnouncement = async (req, res) => {
   try {
     const { title, content, priority, targetAudience, courseId } = req.body;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
     // Validation
     if (!title || !content) {
@@ -18,43 +16,62 @@ export const sendAnnouncement = async (req, res) => {
     }
 
     // Create announcement
-    const announcement = new Announcement({
-      title,
-      content,
-      priority: priority || 'medium',
-      createdBy: userId,
-      targetAudience,
-      courseId: targetAudience === 'specific_course' ? courseId : null
+    const announcement = await prisma.announcement.create({
+      data: {
+        title,
+        content,
+        priority: priority || 'medium',
+        createdBy: userId,
+        targetAudience,
+        courseId: targetAudience === 'specific_course' ? courseId : null
+      }
     });
-
-    await announcement.save();
 
     // Get recipients based on targetAudience
     let recipients = [];
 
     if (targetAudience === 'all') {
       // All users (admins, teachers, students)
-      recipients = await User.find({ isActive: true }).select('email name');
+      recipients = await prisma.user.findMany({
+        where: { isActive: true },
+        select: { email: true, name: true }
+      });
     } else if (targetAudience === 'teachers') {
       // All teachers and admins
-      recipients = await User.find({ 
-        role: { $in: ['teacher', 'admin'] }, 
-        isActive: true 
-      }).select('email name');
+      recipients = await prisma.user.findMany({
+        where: {
+          role: { in: ['teacher', 'admin'] },
+          isActive: true
+        },
+        select: { email: true, name: true }
+      });
     } else if (targetAudience === 'students') {
       // All students
-      recipients = await User.find({ 
-        role: 'student', 
-        isActive: true 
-      }).select('email name');
+      recipients = await prisma.user.findMany({
+        where: {
+          role: 'student',
+          isActive: true
+        },
+        select: { email: true, name: true }
+      });
     } else if (targetAudience === 'specific_course' && courseId) {
       // Students enrolled in specific course
-      const students = await Student.find({}).select('userId');
-      const userIds = students.map(s => s.userId);
-      recipients = await User.find({ 
-        _id: { $in: userIds }, 
-        isActive: true 
-      }).select('email name');
+      const enrollments = await prisma.enrollment.findMany({
+        where: { courseOfferingId: courseId },
+        include: {
+          student: {
+            include: {
+              user: {
+                select: { email: true, name: true }
+              }
+            }
+          }
+        }
+      });
+      recipients = enrollments.map(e => ({
+        email: e.student.user.email,
+        name: e.student.user.name
+      }));
     }
 
     // Send emails in background
@@ -90,7 +107,7 @@ export const sendAnnouncement = async (req, res) => {
 export const sendCourseAnnouncement = async (req, res) => {
   try {
     const { title, content, priority, courseId } = req.body;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
     // Validation
     if (!title || !content || !courseId) {
@@ -98,24 +115,35 @@ export const sendCourseAnnouncement = async (req, res) => {
     }
 
     // Create announcement
-    const announcement = new Announcement({
-      title,
-      content,
-      priority: priority || 'medium',
-      createdBy: userId,
-      targetAudience: 'specific_course',
-      courseId
+    const announcement = await prisma.announcement.create({
+      data: {
+        title,
+        content,
+        priority: priority || 'medium',
+        createdBy: userId,
+        targetAudience: 'specific_course',
+        courseId
+      }
     });
 
-    await announcement.save();
+    // Get students enrolled in this course offering
+    const enrollments = await prisma.enrollment.findMany({
+      where: { courseOfferingId: courseId },
+      include: {
+        student: {
+          include: {
+            user: {
+              select: { email: true, name: true }
+            }
+          }
+        }
+      }
+    });
 
-    // Get students enrolled in this course
-    const students = await Student.find({}).select('userId');
-    const userIds = students.map(s => s.userId);
-    const recipients = await User.find({ 
-      _id: { $in: userIds }, 
-      isActive: true 
-    }).select('email name');
+    const recipients = enrollments.map(e => ({
+      email: e.student.user.email,
+      name: e.student.user.name
+    }));
 
     // Send emails in background
     if (recipients.length > 0) {
@@ -148,12 +176,30 @@ export const sendCourseAnnouncement = async (req, res) => {
  */
 export const getAnnouncements = async (req, res) => {
   try {
-    const announcements = await Announcement.find()
-      .populate('createdBy', 'name email role')
-      .populate('courseId', 'title')
-      .sort({ createdAt: -1 });
+    const announcements = await prisma.announcement.findMany({
+      include: {
+        course: {
+          select: { id: true, courseName: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
 
-    res.status(200).json(announcements);
+    // Enrich with creator info
+    const enrichedAnnouncements = await Promise.all(
+      announcements.map(async (ann) => {
+        const creator = await prisma.user.findUnique({
+          where: { id: ann.createdBy },
+          select: { name: true, email: true, role: true }
+        });
+        return {
+          ...ann,
+          createdBy: creator
+        };
+      })
+    );
+
+    res.status(200).json(enrichedAnnouncements);
   } catch (error) {
     console.error('Error fetching announcements:', error);
     res.status(500).json({ error: error.message });
@@ -165,37 +211,190 @@ export const getAnnouncements = async (req, res) => {
  */
 export const getMyAnnouncements = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const userRole = req.user.role;
 
-    let query = {
-      $or: [
-        { targetAudience: 'all' },
-        { targetAudience: userRole === 'student' ? 'students' : 'teachers' }
-      ]
-    };
+    // Base query: announcements for all users and based on role
+    const baseAnnouncements = await prisma.announcement.findMany({
+      where: {
+        OR: [
+          { targetAudience: 'all' },
+          { 
+            targetAudience: userRole === 'student' ? 'students' : 'teachers'
+          }
+        ]
+      },
+      include: {
+        course: {
+          select: { id: true, courseName: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    let allAnnouncements = [...baseAnnouncements];
 
     // If student, also include course-specific announcements
     if (userRole === 'student') {
-      const student = await Student.findOne({ userId });
-      if (student && student.enrolledCourses) {
-        const courseIds = student.enrolledCourses.map(ec => ec.courseId);
-        query.$or.push({ 
-          targetAudience: 'specific_course',
-          courseId: { $in: courseIds }
+      const student = await prisma.student.findUnique({
+        where: { userId }
+      });
+
+      if (student) {
+        const enrollments = await prisma.enrollment.findMany({
+          where: { studentId: student.id },
+          select: { courseOfferingId: true }
         });
+
+        const courseOfferingIds = enrollments.map(e => e.courseOfferingId);
+
+        if (courseOfferingIds.length > 0) {
+          const courseSpecificAnnouncements = await prisma.announcement.findMany({
+            where: {
+              targetAudience: 'specific_course',
+              courseId: { in: courseOfferingIds }
+            },
+            include: {
+              course: {
+                select: { id: true, courseName: true }
+              }
+            }
+          });
+
+          allAnnouncements = [...allAnnouncements, ...courseSpecificAnnouncements];
+        }
       }
     }
 
-    const announcements = await Announcement.find(query)
-      .populate('createdBy', 'name email role')
-      .populate('courseId', 'title')
-      .sort({ createdAt: -1 });
+    // Remove duplicates by id
+    const uniqueAnnouncements = Array.from(
+      new Map(allAnnouncements.map(a => [a.id, a])).values()
+    );
 
-    res.status(200).json(announcements);
+    // Sort by date
+    uniqueAnnouncements.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // Enrich with creator info
+    const enrichedAnnouncements = await Promise.all(
+      uniqueAnnouncements.map(async (ann) => {
+        const creator = await prisma.user.findUnique({
+          where: { id: ann.createdBy },
+          select: { name: true, email: true, role: true }
+        });
+        return {
+          ...ann,
+          createdBy: creator
+        };
+      })
+    );
+
+    res.status(200).json(enrichedAnnouncements);
   } catch (error) {
     console.error('Error fetching announcements:', error);
     res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Get single announcement by ID
+ */
+export const getAnnouncementById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const announcement = await prisma.announcement.findUnique({
+      where: { id },
+      include: {
+        course: {
+          select: { id: true, courseName: true }
+        }
+      }
+    });
+
+    if (!announcement) {
+      return res.status(404).json({
+        success: false,
+        message: 'Announcement not found'
+      });
+    }
+
+    // Enrich with creator info
+    const creator = await prisma.user.findUnique({
+      where: { id: announcement.createdBy },
+      select: { name: true, email: true, role: true }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...announcement,
+        createdBy: creator
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching announcement:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching announcement',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Update announcement
+ */
+export const updateAnnouncement = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, content, priority } = req.body;
+
+    // Check if announcement exists
+    const announcement = await prisma.announcement.findUnique({
+      where: { id }
+    });
+
+    if (!announcement) {
+      return res.status(404).json({
+        success: false,
+        message: 'Announcement not found'
+      });
+    }
+
+    // Check authorization - only creator or admin can update
+    if (announcement.createdBy !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this announcement'
+      });
+    }
+
+    const updated = await prisma.announcement.update({
+      where: { id },
+      data: {
+        ...(title && { title }),
+        ...(content && { content }),
+        ...(priority && { priority })
+      },
+      include: {
+        course: {
+          select: { id: true, courseName: true }
+        }
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Announcement updated successfully',
+      data: updated
+    });
+  } catch (error) {
+    console.error('Error updating announcement:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating announcement',
+      error: error.message
+    });
   }
 };
 
@@ -205,24 +404,47 @@ export const getMyAnnouncements = async (req, res) => {
 export const deleteAnnouncement = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
 
-    const announcement = await Announcement.findById(id);
+    // Check if announcement exists
+    const announcement = await prisma.announcement.findUnique({
+      where: { id }
+    });
 
     if (!announcement) {
-      return res.status(404).json({ error: 'Announcement not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Announcement not found'
+      });
     }
 
-    // Only creator or admin can delete
-    if (announcement.createdBy.toString() !== userId.toString() && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Not authorized to delete this announcement' });
+    // Check authorization - only creator or admin can delete
+    if (announcement.createdBy !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this announcement'
+      });
     }
 
-    await Announcement.findByIdAndDelete(id);
+    await prisma.announcement.delete({
+      where: { id }
+    });
 
-    res.status(200).json({ message: 'Announcement deleted successfully' });
+    res.status(200).json({
+      success: true,
+      message: 'Announcement deleted successfully'
+    });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Announcement not found'
+      });
+    }
     console.error('Error deleting announcement:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting announcement',
+      error: error.message
+    });
   }
 };

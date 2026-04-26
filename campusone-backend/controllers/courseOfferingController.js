@@ -1,8 +1,4 @@
-import CourseOffering from '../models/CourseOffering.js';
-import Course from '../models/Course.js';
-import Program from '../models/Program.js';
-import Teacher from '../models/Teacher.js';
-import TA from '../models/TA.js';
+import prisma from '../prisma/client.js';
 
 /**
  * @desc    Get all course offerings with pagination and filters
@@ -22,51 +18,21 @@ export const getAllCourseOfferings = async (req, res) => {
       teacher,
       status,
       enrollmentStatus,
-      isActive,
-      includeSoftDeleted 
+      isActive
     } = req.query;
 
-    // Build query
-    const query = {};
+    // Build where clause
+    const where = {};
 
-    // Filter by course
-    if (course) {
-      query.course = course;
-    }
-
-    // Filter by program
-    if (program) {
-      query.program = program;
-    }
-
-    // Filter by academic year
-    if (academicYear) {
-      query.academicYear = academicYear;
-    }
-
-    // Filter by semester number
-    if (semesterNumber) {
-      query.semesterNumber = parseInt(semesterNumber);
-    }
-
-    // Filter by teacher
-    if (teacher) {
-      query.teacher = teacher;
-    }
-
-    // Filter by status
-    if (status) {
-      query.status = status;
-    }
-
-    // Filter by enrollment status
-    if (enrollmentStatus) {
-      query.enrollmentStatus = enrollmentStatus;
-    }
-
-    // Filter by active status
+    if (course) where.courseId = course;
+    if (program) where.programId = program;
+    if (academicYear) where.academicYear = academicYear;
+    if (semesterNumber) where.semesterNumber = parseInt(semesterNumber);
+    if (teacher) where.teacherId = teacher;
+    if (status) where.status = status;
+    if (enrollmentStatus) where.enrollmentStatus = enrollmentStatus;
     if (isActive !== undefined && isActive !== '' && isActive !== 'all') {
-      query.isActive = isActive === 'true';
+      where.isActive = isActive === 'true';
     }
 
     // Pagination
@@ -74,30 +40,39 @@ export const getAllCourseOfferings = async (req, res) => {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // Query options
-    const queryOptions = includeSoftDeleted === 'true' ? { includeSoftDeleted: true } : {};
-
     // Get total count
-    const total = await CourseOffering.countDocuments(query).setOptions(queryOptions);
+    const total = await prisma.courseOffering.count({ where });
 
     // Get course offerings
-    const offerings = await CourseOffering.find(query)
-      .setOptions(queryOptions)
-      .populate('course', 'courseCode courseName creditHours courseType')
-      .populate('program', 'programCode name')
-      .populate({
-        path: 'teacher',
-        select: 'employeeId designation userId',
-        populate: { path: 'userId', select: 'name email' }
-      })
-      .populate({
-        path: 'tas',
-        select: 'studentId userId',
-        populate: { path: 'userId', select: 'name email' }
-      })
-      .sort({ academicYear: -1, semesterNumber: 1, 'course.courseCode': 1 })
-      .skip(skip)
-      .limit(limitNum);
+    const offerings = await prisma.courseOffering.findMany({
+      where,
+      include: {
+        course: { select: { id: true, courseCode: true, courseName: true, creditHours: true, courseType: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        teacher: {
+          select: {
+            id: true,
+            employeeId: true,
+            designation: true,
+            userId: { select: { id: true, name: true, email: true } }
+          }
+        },
+        tas: {
+          select: {
+            id: true,
+            studentId: true,
+            userId: { select: { id: true, name: true, email: true } }
+          }
+        }
+      },
+      orderBy: [
+        { academicYear: 'desc' },
+        { semesterNumber: 'asc' },
+        { 'course.courseCode': 'asc' }
+      ],
+      skip,
+      take: limitNum
+    });
 
     // Calculate pagination info
     const totalPages = Math.ceil(total / limitNum);
@@ -134,38 +109,38 @@ export const getOfferingsByProgramSemester = async (req, res) => {
     const { programId } = req.params;
     const { academicYear, semesterNumber, status, enrollmentStatus } = req.query;
 
-    const query = { program: programId };
+    const where = { programId };
 
-    if (academicYear) {
-      query.academicYear = academicYear;
-    }
+    if (academicYear) where.academicYear = academicYear;
+    if (semesterNumber) where.semesterNumber = parseInt(semesterNumber);
+    if (status) where.status = status;
+    if (enrollmentStatus) where.enrollmentStatus = enrollmentStatus;
 
-    if (semesterNumber) {
-      query.semesterNumber = parseInt(semesterNumber);
-    }
-
-    if (status) {
-      query.status = status;
-    }
-
-    if (enrollmentStatus) {
-      query.enrollmentStatus = enrollmentStatus;
-    }
-
-    const offerings = await CourseOffering.find(query)
-      .populate('course', 'courseCode courseName creditHours courseType domain')
-      .populate('program', 'programCode name')
-      .populate({
-        path: 'teacher',
-        select: 'employeeId designation userId',
-        populate: { path: 'userId', select: 'name email' }
-      })
-      .populate({
-        path: 'tas',
-        select: 'studentId userId',
-        populate: { path: 'userId', select: 'name email' }
-      })
-      .sort({ 'course.courseCode': 1 });
+    const offerings = await prisma.courseOffering.findMany({
+      where,
+      include: {
+        course: { 
+          select: { id: true, courseCode: true, courseName: true, creditHours: true, courseType: true, domain: true } 
+        },
+        program: { select: { id: true, programCode: true, name: true } },
+        teacher: {
+          select: {
+            id: true,
+            employeeId: true,
+            designation: true,
+            userId: { select: { id: true, name: true, email: true } }
+          }
+        },
+        tas: {
+          select: {
+            id: true,
+            studentId: true,
+            userId: { select: { id: true, name: true, email: true } }
+          }
+        }
+      },
+      orderBy: { 'course.courseCode': 'asc' }
+    });
 
     res.status(200).json({
       success: true,
@@ -190,19 +165,41 @@ export const getCourseOfferingById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const offering = await CourseOffering.findById(id)
-      .populate('course', 'courseCode courseName creditHours courseType domain description prerequisites')
-      .populate('program', 'programCode name department')
-      .populate({
-        path: 'teacher',
-        select: 'employeeId designation officeRoom officeHours userId',
-        populate: { path: 'userId', select: 'name email' }
-      })
-      .populate({
-        path: 'tas',
-        select: 'studentId userId',
-        populate: { path: 'userId', select: 'name email' }
-      });
+    const offering = await prisma.courseOffering.findUnique({
+      where: { id },
+      include: {
+        course: {
+          select: {
+            id: true,
+            courseCode: true,
+            courseName: true,
+            creditHours: true,
+            courseType: true,
+            domain: true,
+            description: true,
+            prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+          }
+        },
+        program: { select: { id: true, programCode: true, name: true, departmentId: true } },
+        teacher: {
+          select: {
+            id: true,
+            employeeId: true,
+            designation: true,
+            officeRoom: true,
+            officeHours: true,
+            userId: { select: { id: true, name: true, email: true } }
+          }
+        },
+        tas: {
+          select: {
+            id: true,
+            studentId: true,
+            userId: { select: { id: true, name: true, email: true } }
+          }
+        }
+      }
+    });
 
     if (!offering) {
       return res.status(404).json({
@@ -232,13 +229,13 @@ export const getCourseOfferingById = async (req, res) => {
 export const createCourseOffering = async (req, res) => {
   try {
     const {
-      course,
-      program,
+      courseId,
+      programId,
       academicYear,
       semesterNumber,
       semesterName,
       section,
-      teacher,
+      teacherId,
       tas,
       maxCapacity,
       schedule,
@@ -248,8 +245,13 @@ export const createCourseOffering = async (req, res) => {
       endDate
     } = req.body;
 
-    // Validate course exists
-    const courseDoc = await Course.findById(course);
+    // Validate required references
+    const [courseDoc, programDoc, teacherDoc] = await Promise.all([
+      prisma.course.findUnique({ where: { id: courseId } }),
+      prisma.program.findUnique({ where: { id: programId } }),
+      prisma.teacher.findUnique({ where: { id: teacherId } })
+    ]);
+
     if (!courseDoc) {
       return res.status(404).json({
         success: false,
@@ -257,8 +259,6 @@ export const createCourseOffering = async (req, res) => {
       });
     }
 
-    // Validate program exists
-    const programDoc = await Program.findById(program);
     if (!programDoc) {
       return res.status(404).json({
         success: false,
@@ -266,8 +266,6 @@ export const createCourseOffering = async (req, res) => {
       });
     }
 
-    // Validate teacher exists
-    const teacherDoc = await Teacher.findById(teacher);
     if (!teacherDoc) {
       return res.status(404).json({
         success: false,
@@ -277,7 +275,9 @@ export const createCourseOffering = async (req, res) => {
 
     // Validate TAs if provided
     if (tas && tas.length > 0) {
-      const taCount = await TA.countDocuments({ _id: { $in: tas } });
+      const taCount = await prisma.ta.count({
+        where: { id: { in: tas } }
+      });
       if (taCount !== tas.length) {
         return res.status(400).json({
           success: false,
@@ -287,53 +287,60 @@ export const createCourseOffering = async (req, res) => {
     }
 
     // Check for duplicate offering
-    const existingOffering = await CourseOffering.findOne({
-      course,
-      program,
-      academicYear,
-      semesterNumber,
-      section: section || 'A'
-    }).setOptions({ includeSoftDeleted: true });
+    const existingOffering = await prisma.courseOffering.findFirst({
+      where: {
+        courseId,
+        programId,
+        academicYear,
+        semesterNumber,
+        section: section || 'A'
+      }
+    });
 
     if (existingOffering) {
       return res.status(400).json({
         success: false,
-        message: 'Course offering already exists for this course, program, academic year, semester, and section'
+        message: 'Course offering already exists for this combination'
       });
     }
 
-    const offering = await CourseOffering.create({
-      course,
-      program,
-      academicYear,
-      semesterNumber,
-      semesterName,
-      section: section || 'A',
-      teacher,
-      tas: tas || [],
-      maxCapacity: maxCapacity || 60,
-      schedule: schedule || [],
-      enrollmentStatus: enrollmentStatus || 'open',
-      status: status || 'scheduled',
-      startDate,
-      endDate
-    });
-
-    // Populate and return
-    await offering.populate([
-      { path: 'course', select: 'courseCode courseName creditHours courseType' },
-      { path: 'program', select: 'programCode name' },
-      { 
-        path: 'teacher', 
-        select: 'employeeId designation userId',
-        populate: { path: 'userId', select: 'name email' }
+    const offering = await prisma.courseOffering.create({
+      data: {
+        courseId,
+        programId,
+        academicYear,
+        semesterNumber,
+        semesterName,
+        section: section || 'A',
+        teacherId,
+        tas: tas && tas.length > 0 ? { connect: tas.map(id => ({ id })) } : undefined,
+        maxCapacity: maxCapacity || 60,
+        schedule: schedule || [],
+        enrollmentStatus: enrollmentStatus || 'open',
+        status: status || 'scheduled',
+        startDate,
+        endDate
       },
-      { 
-        path: 'tas', 
-        select: 'studentId userId',
-        populate: { path: 'userId', select: 'name email' }
+      include: {
+        course: { select: { id: true, courseCode: true, courseName: true, creditHours: true, courseType: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        teacher: {
+          select: {
+            id: true,
+            employeeId: true,
+            designation: true,
+            userId: { select: { id: true, name: true, email: true } }
+          }
+        },
+        tas: {
+          select: {
+            id: true,
+            studentId: true,
+            userId: { select: { id: true, name: true, email: true } }
+          }
+        }
       }
-    ]);
+    });
 
     res.status(201).json({
       success: true,
@@ -341,6 +348,12 @@ export const createCourseOffering = async (req, res) => {
       data: offering
     });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'One or more required references not found'
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Error creating course offering',
@@ -358,13 +371,13 @@ export const updateCourseOffering = async (req, res) => {
   try {
     const { id } = req.params;
     const {
-      course,
-      program,
+      courseId,
+      programId,
       academicYear,
       semesterNumber,
       semesterName,
       section,
-      teacher,
+      teacherId,
       tas,
       maxCapacity,
       schedule,
@@ -375,7 +388,7 @@ export const updateCourseOffering = async (req, res) => {
       isActive
     } = req.body;
 
-    const offering = await CourseOffering.findById(id);
+    const offering = await prisma.courseOffering.findUnique({ where: { id } });
 
     if (!offering) {
       return res.status(404).json({
@@ -384,66 +397,73 @@ export const updateCourseOffering = async (req, res) => {
       });
     }
 
-    // Validate course if being changed
-    if (course && course !== offering.course.toString()) {
-      const courseDoc = await Course.findById(course);
+    // Validate references if being changed
+    const updates = {};
+    if (courseId && courseId !== offering.courseId) {
+      const courseDoc = await prisma.course.findUnique({ where: { id: courseId } });
       if (!courseDoc) {
         return res.status(404).json({
           success: false,
           message: 'Course not found'
         });
       }
+      updates.courseId = courseId;
     }
 
-    // Validate program if being changed
-    if (program && program !== offering.program.toString()) {
-      const programDoc = await Program.findById(program);
+    if (programId && programId !== offering.programId) {
+      const programDoc = await prisma.program.findUnique({ where: { id: programId } });
       if (!programDoc) {
         return res.status(404).json({
           success: false,
           message: 'Program not found'
         });
       }
+      updates.programId = programId;
     }
 
-    // Validate teacher if being changed
-    if (teacher && teacher !== offering.teacher.toString()) {
-      const teacherDoc = await Teacher.findById(teacher);
+    if (teacherId && teacherId !== offering.teacherId) {
+      const teacherDoc = await prisma.teacher.findUnique({ where: { id: teacherId } });
       if (!teacherDoc) {
         return res.status(404).json({
           success: false,
           message: 'Teacher not found'
         });
       }
+      updates.teacherId = teacherId;
     }
 
     // Validate TAs if being changed
     if (tas) {
-      const taCount = await TA.countDocuments({ _id: { $in: tas } });
+      const taCount = await prisma.ta.count({
+        where: { id: { in: tas } }
+      });
       if (taCount !== tas.length) {
         return res.status(400).json({
           success: false,
           message: 'One or more TAs not found'
         });
       }
+      updates.tas = { set: tas.map(id => ({ id })) };
     }
 
-    // Check for duplicate if key fields are being changed
-    if (course || program || academicYear || semesterNumber || section) {
-      const checkCourse = course || offering.course;
-      const checkProgram = program || offering.program;
+    // Check for duplicate if key fields change
+    if (courseId || programId || academicYear || semesterNumber || section) {
+      const checkCourse = courseId || offering.courseId;
+      const checkProgram = programId || offering.programId;
       const checkYear = academicYear || offering.academicYear;
       const checkSem = semesterNumber || offering.semesterNumber;
       const checkSection = section || offering.section;
 
-      const existingOffering = await CourseOffering.findOne({
-        course: checkCourse,
-        program: checkProgram,
-        academicYear: checkYear,
-        semesterNumber: checkSem,
-        section: checkSection,
-        _id: { $ne: id }
-      }).setOptions({ includeSoftDeleted: true });
+      const existingOffering = await prisma.courseOffering.findFirst({
+        where: {
+          courseId: checkCourse,
+          programId: checkProgram,
+          academicYear: checkYear,
+          semesterNumber: checkSem,
+          section: checkSection,
+          id: { not: id }
+        }
+      });
 
       if (existingOffering) {
         return res.status(400).json({
@@ -454,46 +474,54 @@ export const updateCourseOffering = async (req, res) => {
     }
 
     // Update fields
-    if (course) offering.course = course;
-    if (program) offering.program = program;
-    if (academicYear) offering.academicYear = academicYear;
-    if (semesterNumber) offering.semesterNumber = semesterNumber;
-    if (semesterName !== undefined) offering.semesterName = semesterName;
-    if (section) offering.section = section;
-    if (teacher) offering.teacher = teacher;
-    if (tas !== undefined) offering.tas = tas;
-    if (maxCapacity !== undefined) offering.maxCapacity = maxCapacity;
-    if (schedule !== undefined) offering.schedule = schedule;
-    if (enrollmentStatus) offering.enrollmentStatus = enrollmentStatus;
-    if (status) offering.status = status;
-    if (startDate !== undefined) offering.startDate = startDate;
-    if (endDate !== undefined) offering.endDate = endDate;
-    if (isActive !== undefined) offering.isActive = isActive;
+    if (academicYear) updates.academicYear = academicYear;
+    if (semesterNumber) updates.semesterNumber = semesterNumber;
+    if (semesterName !== undefined) updates.semesterName = semesterName;
+    if (section) updates.section = section;
+    if (maxCapacity !== undefined) updates.maxCapacity = maxCapacity;
+    if (schedule !== undefined) updates.schedule = schedule;
+    if (enrollmentStatus) updates.enrollmentStatus = enrollmentStatus;
+    if (status) updates.status = status;
+    if (startDate !== undefined) updates.startDate = startDate;
+    if (endDate !== undefined) updates.endDate = endDate;
+    if (isActive !== undefined) updates.isActive = isActive;
 
-    await offering.save();
-
-    // Populate and return
-    await offering.populate([
-      { path: 'course', select: 'courseCode courseName creditHours courseType' },
-      { path: 'program', select: 'programCode name' },
-      { 
-        path: 'teacher', 
-        select: 'employeeId designation userId',
-        populate: { path: 'userId', select: 'name email' }
-      },
-      { 
-        path: 'tas', 
-        select: 'studentId userId',
-        populate: { path: 'userId', select: 'name email' }
+    const updatedOffering = await prisma.courseOffering.update({
+      where: { id },
+      data: updates,
+      include: {
+        course: { select: { id: true, courseCode: true, courseName: true, creditHours: true, courseType: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        teacher: {
+          select: {
+            id: true,
+            employeeId: true,
+            designation: true,
+            userId: { select: { id: true, name: true, email: true } }
+          }
+        },
+        tas: {
+          select: {
+            id: true,
+            studentId: true,
+            userId: { select: { id: true, name: true, email: true } }
+          }
+        }
       }
-    ]);
+    });
 
     res.status(200).json({
       success: true,
       message: 'Course offering updated successfully',
-      data: offering
+      data: updatedOffering
     });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Course offering or reference not found'
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Error updating course offering',
@@ -512,7 +540,7 @@ export const assignInstructor = async (req, res) => {
     const { id } = req.params;
     const { teacherId } = req.body;
 
-    const offering = await CourseOffering.findById(id);
+    const offering = await prisma.courseOffering.findUnique({ where: { id } });
 
     if (!offering) {
       return res.status(404).json({
@@ -521,7 +549,7 @@ export const assignInstructor = async (req, res) => {
       });
     }
 
-    const teacherDoc = await Teacher.findById(teacherId);
+    const teacherDoc = await prisma.teacher.findUnique({ where: { id: teacherId } });
     if (!teacherDoc) {
       return res.status(404).json({
         success: false,
@@ -529,21 +557,27 @@ export const assignInstructor = async (req, res) => {
       });
     }
 
-    offering.teacher = teacherId;
-    await offering.save();
-
-    await offering.populate({
-      path: 'teacher',
-      select: 'employeeId designation userId',
-      populate: { path: 'userId', select: 'name email' }
+    const updatedOffering = await prisma.courseOffering.update({
+      where: { id },
+      data: { teacherId },
+      include: {
+        teacher: {
+          select: {
+            id: true,
+            employeeId: true,
+            designation: true,
+            userId: { select: { id: true, name: true, email: true } }
+          }
+        }
+      }
     });
 
     res.status(200).json({
       success: true,
       message: 'Instructor assigned successfully',
       data: {
-        offeringId: offering._id,
-        teacher: offering.teacher
+        offeringId: updatedOffering.id,
+        teacher: updatedOffering.teacher
       }
     });
   } catch (error) {
@@ -565,7 +599,7 @@ export const assignTAs = async (req, res) => {
     const { id } = req.params;
     const { taIds } = req.body;
 
-    const offering = await CourseOffering.findById(id);
+    const offering = await prisma.courseOffering.findUnique({ where: { id } });
 
     if (!offering) {
       return res.status(404).json({
@@ -575,7 +609,9 @@ export const assignTAs = async (req, res) => {
     }
 
     if (taIds && taIds.length > 0) {
-      const taCount = await TA.countDocuments({ _id: { $in: taIds } });
+      const taCount = await prisma.ta.count({
+        where: { id: { in: taIds } }
+      });
       if (taCount !== taIds.length) {
         return res.status(400).json({
           success: false,
@@ -584,21 +620,28 @@ export const assignTAs = async (req, res) => {
       }
     }
 
-    offering.tas = taIds || [];
-    await offering.save();
-
-    await offering.populate({
-      path: 'tas',
-      select: 'studentId userId',
-      populate: { path: 'userId', select: 'name email' }
+    const updatedOffering = await prisma.courseOffering.update({
+      where: { id },
+      data: {
+        tas: { set: (taIds || []).map(id => ({ id })) }
+      },
+      include: {
+        tas: {
+          select: {
+            id: true,
+            studentId: true,
+            userId: { select: { id: true, name: true, email: true } }
+          }
+        }
+      }
     });
 
     res.status(200).json({
       success: true,
       message: 'TAs assigned successfully',
       data: {
-        offeringId: offering._id,
-        tas: offering.tas
+        offeringId: updatedOffering.id,
+        tas: updatedOffering.tas
       }
     });
   } catch (error) {
@@ -620,7 +663,7 @@ export const updateSchedule = async (req, res) => {
     const { id } = req.params;
     const { schedule } = req.body;
 
-    const offering = await CourseOffering.findById(id);
+    const offering = await prisma.courseOffering.findUnique({ where: { id } });
 
     if (!offering) {
       return res.status(404).json({
@@ -631,14 +674,17 @@ export const updateSchedule = async (req, res) => {
 
     // Validate schedule format
     if (schedule && Array.isArray(schedule)) {
+      const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      const validTypes = ['lecture', 'lab', 'tutorial'];
+      
       for (const slot of schedule) {
-        if (slot.day && !['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].includes(slot.day)) {
+        if (slot.day && !validDays.includes(slot.day)) {
           return res.status(400).json({
             success: false,
             message: `Invalid day: ${slot.day}`
           });
         }
-        if (slot.type && !['lecture', 'lab', 'tutorial'].includes(slot.type)) {
+        if (slot.type && !validTypes.includes(slot.type)) {
           return res.status(400).json({
             success: false,
             message: `Invalid schedule type: ${slot.type}`
@@ -647,15 +693,17 @@ export const updateSchedule = async (req, res) => {
       }
     }
 
-    offering.schedule = schedule || [];
-    await offering.save();
+    const updatedOffering = await prisma.courseOffering.update({
+      where: { id },
+      data: { schedule: schedule || [] }
+    });
 
     res.status(200).json({
       success: true,
       message: 'Schedule updated successfully',
       data: {
-        offeringId: offering._id,
-        schedule: offering.schedule
+        offeringId: updatedOffering.id,
+        schedule: updatedOffering.schedule
       }
     });
   } catch (error) {
@@ -677,7 +725,7 @@ export const updateCapacity = async (req, res) => {
     const { id } = req.params;
     const { maxCapacity } = req.body;
 
-    const offering = await CourseOffering.findById(id);
+    const offering = await prisma.courseOffering.findUnique({ where: { id } });
 
     if (!offering) {
       return res.status(404).json({
@@ -693,25 +741,30 @@ export const updateCapacity = async (req, res) => {
       });
     }
 
-    offering.maxCapacity = maxCapacity;
-    
     // Auto-update enrollment status based on capacity
+    let newStatus = offering.enrollmentStatus;
     if (offering.currentEnrollment >= maxCapacity) {
-      offering.enrollmentStatus = 'closed';
-    } else if (offering.enrollmentStatus === 'closed' && offering.currentEnrollment < maxCapacity) {
-      offering.enrollmentStatus = 'open';
+      newStatus = 'closed';
+    } else if (newStatus === 'closed' && offering.currentEnrollment < maxCapacity) {
+      newStatus = 'open';
     }
 
-    await offering.save();
+    const updatedOffering = await prisma.courseOffering.update({
+      where: { id },
+      data: {
+        maxCapacity,
+        enrollmentStatus: newStatus
+      }
+    });
 
     res.status(200).json({
       success: true,
       message: 'Capacity updated successfully',
       data: {
-        offeringId: offering._id,
-        maxCapacity: offering.maxCapacity,
-        currentEnrollment: offering.currentEnrollment,
-        enrollmentStatus: offering.enrollmentStatus
+        offeringId: updatedOffering.id,
+        maxCapacity: updatedOffering.maxCapacity,
+        currentEnrollment: updatedOffering.currentEnrollment,
+        enrollmentStatus: updatedOffering.enrollmentStatus
       }
     });
   } catch (error) {
@@ -747,23 +800,25 @@ export const bulkCreateOfferings = async (req, res) => {
     for (const offeringData of offerings) {
       try {
         // Validate required fields
-        if (!offeringData.course || !offeringData.program || !offeringData.academicYear || 
-            !offeringData.semesterNumber || !offeringData.teacher) {
+        if (!offeringData.courseId || !offeringData.programId || !offeringData.academicYear || 
+            !offeringData.semesterNumber || !offeringData.teacherId) {
           results.errors.push({
             data: offeringData,
-            error: 'Missing required fields (course, program, academicYear, semesterNumber, teacher)'
+            error: 'Missing required fields'
           });
           continue;
         }
 
         // Check for existing offering
-        const existing = await CourseOffering.findOne({
-          course: offeringData.course,
-          program: offeringData.program,
-          academicYear: offeringData.academicYear,
-          semesterNumber: offeringData.semesterNumber,
-          section: offeringData.section || 'A'
-        }).setOptions({ includeSoftDeleted: true });
+        const existing = await prisma.courseOffering.findFirst({
+          where: {
+            courseId: offeringData.courseId,
+            programId: offeringData.programId,
+            academicYear: offeringData.academicYear,
+            semesterNumber: offeringData.semesterNumber,
+            section: offeringData.section || 'A'
+          }
+        });
 
         if (existing) {
           results.errors.push({
@@ -773,15 +828,22 @@ export const bulkCreateOfferings = async (req, res) => {
           continue;
         }
 
-        const offering = await CourseOffering.create({
-          ...offeringData,
-          section: offeringData.section || 'A',
-          maxCapacity: offeringData.maxCapacity || 60,
-          enrollmentStatus: offeringData.enrollmentStatus || 'open',
-          status: offeringData.status || 'scheduled'
+        const offering = await prisma.courseOffering.create({
+          data: {
+            courseId: offeringData.courseId,
+            programId: offeringData.programId,
+            academicYear: offeringData.academicYear,
+            semesterNumber: offeringData.semesterNumber,
+            semesterName: offeringData.semesterName,
+            section: offeringData.section || 'A',
+            teacherId: offeringData.teacherId,
+            maxCapacity: offeringData.maxCapacity || 60,
+            enrollmentStatus: offeringData.enrollmentStatus || 'open',
+            status: offeringData.status || 'scheduled'
+          }
         });
 
-        results.created.push(offering._id);
+        results.created.push(offering.id);
       } catch (err) {
         results.errors.push({
           data: offeringData,
@@ -813,7 +875,7 @@ export const deleteCourseOffering = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const offering = await CourseOffering.findById(id);
+    const offering = await prisma.courseOffering.findUnique({ where: { id } });
 
     if (!offering) {
       return res.status(404).json({
@@ -829,11 +891,16 @@ export const deleteCourseOffering = async (req, res) => {
       });
     }
 
-    await offering.softDelete(req.user._id);
+    // Soft delete
+    const deletedOffering = await prisma.courseOffering.update({
+      where: { id },
+      data: { isActive: false }
+    });
 
     res.status(200).json({
       success: true,
-      message: 'Course offering deleted successfully'
+      message: 'Course offering deleted successfully',
+      data: deletedOffering
     });
   } catch (error) {
     res.status(500).json({
@@ -853,7 +920,7 @@ export const restoreCourseOffering = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const offering = await CourseOffering.findById(id).setOptions({ includeSoftDeleted: true });
+    const offering = await prisma.courseOffering.findUnique({ where: { id } });
 
     if (!offering) {
       return res.status(404).json({
@@ -862,19 +929,22 @@ export const restoreCourseOffering = async (req, res) => {
       });
     }
 
-    if (!offering.isDeleted) {
+    if (offering.isActive) {
       return res.status(400).json({
         success: false,
         message: 'Course offering is not deleted'
       });
     }
 
-    await offering.restore();
+    const restoredOffering = await prisma.courseOffering.update({
+      where: { id },
+      data: { isActive: true }
+    });
 
     res.status(200).json({
       success: true,
       message: 'Course offering restored successfully',
-      data: offering
+      data: restoredOffering
     });
   } catch (error) {
     res.status(500).json({
@@ -886,38 +956,33 @@ export const restoreCourseOffering = async (req, res) => {
 };
 
 /**
- * @desc    Get offerings taught by a specific teacher
+ * @desc    Get course offerings by teacher
  * @route   GET /api/course-offerings/teacher/:teacherId
  * @access  Private
  */
 export const getOfferingsByTeacher = async (req, res) => {
   try {
     const { teacherId } = req.params;
-    const { academicYear, semesterNumber, status } = req.query;
+    const { semester, program } = req.query;
 
-    const query = { teacher: teacherId };
+    const where = {
+      instructorId: teacherId,
+      isActive: true
+    };
 
-    if (academicYear) {
-      query.academicYear = academicYear;
-    }
+    if (semester) where.semester = semester;
+    if (program) where.programId = program;
 
-    if (semesterNumber) {
-      query.semesterNumber = parseInt(semesterNumber);
-    }
-
-    if (status) {
-      query.status = status;
-    }
-
-    const offerings = await CourseOffering.find(query)
-      .populate('course', 'courseCode courseName creditHours courseType')
-      .populate('program', 'programCode name')
-      .populate({
-        path: 'tas',
-        select: 'studentId userId',
-        populate: { path: 'userId', select: 'name email' }
-      })
-      .sort({ academicYear: -1, semesterNumber: 1 });
+    const offerings = await prisma.courseOffering.findMany({
+      where,
+      include: {
+        course: true,
+        program: true,
+        instructor: true,
+        teachingAssistants: true
+      },
+      orderBy: { courseCode: 'asc' }
+    });
 
     res.status(200).json({
       success: true,
@@ -927,44 +992,40 @@ export const getOfferingsByTeacher = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error fetching teacher offerings',
+      message: 'Error fetching offerings by teacher',
       error: error.message
     });
   }
 };
 
 /**
- * @desc    Get offerings available for a course
+ * @desc    Get course offerings by course
  * @route   GET /api/course-offerings/course/:courseId
  * @access  Private
  */
 export const getOfferingsByCourse = async (req, res) => {
   try {
     const { courseId } = req.params;
-    const { academicYear, semesterNumber, enrollmentStatus } = req.query;
+    const { semester, program } = req.query;
 
-    const query = { course: courseId };
+    const where = {
+      courseId,
+      isActive: true
+    };
 
-    if (academicYear) {
-      query.academicYear = academicYear;
-    }
+    if (semester) where.semester = semester;
+    if (program) where.programId = program;
 
-    if (semesterNumber) {
-      query.semesterNumber = parseInt(semesterNumber);
-    }
-
-    if (enrollmentStatus) {
-      query.enrollmentStatus = enrollmentStatus;
-    }
-
-    const offerings = await CourseOffering.find(query)
-      .populate('program', 'programCode name')
-      .populate({
-        path: 'teacher',
-        select: 'employeeId designation userId',
-        populate: { path: 'userId', select: 'name email' }
-      })
-      .sort({ academicYear: -1, semesterNumber: 1, section: 1 });
+    const offerings = await prisma.courseOffering.findMany({
+      where,
+      include: {
+        course: true,
+        program: true,
+        instructor: true,
+        teachingAssistants: true
+      },
+      orderBy: { semester: 'asc' }
+    });
 
     res.status(200).json({
       success: true,
@@ -974,8 +1035,25 @@ export const getOfferingsByCourse = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error fetching course offerings',
+      message: 'Error fetching offerings by course',
       error: error.message
     });
   }
+};
+
+export default {
+  getAllCourseOfferings,
+  getOfferingsByProgramSemester,
+  getCourseOfferingById,
+  createCourseOffering,
+  updateCourseOffering,
+  assignInstructor,
+  assignTAs,
+  updateSchedule,
+  updateCapacity,
+  bulkCreateOfferings,
+  deleteCourseOffering,
+  restoreCourseOffering,
+  getOfferingsByTeacher,
+  getOfferingsByCourse
 };

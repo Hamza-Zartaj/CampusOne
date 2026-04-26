@@ -1,7 +1,4 @@
-import SemesterIncharge from '../models/SemesterIncharge.js';
-import Teacher from '../models/Teacher.js';
-import Program from '../models/Program.js';
-import Department from '../models/Department.js';
+import prisma from '../prisma/client.js';
 import AuditLogger from '../services/auditLogger.js';
 
 /**
@@ -24,42 +21,50 @@ export const getAllSemesterIncharges = async (req, res) => {
       includeSoftDeleted
     } = req.query;
 
-    // Build query
-    const query = {};
+    // Build where clause
+    const where = {
+      ...(includeSoftDeleted !== 'true' && { isDeleted: false })
+    };
 
-    if (teacher) query.teacher = teacher;
-    if (program) query.program = program;
-    if (department) query.department = department;
-    if (batch) query.batch = batch;
-    if (academicYear) query.academicYear = academicYear;
-    if (semesterNumber) query.semesterNumber = parseInt(semesterNumber);
-    if (status) query.status = status;
+    if (teacher) where.teacherId = teacher;
+    if (program) where.programId = program;
+    if (department) where.departmentId = department;
+    if (batch) where.batch = batch;
+    if (academicYear) where.academicYear = academicYear;
+    if (semesterNumber) where.semesterNumber = parseInt(semesterNumber);
+    if (status) where.status = status;
 
     // Pagination
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // Query options
-    const queryOptions = includeSoftDeleted === 'true' ? { includeSoftDeleted: true } : {};
-
     // Get total count
-    const total = await SemesterIncharge.countDocuments(query).setOptions(queryOptions);
+    const total = await prisma.semesterIncharge.count({ where });
 
     // Get semester incharges
-    const incharges = await SemesterIncharge.find(query)
-      .setOptions(queryOptions)
-      .populate({
-        path: 'teacher',
-        select: 'employeeId designation userId department',
-        populate: { path: 'userId', select: 'name email' }
-      })
-      .populate('program', 'programCode name')
-      .populate('department', 'departmentCode name')
-      .populate('appointedBy', 'name email')
-      .sort({ academicYear: -1, semesterNumber: 1, batch: 1 })
-      .skip(skip)
-      .limit(limitNum);
+    const incharges = await prisma.semesterIncharge.findMany({
+      where,
+      include: {
+        teacher: {
+          include: {
+            user: {
+              select: { name: true, email: true }
+            }
+          }
+        },
+        program: {
+          select: { programCode: true, name: true }
+        }
+      },
+      orderBy: [
+        { academicYear: 'desc' },
+        { semesterNumber: 'asc' },
+        { batch: 'asc' }
+      ],
+      skip,
+      take: limitNum
+    });
 
     // Calculate pagination info
     const totalPages = Math.ceil(total / limitNum);
@@ -95,15 +100,21 @@ export const getSemesterInchargeById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const incharge = await SemesterIncharge.findById(id)
-      .populate({
-        path: 'teacher',
-        select: 'employeeId designation userId department officeRoom',
-        populate: { path: 'userId', select: 'name email' }
-      })
-      .populate('program', 'programCode name totalSemesters')
-      .populate('department', 'departmentCode name')
-      .populate('appointedBy', 'name email');
+    const incharge = await prisma.semesterIncharge.findUnique({
+      where: { id },
+      include: {
+        teacher: {
+          include: {
+            user: {
+              select: { name: true, email: true }
+            }
+          }
+        },
+        program: {
+          select: { programCode: true, name: true, totalSemesters: true }
+        }
+      }
+    });
 
     if (!incharge) {
       return res.status(404).json({
@@ -141,20 +152,28 @@ export const lookupIncharge = async (req, res) => {
       });
     }
 
-    const incharge = await SemesterIncharge.findOne({
-      program,
-      batch,
-      academicYear,
-      semesterNumber: parseInt(semesterNumber),
-      status: 'active'
-    })
-      .populate({
-        path: 'teacher',
-        select: 'employeeId designation userId department officeRoom officeHours',
-        populate: { path: 'userId', select: 'name email' }
-      })
-      .populate('program', 'programCode name')
-      .populate('department', 'departmentCode name');
+    const incharge = await prisma.semesterIncharge.findFirst({
+      where: {
+        programId: program,
+        batch,
+        academicYear,
+        semesterNumber: parseInt(semesterNumber),
+        status: 'active',
+        isDeleted: false
+      },
+      include: {
+        teacher: {
+          include: {
+            user: {
+              select: { name: true, email: true }
+            }
+          }
+        },
+        program: {
+          select: { programCode: true, name: true }
+        }
+      }
+    });
 
     if (!incharge) {
       return res.status(404).json({
@@ -186,14 +205,26 @@ export const getInchargesByTeacher = async (req, res) => {
     const { teacherId } = req.params;
     const { status, academicYear } = req.query;
 
-    const query = { teacher: teacherId };
-    if (status) query.status = status;
-    if (academicYear) query.academicYear = academicYear;
+    const where = {
+      teacherId,
+      isDeleted: false
+    };
 
-    const incharges = await SemesterIncharge.find(query)
-      .populate('program', 'programCode name')
-      .populate('department', 'departmentCode name')
-      .sort({ academicYear: -1, semesterNumber: 1 });
+    if (status) where.status = status;
+    if (academicYear) where.academicYear = academicYear;
+
+    const incharges = await prisma.semesterIncharge.findMany({
+      where,
+      include: {
+        program: {
+          select: { programCode: true, name: true }
+        }
+      },
+      orderBy: [
+        { academicYear: 'desc' },
+        { semesterNumber: 'asc' }
+      ]
+    });
 
     res.status(200).json({
       success: true,
@@ -230,7 +261,9 @@ export const assignSemesterIncharge = async (req, res) => {
     } = req.body;
 
     // Validate teacher exists
-    const teacherDoc = await Teacher.findById(teacher);
+    const teacherDoc = await prisma.teacher.findUnique({
+      where: { id: teacher }
+    });
     if (!teacherDoc) {
       return res.status(404).json({
         success: false,
@@ -239,7 +272,9 @@ export const assignSemesterIncharge = async (req, res) => {
     }
 
     // Validate program exists
-    const programDoc = await Program.findById(program);
+    const programDoc = await prisma.program.findUnique({
+      where: { id: program }
+    });
     if (!programDoc) {
       return res.status(404).json({
         success: false,
@@ -257,7 +292,9 @@ export const assignSemesterIncharge = async (req, res) => {
 
     // Validate department if provided
     if (department) {
-      const departmentDoc = await Department.findById(department);
+      const departmentDoc = await prisma.department.findUnique({
+        where: { id: department }
+      });
       if (!departmentDoc) {
         return res.status(404).json({
           success: false,
@@ -267,55 +304,61 @@ export const assignSemesterIncharge = async (req, res) => {
     }
 
     // Check if there's already an active incharge for this combination
-    const existingIncharge = await SemesterIncharge.findOne({
-      program,
-      batch,
-      academicYear,
-      semesterNumber,
-      status: 'active'
+    const existingIncharge = await prisma.semesterIncharge.findFirst({
+      where: {
+        programId: program,
+        batch,
+        academicYear,
+        semesterNumber,
+        status: 'active',
+        isDeleted: false
+      }
     });
 
     if (existingIncharge) {
       return res.status(400).json({
         success: false,
         message: 'An active incharge already exists for this program, batch, academic year, and semester. Use replace endpoint to change.',
-        existingIncharge: existingIncharge._id
+        existingIncharge: existingIncharge.id
       });
     }
 
-    const incharge = await SemesterIncharge.create({
-      teacher,
-      program,
-      department: department || programDoc.department,
-      batch,
-      academicYear,
-      semesterNumber,
-      responsibilities: responsibilities || [],
-      startDate,
-      endDate,
-      remarks,
-      appointedBy: req.user._id,
-      appointedAt: new Date()
-    });
-
-    // Populate and return
-    await incharge.populate([
-      {
-        path: 'teacher',
-        select: 'employeeId designation userId',
-        populate: { path: 'userId', select: 'name email' }
+    const incharge = await prisma.semesterIncharge.create({
+      data: {
+        teacherId: teacher,
+        programId: program,
+        departmentId: department || programDoc.departmentId,
+        batch,
+        academicYear,
+        semesterNumber,
+        responsibilities: responsibilities || [],
+        startDate: startDate ? new Date(startDate) : new Date(),
+        endDate: endDate ? new Date(endDate) : null,
+        remarks,
+        appointedBy: req.user.id,
+        appointedAt: new Date()
       },
-      { path: 'program', select: 'programCode name' },
-      { path: 'department', select: 'departmentCode name' }
-    ]);
+      include: {
+        teacher: {
+          include: {
+            user: {
+              select: { name: true, email: true }
+            }
+          }
+        },
+        program: {
+          select: { programCode: true, name: true }
+        }
+      }
+    });
 
     // Audit log
     await AuditLogger.logInchargeAssignment({
-      performedBy: req.user._id,
+      performedBy: req.user.id,
       performedByRole: req.user.role,
-      inchargeId: incharge._id,
+      inchargeId: incharge.id,
       teacherId: teacher,
-      teacherName: incharge.teacher?.userId?.name || incharge.teacher?.employeeId,
+      teacherName: incharge.teacher?.user?.name || incharge.teacher?.employeeId,
       programId: program,
       programCode: programDoc.programCode,
       batch,
@@ -331,7 +374,7 @@ export const assignSemesterIncharge = async (req, res) => {
       data: incharge
     });
   } catch (error) {
-    if (error.code === 11000) {
+    if (error.code === 'P2002') {
       return res.status(400).json({
         success: false,
         message: 'Incharge already exists for this program, batch, academic year, and semester combination'
@@ -371,7 +414,9 @@ export const replaceSemesterIncharge = async (req, res) => {
     }
 
     // Validate new teacher exists
-    const teacherDoc = await Teacher.findById(newTeacher);
+    const teacherDoc = await prisma.teacher.findUnique({
+      where: { id: newTeacher }
+    });
     if (!teacherDoc) {
       return res.status(404).json({
         success: false,
@@ -380,7 +425,9 @@ export const replaceSemesterIncharge = async (req, res) => {
     }
 
     // Validate program exists
-    const programDoc = await Program.findById(program);
+    const programDoc = await prisma.program.findUnique({
+      where: { id: program }
+    });
     if (!programDoc) {
       return res.status(404).json({
         success: false,
@@ -389,17 +436,22 @@ export const replaceSemesterIncharge = async (req, res) => {
     }
 
     // Find and relieve current active incharge
-    const currentIncharge = await SemesterIncharge.findOne({
-      program,
-      batch,
-      academicYear,
-      semesterNumber: parseInt(semesterNumber),
-      status: 'active'
+    const currentIncharge = await prisma.semesterIncharge.findFirst({
+      where: {
+        programId: program,
+        batch,
+        academicYear,
+        semesterNumber: parseInt(semesterNumber),
+        status: 'active',
+        isDeleted: false
+      }
     });
+
+    let relievedIncharge = null;
 
     if (currentIncharge) {
       // Check if trying to assign the same teacher
-      if (currentIncharge.teacher.toString() === newTeacher) {
+      if (currentIncharge.teacherId === newTeacher) {
         return res.status(400).json({
           success: false,
           message: 'This teacher is already the incharge for this combination'
@@ -407,69 +459,60 @@ export const replaceSemesterIncharge = async (req, res) => {
       }
 
       // Relieve current incharge
-      currentIncharge.status = 'relieved';
-      currentIncharge.endDate = new Date();
-      currentIncharge.remarks = relieveRemarks || `Relieved and replaced on ${new Date().toISOString().split('T')[0]}`;
-      await currentIncharge.save();
+      relievedIncharge = await prisma.semesterIncharge.update({
+        where: { id: currentIncharge.id },
+        data: {
+          status: 'relieved',
+          endDate: new Date(),
+          remarks: relieveRemarks || `Relieved and replaced on ${new Date().toISOString().split('T')[0]}`
+        }
+      });
     }
 
     // Create new incharge assignment
-    const newIncharge = await SemesterIncharge.create({
-      teacher: newTeacher,
-      program,
-      department: programDoc.department,
-      batch,
-      academicYear,
-      semesterNumber: parseInt(semesterNumber),
-      responsibilities: responsibilities || (currentIncharge ? currentIncharge.responsibilities : []),
-      startDate: new Date(),
-      remarks,
-      appointedBy: req.user._id,
-      appointedAt: new Date()
-    });
-
-    // Populate and return
-    await newIncharge.populate([
-      {
-        path: 'teacher',
-        select: 'employeeId designation userId',
-        populate: { path: 'userId', select: 'name email' }
+    const newIncharge = await prisma.semesterIncharge.create({
+      data: {
+        teacherId: newTeacher,
+        programId: program,
+        departmentId: programDoc.departmentId,
+        batch,
+        academicYear,
+        semesterNumber: parseInt(semesterNumber),
+        responsibilities: responsibilities || (currentIncharge ? currentIncharge.responsibilities : []),
+        startDate: new Date(),
+        remarks,
+        appointedBy: req.user.id,
+        appointedAt: new Date()
       },
-      { path: 'program', select: 'programCode name' },
-      { path: 'department', select: 'departmentCode name' }
-    ]);
+      include: {
+        teacher: {
+          include: {
+            user: {
+              select: { name: true, email: true }
+            }
+          }
+        },
+        program: {
+          select: { programCode: true, name: true }
+        }
+      }
+    });
 
     // Audit log for replacement
     if (currentIncharge) {
       await AuditLogger.logInchargeReplacement({
-        performedBy: req.user._id,
+        performedBy: req.user.id,
         performedByRole: req.user.role,
-        previousInchargeId: currentIncharge._id,
-        previousTeacherId: currentIncharge.teacher,
-        previousTeacherName: currentIncharge.teacher?.toString(),
-        newInchargeId: newIncharge._id,
+        previousInchargeId: currentIncharge.id,
+        previousTeacherId: currentIncharge.teacherId,
+        newInchargeId: newIncharge.id,
         newTeacherId: newTeacher,
-        newTeacherName: newIncharge.teacher?.userId?.name || newIncharge.teacher?.employeeId,
+        newTeacherName: newIncharge.teacher?.user?.name || newIncharge.teacher?.employeeId,
         programId: program,
         programCode: programDoc.programCode,
         academicYear,
         semesterNumber: parseInt(semesterNumber),
         reason: relieveRemarks,
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent')
-      });
-    } else {
-      await AuditLogger.logInchargeAssignment({
-        performedBy: req.user._id,
-        performedByRole: req.user.role,
-        inchargeId: newIncharge._id,
-        teacherId: newTeacher,
-        teacherName: newIncharge.teacher?.userId?.name || newIncharge.teacher?.employeeId,
-        programId: program,
-        programCode: programDoc.programCode,
-        batch,
-        academicYear,
-        semesterNumber: parseInt(semesterNumber),
         ipAddress: req.ip,
         userAgent: req.get('User-Agent')
       });
@@ -482,7 +525,7 @@ export const replaceSemesterIncharge = async (req, res) => {
         : 'New incharge assigned successfully',
       data: {
         newIncharge,
-        previousIncharge: currentIncharge ? currentIncharge._id : null
+        previousIncharge: relievedIncharge ? relievedIncharge.id : null
       }
     });
   } catch (error) {
@@ -510,7 +553,9 @@ export const updateSemesterIncharge = async (req, res) => {
       remarks
     } = req.body;
 
-    const incharge = await SemesterIncharge.findById(id);
+    const incharge = await prisma.semesterIncharge.findUnique({
+      where: { id }
+    });
 
     if (!incharge) {
       return res.status(404).json({
@@ -520,29 +565,34 @@ export const updateSemesterIncharge = async (req, res) => {
     }
 
     // Update fields
-    if (responsibilities !== undefined) incharge.responsibilities = responsibilities;
-    if (startDate !== undefined) incharge.startDate = startDate;
-    if (endDate !== undefined) incharge.endDate = endDate;
-    if (status) incharge.status = status;
-    if (remarks !== undefined) incharge.remarks = remarks;
+    const updateData = {};
+    if (responsibilities !== undefined) updateData.responsibilities = responsibilities;
+    if (startDate !== undefined) updateData.startDate = new Date(startDate);
+    if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null;
+    if (status) updateData.status = status;
+    if (remarks !== undefined) updateData.remarks = remarks;
 
-    await incharge.save();
-
-    // Populate and return
-    await incharge.populate([
-      {
-        path: 'teacher',
-        select: 'employeeId designation userId',
-        populate: { path: 'userId', select: 'name email' }
-      },
-      { path: 'program', select: 'programCode name' },
-      { path: 'department', select: 'departmentCode name' }
-    ]);
+    const updated = await prisma.semesterIncharge.update({
+      where: { id },
+      data: updateData,
+      include: {
+        teacher: {
+          include: {
+            user: {
+              select: { name: true, email: true }
+            }
+          }
+        },
+        program: {
+          select: { programCode: true, name: true }
+        }
+      }
+    });
 
     res.status(200).json({
       success: true,
       message: 'Semester incharge updated successfully',
-      data: incharge
+      data: updated
     });
   } catch (error) {
     res.status(500).json({
@@ -563,7 +613,9 @@ export const relieveSemesterIncharge = async (req, res) => {
     const { id } = req.params;
     const { remarks } = req.body;
 
-    const incharge = await SemesterIncharge.findById(id);
+    const incharge = await prisma.semesterIncharge.findUnique({
+      where: { id }
+    });
 
     if (!incharge) {
       return res.status(404).json({
@@ -579,19 +631,22 @@ export const relieveSemesterIncharge = async (req, res) => {
       });
     }
 
-    incharge.status = 'relieved';
-    incharge.endDate = new Date();
-    if (remarks) incharge.remarks = remarks;
-
-    await incharge.save();
+    const updated = await prisma.semesterIncharge.update({
+      where: { id },
+      data: {
+        status: 'relieved',
+        endDate: new Date(),
+        remarks: remarks || incharge.remarks
+      }
+    });
 
     // Audit log
     await AuditLogger.logInchargeRelief({
-      performedBy: req.user._id,
+      performedBy: req.user.id,
       performedByRole: req.user.role,
-      inchargeId: incharge._id,
-      teacherId: incharge.teacher,
-      programId: incharge.program,
+      inchargeId: incharge.id,
+      teacherId: incharge.teacherId,
+      programId: incharge.programId,
       academicYear: incharge.academicYear,
       semesterNumber: incharge.semesterNumber,
       reason: remarks,
@@ -602,7 +657,7 @@ export const relieveSemesterIncharge = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Semester incharge relieved successfully',
-      data: incharge
+      data: updated
     });
   } catch (error) {
     res.status(500).json({
@@ -622,7 +677,9 @@ export const deleteSemesterIncharge = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const incharge = await SemesterIncharge.findById(id);
+    const incharge = await prisma.semesterIncharge.findUnique({
+      where: { id }
+    });
 
     if (!incharge) {
       return res.status(404).json({
@@ -631,7 +688,14 @@ export const deleteSemesterIncharge = async (req, res) => {
       });
     }
 
-    await incharge.softDelete(req.user._id);
+    await prisma.semesterIncharge.update({
+      where: { id },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: req.user.id
+      }
+    });
 
     res.status(200).json({
       success: true,
@@ -655,7 +719,9 @@ export const restoreSemesterIncharge = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const incharge = await SemesterIncharge.findById(id).setOptions({ includeSoftDeleted: true });
+    const incharge = await prisma.semesterIncharge.findUnique({
+      where: { id }
+    });
 
     if (!incharge) {
       return res.status(404).json({
@@ -671,12 +737,19 @@ export const restoreSemesterIncharge = async (req, res) => {
       });
     }
 
-    await incharge.restore();
+    const restored = await prisma.semesterIncharge.update({
+      where: { id },
+      data: {
+        isDeleted: false,
+        deletedAt: null,
+        deletedBy: null
+      }
+    });
 
     res.status(200).json({
       success: true,
       message: 'Semester incharge restored successfully',
-      data: incharge
+      data: restored
     });
   } catch (error) {
     res.status(500).json({
@@ -688,82 +761,73 @@ export const restoreSemesterIncharge = async (req, res) => {
 };
 
 /**
- * @desc    Bulk assign incharges for a semester
+ * @desc    Bulk assign semester incharges
  * @route   POST /api/semester-incharges/bulk
- * @access  Private/Admin
+ * @access  Private (Admin)
  */
 export const bulkAssignIncharges = async (req, res) => {
   try {
     const { assignments } = req.body;
 
-    if (!assignments || !Array.isArray(assignments) || assignments.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide an array of assignments'
-      });
+    if (!Array.isArray(assignments) || assignments.length === 0) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid assignments array' });
     }
 
-    const results = {
-      created: [],
-      errors: []
-    };
+    const results = { successful: [], failed: [] };
 
     for (const assignment of assignments) {
       try {
-        if (!assignment.teacher || !assignment.program || !assignment.batch || 
-            !assignment.academicYear || !assignment.semesterNumber) {
-          results.errors.push({
-            data: assignment,
-            error: 'Missing required fields'
-          });
+        const { teacherId, programId, departmentId, academicYear, semesterNumber, scope } = assignment;
+
+        if (!teacherId || !academicYear || !semesterNumber) {
+          results.failed.push({ ...assignment, error: 'teacherId, academicYear, and semesterNumber are required' });
           continue;
         }
 
-        // Check for existing active incharge
-        const existing = await SemesterIncharge.findOne({
-          program: assignment.program,
-          batch: assignment.batch,
-          academicYear: assignment.academicYear,
-          semesterNumber: assignment.semesterNumber,
-          status: 'active'
-        });
-
-        if (existing) {
-          results.errors.push({
-            data: assignment,
-            error: 'Active incharge already exists'
-          });
+        const teacher = await prisma.teacher.findUnique({ where: { id: teacherId } });
+        if (!teacher) {
+          results.failed.push({ ...assignment, error: 'Teacher not found' });
           continue;
         }
 
-        const programDoc = await Program.findById(assignment.program);
-
-        const incharge = await SemesterIncharge.create({
-          ...assignment,
-          department: assignment.department || (programDoc ? programDoc.department : null),
-          appointedBy: req.user._id,
-          appointedAt: new Date()
+        // Deactivate existing incharge for the same scope if any
+        await prisma.semesterIncharge.updateMany({
+          where: {
+            programId: programId || null,
+            departmentId: departmentId || null,
+            academicYear,
+            semesterNumber: parseInt(semesterNumber),
+            status: 'active'
+          },
+          data: { status: 'relieved', relievedAt: new Date() }
         });
 
-        results.created.push(incharge._id);
+        const incharge = await prisma.semesterIncharge.create({
+          data: {
+            teacherId,
+            programId: programId || null,
+            departmentId: departmentId || null,
+            academicYear,
+            semesterNumber: parseInt(semesterNumber),
+            scope: scope || 'program',
+            status: 'active',
+            assignedBy: req.user?.id,
+            assignedAt: new Date()
+          }
+        });
+
+        results.successful.push(incharge);
       } catch (err) {
-        results.errors.push({
-          data: assignment,
-          error: err.message
-        });
+        results.failed.push({ ...assignment, error: err.message });
       }
     }
 
     res.status(201).json({
-      success: true,
-      message: `Assigned ${results.created.length} incharges, ${results.errors.length} errors`,
+      success: results.failed.length === 0,
+      message: `${results.successful.length} assigned, ${results.failed.length} failed`,
       data: results
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error bulk assigning incharges',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error in bulk assign incharges', error: error.message });
   }
 };

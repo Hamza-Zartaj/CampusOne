@@ -1,8 +1,4 @@
-import Enrollment from '../models/Enrollment.js';
-import CourseOffering from '../models/CourseOffering.js';
-import Course from '../models/Course.js';
-import Student from '../models/Student.js';
-import Program from '../models/Program.js';
+import prisma from '../prisma/client.js';
 
 // Grade point mapping
 const GRADE_POINTS = {
@@ -16,65 +12,82 @@ const GRADE_POINTS = {
 
 // Helper: Get student from user
 const getStudentFromUser = async (userId) => {
-  const student = await Student.findOne({ userId });
+  const student = await prisma.student.findUnique({ where: { userId } });
   return student;
 };
 
-// Helper: Check if student has completed prerequisites
+// Helper: Check prerequisites
 const checkPrerequisites = async (studentId, courseId) => {
-  const course = await Course.findById(courseId).populate('prerequisites');
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    include: { prerequisites: true }
+  });
   
-  if (!course.prerequisites || course.prerequisites.length === 0) {
+  if (!course?.prerequisites || course.prerequisites.length === 0) {
     return { satisfied: true, missing: [] };
   }
 
-  const completedEnrollments = await Enrollment.find({
-    student: studentId,
-    status: 'completed',
-    grade: { $nin: ['F', 'W', 'I', 'NP'] }
-  }).populate({
-    path: 'courseOffering',
-    select: 'course'
+  const completedEnrollments = await prisma.enrollment.findMany({
+    where: {
+      studentId,
+      status: 'completed',
+      grade: { notIn: ['F', 'W', 'I', 'NP'] }
+    },
+    include: { courseOffering: { select: { courseId: true } } }
   });
 
   const completedCourseIds = completedEnrollments
-    .filter(e => e.courseOffering && e.courseOffering.course)
-    .map(e => e.courseOffering.course.toString());
+    .filter(e => e.courseOffering?.courseId)
+    .map(e => e.courseOffering.courseId);
 
   const missing = course.prerequisites.filter(
-    prereq => !completedCourseIds.includes(prereq._id.toString())
+    prereq => !completedCourseIds.includes(prereq.id)
+  );
+
+  const missingDetails = await Promise.all(
+    missing.map(async (m) => {
+      const c = await prisma.course.findUnique({ where: { id: m.id } });
+      return { id: m.id, code: c?.courseCode || '', name: c?.courseName || '' };
+    })
   );
 
   return {
     satisfied: missing.length === 0,
-    missing: missing.map(p => ({ id: p._id, code: p.courseCode, name: p.courseName }))
+    missing: missingDetails
   };
 };
 
-// Helper: Check for duplicate enrollment
+// Helper: Check duplicate enrollment
 const checkDuplicateEnrollment = async (studentId, courseOfferingId) => {
-  const existing = await Enrollment.findOne({
-    student: studentId,
-    courseOffering: courseOfferingId,
-    status: { $nin: ['dropped', 'withdrawn'] }
+  const existing = await prisma.enrollment.findFirst({
+    where: {
+      studentId,
+      courseOfferingId,
+      status: { notIn: ['dropped', 'withdrawn'] }
+    }
   });
   return existing;
 };
 
-// Helper: Check if already enrolled in same course (different section)
+// Helper: Check same course enrollment
 const checkSameCourseEnrollment = async (studentId, courseId, academicYear, semesterNumber) => {
-  const offerings = await CourseOffering.find({
-    course: courseId,
-    academicYear,
-    semesterNumber
-  }).select('_id');
+  const offerings = await prisma.courseOffering.findMany({
+    where: {
+      courseId,
+      academicYear,
+      semesterNumber
+    },
+    select: { id: true }
+  });
 
-  const offeringIds = offerings.map(o => o._id);
+  const offeringIds = offerings.map(o => o.id);
 
-  const existing = await Enrollment.findOne({
-    student: studentId,
-    courseOffering: { $in: offeringIds },
-    status: { $nin: ['dropped', 'withdrawn'] }
+  const existing = await prisma.enrollment.findFirst({
+    where: {
+      studentId,
+      courseOfferingId: { in: offeringIds },
+      status: { notIn: ['dropped', 'withdrawn'] }
+    }
   });
 
   return existing;
@@ -82,41 +95,55 @@ const checkSameCourseEnrollment = async (studentId, courseId, academicYear, seme
 
 // Helper: Get next waitlist position
 const getNextWaitlistPosition = async (courseOfferingId) => {
-  const lastWaitlisted = await Enrollment.findOne({
-    courseOffering: courseOfferingId,
-    status: 'waitlisted'
-  }).sort({ waitlistPosition: -1 });
-
+  const lastWaitlisted = await prisma.enrollment.findFirst({
+    where: {
+      courseOfferingId,
+      status: 'waitlisted'
+    },
+    orderBy: { waitlistPosition: 'desc' }
+  });
   return lastWaitlisted ? lastWaitlisted.waitlistPosition + 1 : 1;
 };
 
 // Helper: Promote from waitlist
 const promoteFromWaitlist = async (courseOfferingId) => {
-  const waitlisted = await Enrollment.findOne({
-    courseOffering: courseOfferingId,
-    status: 'waitlisted'
-  }).sort({ waitlistPosition: 1 });
+  const waitlisted = await prisma.enrollment.findFirst({
+    where: {
+      courseOfferingId,
+      status: 'waitlisted'
+    },
+    orderBy: { waitlistPosition: 'asc' }
+  });
 
   if (waitlisted) {
-    waitlisted.status = 'enrolled';
-    waitlisted.waitlistPosition = undefined;
-    waitlisted.promotedFromWaitlistAt = new Date();
-    waitlisted.enrolledAt = new Date();
-    await waitlisted.save();
-
-    await CourseOffering.findByIdAndUpdate(courseOfferingId, {
-      $inc: { currentEnrollment: 1 }
+    await prisma.enrollment.update({
+      where: { id: waitlisted.id },
+      data: {
+        status: 'enrolled',
+        waitlistPosition: null,
+        promotedFromWaitlistAt: new Date(),
+        enrolledAt: new Date()
+      }
     });
 
-    // Reorder remaining waitlist
-    const remaining = await Enrollment.find({
-      courseOffering: courseOfferingId,
-      status: 'waitlisted'
-    }).sort({ waitlistPosition: 1 });
+    await prisma.courseOffering.update({
+      where: { id: courseOfferingId },
+      data: { currentEnrollment: { increment: 1 } }
+    });
+
+    const remaining = await prisma.enrollment.findMany({
+      where: {
+        courseOfferingId,
+        status: 'waitlisted'
+      },
+      orderBy: { waitlistPosition: 'asc' }
+    });
 
     for (let i = 0; i < remaining.length; i++) {
-      remaining[i].waitlistPosition = i + 1;
-      await remaining[i].save();
+      await prisma.enrollment.update({
+        where: { id: remaining[i].id },
+        data: { waitlistPosition: i + 1 }
+      });
     }
 
     return waitlisted;
@@ -124,12 +151,14 @@ const promoteFromWaitlist = async (courseOfferingId) => {
   return null;
 };
 
-// @desc    Get my profile (student)
-// @route   GET /api/student/profile
-// @access  Private (Student)
+/**
+ * @desc    Get my profile (student)
+ * @route   GET /api/student/profile
+ * @access  Private (Student)
+ */
 export const getMyProfile = async (req, res) => {
   try {
-    const student = await getStudentFromUser(req.user._id);
+    const student = await getStudentFromUser(req.user.id);
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -137,14 +166,14 @@ export const getMyProfile = async (req, res) => {
       });
     }
 
-    await student.populate({
-      path: 'userId',
-      select: 'firstName lastName email'
+    const data = await prisma.student.findUnique({
+      where: { id: student.id },
+      include: { user: { select: { id: true, name: true, email: true } } }
     });
 
     res.status(200).json({
       success: true,
-      data: student
+      data
     });
   } catch (error) {
     res.status(500).json({
@@ -155,12 +184,14 @@ export const getMyProfile = async (req, res) => {
   }
 };
 
-// @desc    Get my current semester courses
-// @route   GET /api/student/current-courses
-// @access  Private (Student)
+/**
+ * @desc    Get my current semester courses
+ * @route   GET /api/student/current-courses
+ * @access  Private (Student)
+ */
 export const getCurrentCourses = async (req, res) => {
   try {
-    const student = await getStudentFromUser(req.user._id);
+    const student = await getStudentFromUser(req.user.id);
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -170,44 +201,44 @@ export const getCurrentCourses = async (req, res) => {
 
     const { academicYear, semesterNumber } = req.query;
 
-    const query = {
-      student: student._id,
-      status: { $in: ['enrolled', 'active', 'waitlisted'] }
+    const where = {
+      studentId: student.id,
+      status: { in: ['enrolled', 'active', 'waitlisted'] }
     };
 
-    if (academicYear) query.academicYear = academicYear;
-    if (semesterNumber) query.semesterNumber = parseInt(semesterNumber);
+    if (academicYear) where.academicYear = academicYear;
+    if (semesterNumber) where.semesterNumber = parseInt(semesterNumber);
 
-    const enrollments = await Enrollment.find(query)
-      .populate({
-        path: 'courseOffering',
-        populate: [
-          { path: 'course', select: 'courseCode courseName creditHours courseType description' },
-          { path: 'teacher', select: 'userId', populate: { path: 'userId', select: 'firstName lastName email' } },
-          { path: 'program', select: 'programCode programName' }
-        ]
-      })
-      .sort({ enrolledAt: -1 });
+    const enrollments = await prisma.enrollment.findMany({
+      where,
+      include: {
+        courseOffering: {
+          include: {
+            course: { select: { id: true, courseCode: true, courseName: true, creditHours: true, courseType: true, description: true } },
+            teacher: { select: { id: true, user: { select: { id: true, name: true, email: true } } } },
+            program: { select: { id: true, programCode: true, name: true } }
+          }
+        }
+      },
+      orderBy: { enrolledAt: 'desc' }
+    });
 
     const courses = enrollments.map(enrollment => ({
-      enrollmentId: enrollment._id,
+      enrollmentId: enrollment.id,
       status: enrollment.status,
       waitlistPosition: enrollment.waitlistPosition,
       enrolledAt: enrollment.enrolledAt,
       enrollmentType: enrollment.enrollmentType,
       course: enrollment.courseOffering?.course,
       offering: {
-        id: enrollment.courseOffering?._id,
+        id: enrollment.courseOffering?.id,
         section: enrollment.courseOffering?.section,
         academicYear: enrollment.courseOffering?.academicYear,
         semesterNumber: enrollment.courseOffering?.semesterNumber,
         schedule: enrollment.courseOffering?.schedule,
-        teacher: enrollment.courseOffering?.teacher?.userId
-          ? `${enrollment.courseOffering.teacher.userId.firstName} ${enrollment.courseOffering.teacher.userId.lastName}`
-          : null,
-        teacherEmail: enrollment.courseOffering?.teacher?.userId?.email
+        teacher: enrollment.courseOffering?.teacher?.user?.name || null,
+        teacherEmail: enrollment.courseOffering?.teacher?.user?.email
       },
-      // Current marks if available
       marks: {
         midterm: enrollment.midtermMarks,
         final: enrollment.finalMarks,
@@ -218,7 +249,6 @@ export const getCurrentCourses = async (req, res) => {
       }
     }));
 
-    // Calculate total credits
     const totalCredits = courses
       .filter(c => c.status !== 'waitlisted')
       .reduce((sum, c) => sum + (c.course?.creditHours || 0), 0);
@@ -238,12 +268,14 @@ export const getCurrentCourses = async (req, res) => {
   }
 };
 
-// @desc    Get available course offerings for enrollment
-// @route   GET /api/student/available-offerings
-// @access  Private (Student)
+/**
+ * @desc    Get available course offerings for enrollment
+ * @route   GET /api/student/available-offerings
+ * @access  Private (Student)
+ */
 export const getAvailableOfferings = async (req, res) => {
   try {
-    const student = await getStudentFromUser(req.user._id);
+    const student = await getStudentFromUser(req.user.id);
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -260,66 +292,60 @@ export const getAvailableOfferings = async (req, res) => {
       });
     }
 
-    // Build query
-    const query = {
+    const where = {
       academicYear,
       semesterNumber: parseInt(semesterNumber),
-      enrollmentStatus: { $in: ['open', 'waitlist'] },
+      enrollmentStatus: { in: ['open', 'waitlist'] },
       isActive: true
     };
 
-    if (program) query.program = program;
+    if (program) where.programId = program;
 
-    const offerings = await CourseOffering.find(query)
-      .populate('course', 'courseCode courseName creditHours courseType prerequisites description')
-      .populate('program', 'programCode programName')
-      .populate({
-        path: 'teacher',
-        select: 'userId',
-        populate: { path: 'userId', select: 'firstName lastName' }
-      })
-      .sort({ 'course.courseCode': 1 });
+    const offerings = await prisma.courseOffering.findMany({
+      where,
+      include: {
+        course: { select: { id: true, courseCode: true, courseName: true, creditHours: true, courseType: true, prerequisites: true, description: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        teacher: { select: { id: true, user: { select: { id: true, name: true } } } }
+      },
+      orderBy: { 'course.courseCode': 'asc' }
+    });
 
-    // Get student's current enrollments for this semester
-    const currentEnrollments = await Enrollment.find({
-      student: student._id,
-      academicYear,
-      semesterNumber: parseInt(semesterNumber),
-      status: { $nin: ['dropped', 'withdrawn'] }
-    }).populate({
-      path: 'courseOffering',
-      select: 'course'
+    const currentEnrollments = await prisma.enrollment.findMany({
+      where: {
+        studentId: student.id,
+        academicYear,
+        semesterNumber: parseInt(semesterNumber),
+        status: { notIn: ['dropped', 'withdrawn'] }
+      },
+      include: { courseOffering: { select: { courseId: true } } }
     });
 
     const enrolledCourseIds = currentEnrollments
       .filter(e => e.courseOffering)
-      .map(e => e.courseOffering.course.toString());
+      .map(e => e.courseOffering.courseId);
 
-    const enrolledOfferingIds = currentEnrollments.map(e => e.courseOffering?._id.toString());
+    const enrolledOfferingIds = currentEnrollments.map(e => e.courseOfferingId);
 
-    // Process offerings
     const processedOfferings = await Promise.all(offerings.map(async (offering) => {
-      const courseId = offering.course._id.toString();
-      const offeringId = offering._id.toString();
+      const courseId = offering.courseId;
+      const offeringId = offering.id;
 
-      // Check enrollment status
       const isEnrolledInOffering = enrolledOfferingIds.includes(offeringId);
       const isEnrolledInCourse = enrolledCourseIds.includes(courseId);
 
-      // Check prerequisites
       let prereqStatus = { satisfied: true, missing: [] };
       if (offering.course.prerequisites && offering.course.prerequisites.length > 0) {
-        prereqStatus = await checkPrerequisites(student._id, courseId);
+        prereqStatus = await checkPrerequisites(student.id, courseId);
       }
 
-      // Check capacity
       const hasCapacity = offering.currentEnrollment < offering.maxCapacity;
       const canWaitlist = offering.enrollmentStatus === 'waitlist' && !hasCapacity;
 
       return {
-        offeringId: offering._id,
+        offeringId: offering.id,
         course: {
-          id: offering.course._id,
+          id: offering.course.id,
           code: offering.course.courseCode,
           name: offering.course.courseName,
           creditHours: offering.course.creditHours,
@@ -328,14 +354,12 @@ export const getAvailableOfferings = async (req, res) => {
           hasPrerequisites: (offering.course.prerequisites?.length || 0) > 0
         },
         program: {
-          id: offering.program?._id,
+          id: offering.program?.id,
           code: offering.program?.programCode,
-          name: offering.program?.programName
+          name: offering.program?.name
         },
         section: offering.section,
-        teacher: offering.teacher?.userId
-          ? `${offering.teacher.userId.firstName} ${offering.teacher.userId.lastName}`
-          : null,
+        teacher: offering.teacher?.user?.name || null,
         schedule: offering.schedule,
         capacity: {
           max: offering.maxCapacity,
@@ -343,7 +367,6 @@ export const getAvailableOfferings = async (req, res) => {
           available: offering.maxCapacity - offering.currentEnrollment
         },
         enrollmentStatus: offering.enrollmentStatus,
-        // Student-specific status
         canEnroll: !isEnrolledInCourse && prereqStatus.satisfied && (hasCapacity || canWaitlist),
         alreadyEnrolled: isEnrolledInOffering,
         enrolledInOtherSection: isEnrolledInCourse && !isEnrolledInOffering,
@@ -352,7 +375,6 @@ export const getAvailableOfferings = async (req, res) => {
       };
     }));
 
-    // Filter based on showAll
     const filteredOfferings = showAll === 'true' 
       ? processedOfferings 
       : processedOfferings.filter(o => o.canEnroll || o.alreadyEnrolled);
@@ -371,12 +393,14 @@ export const getAvailableOfferings = async (req, res) => {
   }
 };
 
-// @desc    Enroll in a course offering
-// @route   POST /api/student/enroll
-// @access  Private (Student)
+/**
+ * @desc    Enroll in a course offering
+ * @route   POST /api/student/enroll
+ * @access  Private (Student)
+ */
 export const enrollInCourse = async (req, res) => {
   try {
-    const student = await getStudentFromUser(req.user._id);
+    const student = await getStudentFromUser(req.user.id);
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -386,10 +410,10 @@ export const enrollInCourse = async (req, res) => {
 
     const { courseOfferingId, enrollmentType = 'regular' } = req.body;
 
-    // Get course offering
-    const courseOffering = await CourseOffering.findById(courseOfferingId)
-      .populate('course')
-      .populate('program');
+    const courseOffering = await prisma.courseOffering.findUnique({
+      where: { id: courseOfferingId },
+      include: { course: true, program: true }
+    });
 
     if (!courseOffering) {
       return res.status(404).json({
@@ -398,7 +422,6 @@ export const enrollInCourse = async (req, res) => {
       });
     }
 
-    // Check if enrollment is open
     if (courseOffering.enrollmentStatus === 'closed') {
       return res.status(400).json({
         success: false,
@@ -406,8 +429,7 @@ export const enrollInCourse = async (req, res) => {
       });
     }
 
-    // Check for duplicate enrollment
-    const duplicate = await checkDuplicateEnrollment(student._id, courseOfferingId);
+    const duplicate = await checkDuplicateEnrollment(student.id, courseOfferingId);
     if (duplicate) {
       return res.status(400).json({
         success: false,
@@ -415,10 +437,9 @@ export const enrollInCourse = async (req, res) => {
       });
     }
 
-    // Check for enrollment in same course (different section)
     const sameCourse = await checkSameCourseEnrollment(
-      student._id,
-      courseOffering.course._id,
+      student.id,
+      courseOffering.courseId,
       courseOffering.academicYear,
       courseOffering.semesterNumber
     );
@@ -429,9 +450,8 @@ export const enrollInCourse = async (req, res) => {
       });
     }
 
-    // Check prerequisites (skip for audit)
     if (enrollmentType !== 'audit') {
-      const prereqCheck = await checkPrerequisites(student._id, courseOffering.course._id);
+      const prereqCheck = await checkPrerequisites(student.id, courseOffering.courseId);
       if (!prereqCheck.satisfied) {
         return res.status(400).json({
           success: false,
@@ -441,7 +461,6 @@ export const enrollInCourse = async (req, res) => {
       }
     }
 
-    // Check capacity
     const isAtCapacity = courseOffering.currentEnrollment >= courseOffering.maxCapacity;
     const shouldWaitlist = isAtCapacity && courseOffering.enrollmentStatus === 'waitlist';
 
@@ -452,11 +471,10 @@ export const enrollInCourse = async (req, res) => {
       });
     }
 
-    // Create enrollment
     const enrollmentData = {
-      student: student._id,
-      courseOffering: courseOfferingId,
-      program: courseOffering.program?._id,
+      studentId: student.id,
+      courseOfferingId,
+      programId: courseOffering.programId,
       academicYear: courseOffering.academicYear,
       semesterNumber: courseOffering.semesterNumber,
       enrollmentType
@@ -471,20 +489,21 @@ export const enrollInCourse = async (req, res) => {
       enrollmentData.enrolledAt = new Date();
     }
 
-    const enrollment = await Enrollment.create(enrollmentData);
+    const enrollment = await prisma.enrollment.create({
+      data: enrollmentData,
+      include: {
+        courseOffering: {
+          include: { course: { select: { id: true, courseCode: true, courseName: true, creditHours: true } } }
+        }
+      }
+    });
 
-    // Update course offering count
     if (!shouldWaitlist) {
-      await CourseOffering.findByIdAndUpdate(courseOfferingId, {
-        $inc: { currentEnrollment: 1 }
+      await prisma.courseOffering.update({
+        where: { id: courseOfferingId },
+        data: { currentEnrollment: { increment: 1 } }
       });
     }
-
-    // Populate for response
-    await enrollment.populate({
-      path: 'courseOffering',
-      populate: { path: 'course', select: 'courseCode courseName creditHours' }
-    });
 
     res.status(201).json({
       success: true,
@@ -502,12 +521,14 @@ export const enrollInCourse = async (req, res) => {
   }
 };
 
-// @desc    Drop a course
-// @route   PUT /api/student/drop/:enrollmentId
-// @access  Private (Student)
+/**
+ * @desc    Drop a course
+ * @route   PUT /api/student/drop/:enrollmentId
+ * @access  Private (Student)
+ */
 export const dropCourse = async (req, res) => {
   try {
-    const student = await getStudentFromUser(req.user._id);
+    const student = await getStudentFromUser(req.user.id);
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -518,10 +539,13 @@ export const dropCourse = async (req, res) => {
     const { enrollmentId } = req.params;
     const { reason } = req.body;
 
-    const enrollment = await Enrollment.findOne({
-      _id: enrollmentId,
-      student: student._id
-    }).populate('courseOffering');
+    const enrollment = await prisma.enrollment.findFirst({
+      where: {
+        id: enrollmentId,
+        studentId: student.id
+      },
+      include: { courseOffering: true }
+    });
 
     if (!enrollment) {
       return res.status(404).json({
@@ -538,32 +562,39 @@ export const dropCourse = async (req, res) => {
     }
 
     const wasWaitlisted = enrollment.status === 'waitlisted';
-    const courseOfferingId = enrollment.courseOffering._id;
+    const courseOfferingId = enrollment.courseOfferingId;
 
-    enrollment.status = 'dropped';
-    enrollment.droppedAt = new Date();
-    enrollment.dropReason = reason;
-    enrollment.waitlistPosition = undefined;
-    await enrollment.save();
+    await prisma.enrollment.update({
+      where: { id: enrollmentId },
+      data: {
+        status: 'dropped',
+        droppedAt: new Date(),
+        dropReason: reason,
+        waitlistPosition: null
+      }
+    });
 
-    // Update course offering count
     if (!wasWaitlisted) {
-      await CourseOffering.findByIdAndUpdate(courseOfferingId, {
-        $inc: { currentEnrollment: -1 }
+      await prisma.courseOffering.update({
+        where: { id: courseOfferingId },
+        data: { currentEnrollment: { decrement: 1 } }
       });
 
-      // Promote from waitlist
       await promoteFromWaitlist(courseOfferingId);
     } else {
-      // Reorder waitlist
-      const remaining = await Enrollment.find({
-        courseOffering: courseOfferingId,
-        status: 'waitlisted'
-      }).sort({ waitlistPosition: 1 });
+      const remaining = await prisma.enrollment.findMany({
+        where: {
+          courseOfferingId,
+          status: 'waitlisted'
+        },
+        orderBy: { waitlistPosition: 'asc' }
+      });
 
       for (let i = 0; i < remaining.length; i++) {
-        remaining[i].waitlistPosition = i + 1;
-        await remaining[i].save();
+        await prisma.enrollment.update({
+          where: { id: remaining[i].id },
+          data: { waitlistPosition: i + 1 }
+        });
       }
     }
 
@@ -580,12 +611,14 @@ export const dropCourse = async (req, res) => {
   }
 };
 
-// @desc    Swap course section
-// @route   PUT /api/student/swap
-// @access  Private (Student)
+/**
+ * @desc    Swap course section
+ * @route   PUT /api/student/swap
+ * @access  Private (Student)
+ */
 export const swapSection = async (req, res) => {
   try {
-    const student = await getStudentFromUser(req.user._id);
+    const student = await getStudentFromUser(req.user.id);
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -595,12 +628,14 @@ export const swapSection = async (req, res) => {
 
     const { currentEnrollmentId, newOfferingId } = req.body;
 
-    // Get current enrollment
-    const currentEnrollment = await Enrollment.findOne({
-      _id: currentEnrollmentId,
-      student: student._id,
-      status: { $in: ['enrolled', 'active'] }
-    }).populate('courseOffering');
+    const currentEnrollment = await prisma.enrollment.findFirst({
+      where: {
+        id: currentEnrollmentId,
+        studentId: student.id,
+        status: { in: ['enrolled', 'active'] }
+      },
+      include: { courseOffering: true }
+    });
 
     if (!currentEnrollment) {
       return res.status(404).json({
@@ -609,9 +644,10 @@ export const swapSection = async (req, res) => {
       });
     }
 
-    // Get new offering
-    const newOffering = await CourseOffering.findById(newOfferingId)
-      .populate('course');
+    const newOffering = await prisma.courseOffering.findUnique({
+      where: { id: newOfferingId },
+      include: { course: true }
+    });
 
     if (!newOffering) {
       return res.status(404).json({
@@ -620,19 +656,19 @@ export const swapSection = async (req, res) => {
       });
     }
 
-    // Verify same course
-    if (currentEnrollment.courseOffering.course.toString() !== newOffering.course._id.toString()) {
+    if (currentEnrollment.courseOffering.courseId !== newOffering.courseId) {
       return res.status(400).json({
         success: false,
         message: 'Can only swap between sections of the same course'
       });
     }
 
-    // Check if already enrolled in new offering
-    const existingInNew = await Enrollment.findOne({
-      student: student._id,
-      courseOffering: newOfferingId,
-      status: { $nin: ['dropped', 'withdrawn'] }
+    const existingInNew = await prisma.enrollment.findFirst({
+      where: {
+        studentId: student.id,
+        courseOfferingId: newOfferingId,
+        status: { notIn: ['dropped', 'withdrawn'] }
+      }
     });
 
     if (existingInNew) {
@@ -642,7 +678,6 @@ export const swapSection = async (req, res) => {
       });
     }
 
-    // Check capacity in new offering
     if (newOffering.currentEnrollment >= newOffering.maxCapacity) {
       return res.status(400).json({
         success: false,
@@ -650,7 +685,6 @@ export const swapSection = async (req, res) => {
       });
     }
 
-    // Check if new offering allows enrollment
     if (newOffering.enrollmentStatus === 'closed') {
       return res.status(400).json({
         success: false,
@@ -658,45 +692,46 @@ export const swapSection = async (req, res) => {
       });
     }
 
-    // Perform swap
-    const oldOfferingId = currentEnrollment.courseOffering._id;
+    const oldOfferingId = currentEnrollment.courseOfferingId;
 
-    // Drop from current
-    currentEnrollment.status = 'dropped';
-    currentEnrollment.droppedAt = new Date();
-    currentEnrollment.dropReason = `Swapped to section ${newOffering.section}`;
-    await currentEnrollment.save();
-
-    // Update old offering count
-    await CourseOffering.findByIdAndUpdate(oldOfferingId, {
-      $inc: { currentEnrollment: -1 }
+    await prisma.enrollment.update({
+      where: { id: currentEnrollmentId },
+      data: {
+        status: 'dropped',
+        droppedAt: new Date(),
+        dropReason: `Swapped to section ${newOffering.section}`
+      }
     });
 
-    // Create new enrollment
-    const newEnrollment = await Enrollment.create({
-      student: student._id,
-      courseOffering: newOfferingId,
-      program: newOffering.program,
-      academicYear: newOffering.academicYear,
-      semesterNumber: newOffering.semesterNumber,
-      enrollmentType: currentEnrollment.enrollmentType,
-      status: 'enrolled',
-      enrolledAt: new Date()
+    await prisma.courseOffering.update({
+      where: { id: oldOfferingId },
+      data: { currentEnrollment: { decrement: 1 } }
     });
 
-    // Update new offering count
-    await CourseOffering.findByIdAndUpdate(newOfferingId, {
-      $inc: { currentEnrollment: 1 }
+    const newEnrollment = await prisma.enrollment.create({
+      data: {
+        studentId: student.id,
+        courseOfferingId: newOfferingId,
+        programId: newOffering.programId,
+        academicYear: newOffering.academicYear,
+        semesterNumber: newOffering.semesterNumber,
+        enrollmentType: currentEnrollment.enrollmentType,
+        status: 'enrolled',
+        enrolledAt: new Date()
+      },
+      include: {
+        courseOffering: {
+          include: { course: { select: { id: true, courseCode: true, courseName: true } } }
+        }
+      }
     });
 
-    // Promote from waitlist for old offering
+    await prisma.courseOffering.update({
+      where: { id: newOfferingId },
+      data: { currentEnrollment: { increment: 1 } }
+    });
+
     await promoteFromWaitlist(oldOfferingId);
-
-    // Populate for response
-    await newEnrollment.populate({
-      path: 'courseOffering',
-      populate: { path: 'course', select: 'courseCode courseName' }
-    });
 
     res.status(200).json({
       success: true,
@@ -716,12 +751,14 @@ export const swapSection = async (req, res) => {
   }
 };
 
-// @desc    Get my timetable
-// @route   GET /api/student/timetable
-// @access  Private (Student)
+/**
+ * @desc    Get my timetable
+ * @route   GET /api/student/timetable
+ * @access  Private (Student)
+ */
 export const getMyTimetable = async (req, res) => {
   try {
-    const student = await getStudentFromUser(req.user._id);
+    const student = await getStudentFromUser(req.user.id);
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -731,63 +768,42 @@ export const getMyTimetable = async (req, res) => {
 
     const { academicYear, semesterNumber } = req.query;
 
-    const query = {
-      student: student._id,
-      status: { $in: ['enrolled', 'active'] }
+    const where = {
+      studentId: student.id,
+      status: { in: ['enrolled', 'active'] }
     };
 
-    if (academicYear) query.academicYear = academicYear;
-    if (semesterNumber) query.semesterNumber = parseInt(semesterNumber);
+    if (academicYear) where.academicYear = academicYear;
+    if (semesterNumber) where.semesterNumber = parseInt(semesterNumber);
 
-    const enrollments = await Enrollment.find(query)
-      .populate({
-        path: 'courseOffering',
-        populate: [
-          { path: 'course', select: 'courseCode courseName creditHours courseType' },
-          { path: 'teacher', select: 'userId', populate: { path: 'userId', select: 'firstName lastName' } }
-        ]
-      });
-
-    // Build timetable structure
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const timetable = {};
-    
-    days.forEach(day => {
-      timetable[day] = [];
-    });
-
-    for (const enrollment of enrollments) {
-      if (!enrollment.courseOffering || !enrollment.courseOffering.schedule) continue;
-
-      for (const slot of enrollment.courseOffering.schedule) {
-        if (slot.day && timetable[slot.day]) {
-          timetable[slot.day].push({
-            courseCode: enrollment.courseOffering.course.courseCode,
-            courseName: enrollment.courseOffering.course.courseName,
-            section: enrollment.courseOffering.section,
-            type: slot.type,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            room: slot.room,
-            teacher: enrollment.courseOffering.teacher?.userId
-              ? `${enrollment.courseOffering.teacher.userId.firstName} ${enrollment.courseOffering.teacher.userId.lastName}`
-              : null
-          });
+    const enrollments = await prisma.enrollment.findMany({
+      where,
+      include: {
+        courseOffering: {
+          include: {
+            course: { select: { id: true, courseCode: true, courseName: true, creditHours: true, courseType: true } },
+            teacher: { select: { id: true, user: { select: { id: true, name: true } } } }
+          }
         }
       }
-    }
+    });
 
-    // Sort each day by start time
-    for (const day in timetable) {
-      timetable[day].sort((a, b) => {
-        const timeA = a.startTime || '00:00';
-        const timeB = b.startTime || '00:00';
-        return timeA.localeCompare(timeB);
-      });
-    }
+    const timetable = enrollments.map(enrollment => ({
+      enrollmentId: enrollment.id,
+      course: {
+        code: enrollment.courseOffering?.course?.courseCode,
+        name: enrollment.courseOffering?.course?.courseName,
+        creditHours: enrollment.courseOffering?.course?.creditHours,
+        type: enrollment.courseOffering?.course?.courseType
+      },
+      section: enrollment.courseOffering?.section,
+      teacher: enrollment.courseOffering?.teacher?.user?.name,
+      schedule: enrollment.courseOffering?.schedule || []
+    }));
 
     res.status(200).json({
       success: true,
+      count: timetable.length,
       data: timetable
     });
   } catch (error) {
@@ -799,286 +815,14 @@ export const getMyTimetable = async (req, res) => {
   }
 };
 
-// @desc    Get my grades
-// @route   GET /api/student/grades
-// @access  Private (Student)
-export const getMyGrades = async (req, res) => {
-  try {
-    const student = await getStudentFromUser(req.user._id);
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student profile not found'
-      });
-    }
-
-    const { academicYear, semesterNumber } = req.query;
-
-    const query = {
-      student: student._id
-    };
-
-    if (academicYear) query.academicYear = academicYear;
-    if (semesterNumber) query.semesterNumber = parseInt(semesterNumber);
-
-    const enrollments = await Enrollment.find(query)
-      .populate({
-        path: 'courseOffering',
-        populate: [
-          { path: 'course', select: 'courseCode courseName creditHours courseType' },
-          { path: 'program', select: 'programCode programName' }
-        ]
-      })
-      .sort({ academicYear: -1, semesterNumber: -1 });
-
-    const grades = enrollments
-      .filter(e => e.courseOffering && e.courseOffering.course)
-      .map(enrollment => ({
-        enrollmentId: enrollment._id,
-        academicYear: enrollment.academicYear,
-        semesterNumber: enrollment.semesterNumber,
-        course: {
-          code: enrollment.courseOffering.course.courseCode,
-          name: enrollment.courseOffering.course.courseName,
-          creditHours: enrollment.courseOffering.course.creditHours,
-          type: enrollment.courseOffering.course.courseType
-        },
-        section: enrollment.courseOffering.section,
-        enrollmentType: enrollment.enrollmentType,
-        status: enrollment.status,
-        marks: {
-          midterm: enrollment.midtermMarks,
-          final: enrollment.finalMarks,
-          assignment: enrollment.assignmentMarks,
-          quiz: enrollment.quizMarks,
-          lab: enrollment.labMarks,
-          total: enrollment.totalMarks
-        },
-        grade: enrollment.grade,
-        gradePoints: enrollment.gradePoints,
-        completedAt: enrollment.completedAt
-      }));
-
-    res.status(200).json({
-      success: true,
-      count: grades.length,
-      data: grades
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching grades',
-      error: error.message
-    });
-  }
-};
-
-// @desc    Get my transcript
-// @route   GET /api/student/transcript
-// @access  Private (Student)
-export const getMyTranscript = async (req, res) => {
-  try {
-    const student = await getStudentFromUser(req.user._id);
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student profile not found'
-      });
-    }
-
-    await student.populate({
-      path: 'userId',
-      select: 'firstName lastName email'
-    });
-
-    // Get all completed/graded enrollments
-    const enrollments = await Enrollment.find({
-      student: student._id,
-      status: { $in: ['completed', 'failed', 'withdrawn'] }
-    })
-      .populate({
-        path: 'courseOffering',
-        select: 'course academicYear semesterNumber section',
-        populate: {
-          path: 'course',
-          select: 'courseCode courseName creditHours courseType domain'
-        }
-      })
-      .populate('program', 'programCode programName')
-      .sort({ academicYear: 1, semesterNumber: 1 });
-
-    // Group by semester
-    const semesters = {};
-    let totalCreditsAttempted = 0;
-    let totalCreditsEarned = 0;
-    let totalGradePoints = 0;
-
-    for (const enrollment of enrollments) {
-      if (!enrollment.courseOffering || !enrollment.courseOffering.course) continue;
-
-      const key = `${enrollment.academicYear}-S${enrollment.semesterNumber}`;
-      const creditHours = enrollment.courseOffering.course.creditHours;
-
-      if (!semesters[key]) {
-        semesters[key] = {
-          academicYear: enrollment.academicYear,
-          semesterNumber: enrollment.semesterNumber,
-          courses: [],
-          semesterCreditsAttempted: 0,
-          semesterCreditsEarned: 0,
-          semesterGradePoints: 0,
-          semesterGPA: 0
-        };
-      }
-
-      const course = {
-        courseCode: enrollment.courseOffering.course.courseCode,
-        courseName: enrollment.courseOffering.course.courseName,
-        creditHours: creditHours,
-        grade: enrollment.grade,
-        gradePoints: enrollment.gradePoints,
-        status: enrollment.status,
-        section: enrollment.courseOffering.section,
-        enrollmentType: enrollment.enrollmentType
-      };
-
-      semesters[key].courses.push(course);
-
-      // Calculate credits (exclude W, I, P, NP)
-      if (!['W', 'I', 'P', 'NP'].includes(enrollment.grade)) {
-        semesters[key].semesterCreditsAttempted += creditHours;
-        totalCreditsAttempted += creditHours;
-
-        if (enrollment.gradePoints !== null && enrollment.gradePoints !== undefined) {
-          semesters[key].semesterGradePoints += enrollment.gradePoints * creditHours;
-          totalGradePoints += enrollment.gradePoints * creditHours;
-
-          // Earned credits (passing grade)
-          if (enrollment.grade !== 'F') {
-            semesters[key].semesterCreditsEarned += creditHours;
-            totalCreditsEarned += creditHours;
-          }
-        }
-      }
-    }
-
-    // Calculate semester GPAs
-    const semesterList = Object.values(semesters).map(sem => {
-      sem.semesterGPA = sem.semesterCreditsAttempted > 0
-        ? Math.round((sem.semesterGradePoints / sem.semesterCreditsAttempted) * 100) / 100
-        : 0;
-      return sem;
-    }).sort((a, b) => {
-      if (a.academicYear !== b.academicYear) return a.academicYear.localeCompare(b.academicYear);
-      return a.semesterNumber - b.semesterNumber;
-    });
-
-    // Calculate CGPA
-    const cgpa = totalCreditsAttempted > 0
-      ? Math.round((totalGradePoints / totalCreditsAttempted) * 100) / 100
-      : 0;
-
-    res.status(200).json({
-      success: true,
-      data: {
-        student: {
-          studentId: student.studentId,
-          name: `${student.userId.firstName} ${student.userId.lastName}`,
-          email: student.userId.email,
-          enrollmentYear: student.enrollmentYear,
-          department: student.department,
-          batch: student.batch,
-          currentSemester: student.currentSemester
-        },
-        semesters: semesterList,
-        summary: {
-          totalCreditsAttempted,
-          totalCreditsEarned,
-          totalGradePoints: Math.round(totalGradePoints * 100) / 100,
-          cgpa
-        }
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error generating transcript',
-      error: error.message
-    });
-  }
-};
-
-// @desc    Get my CGPA
-// @route   GET /api/student/cgpa
-// @access  Private (Student)
-export const getMyCGPA = async (req, res) => {
-  try {
-    const student = await getStudentFromUser(req.user._id);
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student profile not found'
-      });
-    }
-
-    const enrollments = await Enrollment.find({
-      student: student._id,
-      status: { $in: ['completed', 'failed'] },
-      grade: { $nin: ['W', 'I', 'P', 'NP'] }
-    }).populate({
-      path: 'courseOffering',
-      select: 'course',
-      populate: {
-        path: 'course',
-        select: 'creditHours'
-      }
-    });
-
-    let totalCredits = 0;
-    let totalGradePoints = 0;
-
-    for (const enrollment of enrollments) {
-      if (!enrollment.courseOffering || !enrollment.courseOffering.course) continue;
-
-      const creditHours = enrollment.courseOffering.course.creditHours;
-      const gradePoints = enrollment.gradePoints || 0;
-
-      totalCredits += creditHours;
-      totalGradePoints += gradePoints * creditHours;
-    }
-
-    const cgpa = totalCredits > 0
-      ? Math.round((totalGradePoints / totalCredits) * 100) / 100
-      : 0;
-
-    // Update student record
-    student.cgpa = cgpa;
-    student.totalCredits = totalCredits;
-    await student.save();
-
-    res.status(200).json({
-      success: true,
-      data: {
-        totalCredits,
-        totalGradePoints: Math.round(totalGradePoints * 100) / 100,
-        cgpa
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error calculating CGPA',
-      error: error.message
-    });
-  }
-};
-
-// @desc    Get my waitlist positions
-// @route   GET /api/student/waitlist
-// @access  Private (Student)
+/**
+ * @desc    Get my waitlist positions
+ * @route   GET /api/student/waitlist
+ * @access  Private (Student)
+ */
 export const getMyWaitlist = async (req, res) => {
   try {
-    const student = await getStudentFromUser(req.user._id);
+    const student = await getStudentFromUser(req.user.id);
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -1086,42 +830,42 @@ export const getMyWaitlist = async (req, res) => {
       });
     }
 
-    const waitlisted = await Enrollment.find({
-      student: student._id,
-      status: 'waitlisted'
-    })
-      .populate({
-        path: 'courseOffering',
-        populate: [
-          { path: 'course', select: 'courseCode courseName creditHours' },
-          { path: 'teacher', select: 'userId', populate: { path: 'userId', select: 'firstName lastName' } }
-        ]
-      })
-      .sort({ waitlistAddedAt: 1 });
+    const waitlisted = await prisma.enrollment.findMany({
+      where: {
+        studentId: student.id,
+        status: 'waitlisted'
+      },
+      include: {
+        courseOffering: {
+          include: {
+            course: { select: { id: true, courseCode: true, courseName: true, creditHours: true } },
+            teacher: { select: { id: true, user: { select: { id: true, name: true } } } }
+          }
+        }
+      },
+      orderBy: { waitlistAddedAt: 'asc' }
+    });
 
     const waitlist = await Promise.all(waitlisted.map(async (enrollment) => {
-      // Get total in waitlist for this offering
-      const totalWaitlisted = await Enrollment.countDocuments({
-        courseOffering: enrollment.courseOffering._id,
-        status: 'waitlisted'
+      const totalWaitlisted = await prisma.enrollment.count({
+        where: {
+          courseOfferingId: enrollment.courseOfferingId,
+          status: 'waitlisted'
+        }
       });
 
       return {
-        enrollmentId: enrollment._id,
+        enrollmentId: enrollment.id,
         position: enrollment.waitlistPosition,
         totalInWaitlist: totalWaitlisted,
         addedAt: enrollment.waitlistAddedAt,
         course: {
-          code: enrollment.courseOffering.course.courseCode,
-          name: enrollment.courseOffering.course.courseName,
-          creditHours: enrollment.courseOffering.course.creditHours
+          code: enrollment.courseOffering?.course?.courseCode,
+          name: enrollment.courseOffering?.course?.courseName,
+          creditHours: enrollment.courseOffering?.course?.creditHours
         },
-        section: enrollment.courseOffering.section,
-        teacher: enrollment.courseOffering.teacher?.userId
-          ? `${enrollment.courseOffering.teacher.userId.firstName} ${enrollment.courseOffering.teacher.userId.lastName}`
-          : null,
-        academicYear: enrollment.academicYear,
-        semesterNumber: enrollment.semesterNumber
+        section: enrollment.courseOffering?.section,
+        teacher: enrollment.courseOffering?.teacher?.user?.name || null
       };
     }));
 
@@ -1139,12 +883,14 @@ export const getMyWaitlist = async (req, res) => {
   }
 };
 
-// @desc    Check prerequisites for a course
-// @route   GET /api/student/check-prerequisites/:courseId
-// @access  Private (Student)
-export const checkMyPrerequisites = async (req, res) => {
+/**
+ * @desc    Get dashboard data
+ * @route   GET /api/student/dashboard
+ * @access  Private (Student)
+ */
+export const getDashboard = async (req, res) => {
   try {
-    const student = await getStudentFromUser(req.user._id);
+    const student = await getStudentFromUser(req.user.id);
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -1152,41 +898,273 @@ export const checkMyPrerequisites = async (req, res) => {
       });
     }
 
-    const { courseId } = req.params;
+    // Current courses
+    const currentCourses = await prisma.enrollment.findMany({
+      where: {
+        studentId: student.id,
+        status: { in: ['enrolled', 'active'] }
+      },
+      include: { courseOffering: { include: { course: true } } }
+    });
 
-    const course = await Course.findById(courseId)
-      .populate('prerequisites', 'courseCode courseName creditHours');
+    // Completed courses
+    const completedEnrollments = await prisma.enrollment.findMany({
+      where: {
+        studentId: student.id,
+        status: { in: ['completed', 'failed'] }
+      }
+    });
 
-    if (!course) {
-      return res.status(404).json({
-        success: false,
-        message: 'Course not found'
-      });
-    }
+    // Waitlisted courses
+    const waitlistedEnrollments = await prisma.enrollment.findMany({
+      where: {
+        studentId: student.id,
+        status: 'waitlisted'
+      }
+    });
 
-    const result = await checkPrerequisites(student._id, courseId);
+    const totalCredits = currentCourses.reduce((sum, e) => sum + (e.courseOffering?.course?.creditHours || 0), 0);
 
     res.status(200).json({
       success: true,
       data: {
-        course: {
-          code: course.courseCode,
-          name: course.courseName
+        student: {
+          studentId: student.studentId,
+          name: student.user?.name,
+          department: student.department,
+          batch: student.batch,
+          currentSemester: student.currentSemester,
+          cgpa: student.cgpa
         },
-        prerequisites: course.prerequisites.map(p => ({
-          code: p.courseCode,
-          name: p.courseName,
-          creditHours: p.creditHours
-        })),
-        satisfied: result.satisfied,
-        missing: result.missing
+        stats: {
+          currentEnrollments: currentCourses.length,
+          completedCourses: completedEnrollments.length,
+          failedCourses: completedEnrollments.filter(e => e.grade === 'F').length,
+          totalCredits,
+          waitlistedCourses: waitlistedEnrollments.length
+        },
+        currentCourses: currentCourses.slice(0, 5)
       }
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error checking prerequisites',
+      message: 'Error fetching dashboard',
       error: error.message
     });
+  }
+};
+
+/**
+ * @desc    Get current student's grades
+ * @route   GET /api/student/grades
+ * @access  Private (Student)
+ */
+export const getMyGrades = async (req, res) => {
+  try {
+    const student = await getStudentFromUser(req.user.id);
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student profile not found' });
+    }
+
+    const { academicYear, semesterNumber } = req.query;
+
+    const where = {
+      studentId: student.id,
+      grade: { not: null }
+    };
+    if (academicYear) where.academicYear = academicYear;
+    if (semesterNumber) where.semesterNumber = parseInt(semesterNumber);
+
+    const enrollments = await prisma.enrollment.findMany({
+      where,
+      include: {
+        courseOffering: {
+          include: { course: { select: { courseCode: true, courseName: true, creditHours: true } } }
+        }
+      },
+      orderBy: [{ academicYear: 'desc' }, { semesterNumber: 'desc' }]
+    });
+
+    const grades = enrollments.map(e => ({
+      enrollmentId: e.id,
+      courseCode: e.courseOffering?.course?.courseCode,
+      courseName: e.courseOffering?.course?.courseName,
+      creditHours: e.courseOffering?.course?.creditHours,
+      grade: e.grade,
+      gpa: e.gpa,
+      obtainedMarks: e.obtainedMarks,
+      totalMarks: e.totalMarks,
+      percentage: e.percentage,
+      marks: {
+        midterm: e.midtermMarks,
+        final: e.finalMarks,
+        assignment: e.assignmentMarks,
+        quiz: e.quizMarks,
+        lab: e.labMarks
+      },
+      academicYear: e.academicYear,
+      semester: e.semesterNumber
+    }));
+
+    res.status(200).json({ success: true, total: grades.length, data: grades });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching grades', error: error.message });
+  }
+};
+
+/**
+ * @desc    Get current student's full transcript
+ * @route   GET /api/student/transcript
+ * @access  Private (Student)
+ */
+export const getMyTranscript = async (req, res) => {
+  try {
+    const student = await getStudentFromUser(req.user.id);
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student profile not found' });
+    }
+
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        studentId: student.id,
+        status: { in: ['completed', 'enrolled', 'active'] }
+      },
+      include: {
+        courseOffering: { include: { course: true } }
+      },
+      orderBy: [{ academicYear: 'asc' }, { semesterNumber: 'asc' }]
+    });
+
+    // Group by semester
+    const semesterMap = {};
+    let totalCreditsEarned = 0;
+    let weightedGPASum = 0;
+
+    for (const e of enrollments) {
+      const key = `${e.academicYear}-${e.semesterNumber}`;
+      if (!semesterMap[key]) {
+        semesterMap[key] = { academicYear: e.academicYear, semesterNumber: e.semesterNumber, courses: [] };
+      }
+      const creditHours = e.courseOffering?.course?.creditHours || 0;
+      const gpa = e.gpa ?? GRADE_POINTS[e.grade] ?? null;
+
+      semesterMap[key].courses.push({
+        courseCode: e.courseOffering?.course?.courseCode,
+        courseName: e.courseOffering?.course?.courseName,
+        creditHours,
+        grade: e.grade,
+        gpa,
+        status: e.status
+      });
+
+      if (gpa !== null && e.status === 'completed') {
+        totalCreditsEarned += creditHours;
+        weightedGPASum += gpa * creditHours;
+      }
+    }
+
+    const cgpa = totalCreditsEarned > 0 ? Math.round((weightedGPASum / totalCreditsEarned) * 100) / 100 : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        studentId: student.studentId,
+        semesters: Object.values(semesterMap),
+        totalCreditsEarned,
+        cgpa
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching transcript', error: error.message });
+  }
+};
+
+/**
+ * @desc    Get current student's CGPA
+ * @route   GET /api/student/cgpa
+ * @access  Private (Student)
+ */
+export const getMyCGPA = async (req, res) => {
+  try {
+    const student = await getStudentFromUser(req.user.id);
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student profile not found' });
+    }
+
+    const completedEnrollments = await prisma.enrollment.findMany({
+      where: {
+        studentId: student.id,
+        status: 'completed',
+        grade: { not: null },
+        gpa: { not: null }
+      },
+      include: {
+        courseOffering: { include: { course: { select: { creditHours: true } } } }
+      }
+    });
+
+    let totalCredits = 0;
+    let weightedSum = 0;
+
+    for (const e of completedEnrollments) {
+      const credits = e.courseOffering?.course?.creditHours || 0;
+      const gpa = e.gpa || 0;
+      totalCredits += credits;
+      weightedSum += gpa * credits;
+    }
+
+    const cgpa = totalCredits > 0 ? Math.round((weightedSum / totalCredits) * 100) / 100 : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        cgpa,
+        totalCreditsCompleted: totalCredits,
+        coursesCompleted: completedEnrollments.length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error calculating CGPA', error: error.message });
+  }
+};
+
+/**
+ * @desc    Check prerequisites for a course
+ * @route   GET /api/student/check-prerequisites/:courseId
+ * @access  Private (Student)
+ */
+export const checkMyPrerequisites = async (req, res) => {
+  try {
+    const student = await getStudentFromUser(req.user.id);
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student profile not found' });
+    }
+
+    const { courseId } = req.params;
+
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      include: { prerequisites: true }
+    });
+
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found' });
+    }
+
+    const result = await checkPrerequisites(student.id, courseId);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        courseCode: course.courseCode,
+        courseName: course.courseName,
+        prerequisitesSatisfied: result.satisfied,
+        missingPrerequisites: result.missing,
+        totalPrerequisites: course.prerequisites.length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error checking prerequisites', error: error.message });
   }
 };

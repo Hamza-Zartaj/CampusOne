@@ -1,4 +1,4 @@
-import Course from '../models/Course.js';
+import prisma from '../prisma/client.js';
 
 /**
  * @desc    Get all courses with pagination and search
@@ -14,39 +14,38 @@ export const getAllCourses = async (req, res) => {
       department, 
       program, 
       courseType, 
-      isActive, 
-      includeSoftDeleted 
+      isActive 
     } = req.query;
 
-    // Build query
-    const query = {};
+    // Build where clause
+    const where = {};
 
     // Filter by department
     if (department) {
-      query.department = department;
+      where.departmentId = department;
     }
 
     // Filter by program
     if (program) {
-      query.program = program;
+      where.programId = program;
     }
 
     // Filter by course type
     if (courseType) {
-      query.courseType = courseType;
+      where.courseType = courseType;
     }
 
     // Filter by active status
     if (isActive !== undefined && isActive !== '' && isActive !== 'all') {
-      query.isActive = isActive === 'true';
+      where.isActive = isActive === 'true';
     }
 
     // Search by code, name, or description
     if (search) {
-      query.$or = [
-        { courseCode: { $regex: search, $options: 'i' } },
-        { courseName: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+      where.OR = [
+        { courseCode: { contains: search, mode: 'insensitive' } },
+        { courseName: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
       ];
     }
 
@@ -55,21 +54,21 @@ export const getAllCourses = async (req, res) => {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // Query options
-    const queryOptions = includeSoftDeleted === 'true' ? { includeSoftDeleted: true } : {};
-
     // Get total count
-    const total = await Course.countDocuments(query).setOptions(queryOptions);
+    const total = await prisma.course.count({ where });
 
     // Get courses
-    const courses = await Course.find(query)
-      .setOptions(queryOptions)
-      .populate('department', 'departmentCode name')
-      .populate('program', 'programCode name')
-      .populate('prerequisites', 'courseCode courseName')
-      .sort({ courseCode: 1 })
-      .skip(skip)
-      .limit(limitNum);
+    const courses = await prisma.course.findMany({
+      where,
+      include: {
+        department: { select: { id: true, departmentCode: true, name: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+      },
+      orderBy: { courseCode: 'asc' },
+      skip,
+      take: limitNum
+    });
 
     // Calculate pagination info
     const totalPages = Math.ceil(total / limitNum);
@@ -105,10 +104,14 @@ export const getCourseById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const course = await Course.findById(id)
-      .populate('department', 'departmentCode name')
-      .populate('program', 'programCode name')
-      .populate('prerequisites', 'courseCode courseName creditHours');
+    const course = await prisma.course.findUnique({
+      where: { id },
+      include: {
+        department: { select: { id: true, departmentCode: true, name: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        prerequisites: { select: { id: true, courseCode: true, courseName: true, creditHours: true } }
+      }
+    });
 
     if (!course) {
       return res.status(404).json({
@@ -139,10 +142,14 @@ export const getCourseByCode = async (req, res) => {
   try {
     const { code } = req.params;
 
-    const course = await Course.findOne({ courseCode: code.toUpperCase() })
-      .populate('department', 'departmentCode name')
-      .populate('program', 'programCode name')
-      .populate('prerequisites', 'courseCode courseName creditHours');
+    const course = await prisma.course.findUnique({
+      where: { courseCode: code.toUpperCase() },
+      include: {
+        department: { select: { id: true, departmentCode: true, name: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        prerequisites: { select: { id: true, courseCode: true, courseName: true, creditHours: true } }
+      }
+    });
 
     if (!course) {
       return res.status(404).json({
@@ -177,21 +184,29 @@ export const getPrereqTree = async (req, res) => {
     // Recursive function to build prereq tree
     const buildPrereqTree = async (courseId, depth = 0, maxDepth = 10) => {
       // Prevent infinite loops and limit depth
-      if (visited.has(courseId.toString()) || depth > maxDepth) {
+      if (visited.has(courseId) || depth > maxDepth) {
         return null;
       }
-      visited.add(courseId.toString());
+      visited.add(courseId);
 
-      const course = await Course.findById(courseId)
-        .select('courseCode courseName creditHours courseType prerequisites')
-        .lean();
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
+        select: {
+          id: true,
+          courseCode: true,
+          courseName: true,
+          creditHours: true,
+          courseType: true,
+          prerequisites: { select: { id: true } }
+        }
+      });
 
       if (!course) {
         return null;
       }
 
       const prereqTree = {
-        _id: course._id,
+        id: course.id,
         courseCode: course.courseCode,
         courseName: course.courseName,
         creditHours: course.creditHours,
@@ -202,8 +217,8 @@ export const getPrereqTree = async (req, res) => {
 
       // Recursively get prerequisites
       if (course.prerequisites && course.prerequisites.length > 0) {
-        for (const prereqId of course.prerequisites) {
-          const prereqTree2 = await buildPrereqTree(prereqId, depth + 1, maxDepth);
+        for (const prereq of course.prerequisites) {
+          const prereqTree2 = await buildPrereqTree(prereq.id, depth + 1, maxDepth);
           if (prereqTree2) {
             prereqTree.prerequisites.push(prereqTree2);
           }
@@ -227,7 +242,7 @@ export const getPrereqTree = async (req, res) => {
       if (node.prerequisites) {
         for (const prereq of node.prerequisites) {
           list.push({
-            _id: prereq._id,
+            id: prereq.id,
             courseCode: prereq.courseCode,
             courseName: prereq.courseName,
             creditHours: prereq.creditHours,
@@ -269,21 +284,25 @@ export const getCoursesByDepartment = async (req, res) => {
     const { departmentId } = req.params;
     const { isActive, courseType } = req.query;
 
-    const query = { department: departmentId };
+    const where = { departmentId };
     
     if (isActive !== undefined && isActive !== '' && isActive !== 'all') {
-      query.isActive = isActive === 'true';
+      where.isActive = isActive === 'true';
     }
 
     if (courseType) {
-      query.courseType = courseType;
+      where.courseType = courseType;
     }
 
-    const courses = await Course.find(query)
-      .populate('department', 'departmentCode name')
-      .populate('program', 'programCode name')
-      .populate('prerequisites', 'courseCode courseName')
-      .sort({ courseCode: 1 });
+    const courses = await prisma.course.findMany({
+      where,
+      include: {
+        department: { select: { id: true, departmentCode: true, name: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+      },
+      orderBy: { courseCode: 'asc' }
+    });
 
     res.status(200).json({
       success: true,
@@ -309,21 +328,25 @@ export const getCoursesByProgram = async (req, res) => {
     const { programId } = req.params;
     const { isActive, courseType } = req.query;
 
-    const query = { program: programId };
+    const where = { programId };
     
     if (isActive !== undefined && isActive !== '' && isActive !== 'all') {
-      query.isActive = isActive === 'true';
+      where.isActive = isActive === 'true';
     }
 
     if (courseType) {
-      query.courseType = courseType;
+      where.courseType = courseType;
     }
 
-    const courses = await Course.find(query)
-      .populate('department', 'departmentCode name')
-      .populate('program', 'programCode name')
-      .populate('prerequisites', 'courseCode courseName')
-      .sort({ courseCode: 1 });
+    const courses = await prisma.course.findMany({
+      where,
+      include: {
+        department: { select: { id: true, departmentCode: true, name: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+      },
+      orderBy: { courseCode: 'asc' }
+    });
 
     res.status(200).json({
       success: true,
@@ -350,16 +373,17 @@ export const createCourse = async (req, res) => {
       courseCode,
       courseName,
       description,
-      department,
-      program,
+      departmentId,
+      programId,
       creditHours,
       courseType,
       prerequisites
     } = req.body;
 
     // Check if course code already exists
-    const existingCourse = await Course.findOne({ courseCode: courseCode.toUpperCase() })
-      .setOptions({ includeSoftDeleted: true });
+    const existingCourse = await prisma.course.findUnique({
+      where: { courseCode: courseCode.toUpperCase() }
+    });
     
     if (existingCourse) {
       return res.status(400).json({
@@ -370,7 +394,9 @@ export const createCourse = async (req, res) => {
 
     // Validate prerequisites exist
     if (prerequisites && prerequisites.length > 0) {
-      const prereqCourses = await Course.find({ _id: { $in: prerequisites } });
+      const prereqCourses = await prisma.course.findMany({
+        where: { id: { in: prerequisites } }
+      });
       if (prereqCourses.length !== prerequisites.length) {
         return res.status(400).json({
           success: false,
@@ -379,23 +405,25 @@ export const createCourse = async (req, res) => {
       }
     }
 
-    const course = await Course.create({
-      courseCode,
-      courseName,
-      description,
-      department,
-      program,
-      creditHours,
-      courseType,
-      prerequisites
+    const course = await prisma.course.create({
+      data: {
+        courseCode: courseCode.toUpperCase(),
+        courseName,
+        description,
+        departmentId,
+        programId: programId || null,
+        creditHours: parseInt(creditHours),
+        courseType,
+        prerequisites: prerequisites && prerequisites.length > 0 
+          ? { connect: prerequisites.map(id => ({ id })) }
+          : undefined
+      },
+      include: {
+        department: { select: { id: true, departmentCode: true, name: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+      }
     });
-
-    // Populate references before returning
-    await course.populate([
-      { path: 'department', select: 'departmentCode name' },
-      { path: 'program', select: 'programCode name' },
-      { path: 'prerequisites', select: 'courseCode courseName' }
-    ]);
 
     res.status(201).json({
       success: true,
@@ -403,6 +431,18 @@ export const createCourse = async (req, res) => {
       data: course
     });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Department or Program not found'
+      });
+    }
+    if (error.code === 'P2002') {
+      return res.status(400).json({
+        success: false,
+        message: 'Course code must be unique'
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Error creating course',
@@ -423,15 +463,15 @@ export const updateCourse = async (req, res) => {
       courseCode,
       courseName,
       description,
-      department,
-      program,
+      departmentId,
+      programId,
       creditHours,
       courseType,
       prerequisites,
       isActive
     } = req.body;
 
-    const course = await Course.findById(id);
+    const course = await prisma.course.findUnique({ where: { id } });
 
     if (!course) {
       return res.status(404).json({
@@ -442,10 +482,9 @@ export const updateCourse = async (req, res) => {
 
     // Check if updating to a code that already exists
     if (courseCode && courseCode.toUpperCase() !== course.courseCode) {
-      const existingCourse = await Course.findOne({ 
-        courseCode: courseCode.toUpperCase(),
-        _id: { $ne: id }
-      }).setOptions({ includeSoftDeleted: true });
+      const existingCourse = await prisma.course.findUnique({
+        where: { courseCode: courseCode.toUpperCase() }
+      });
       
       if (existingCourse) {
         return res.status(400).json({
@@ -463,7 +502,9 @@ export const updateCourse = async (req, res) => {
           message: 'Course cannot be its own prerequisite'
         });
       }
-      const prereqCourses = await Course.find({ _id: { $in: prerequisites } });
+      const prereqCourses = await prisma.course.findMany({
+        where: { id: { in: prerequisites } }
+      });
       if (prereqCourses.length !== prerequisites.length) {
         return res.status(400).json({
           success: false,
@@ -472,32 +513,44 @@ export const updateCourse = async (req, res) => {
       }
     }
 
-    // Update fields
-    if (courseCode) course.courseCode = courseCode;
-    if (courseName) course.courseName = courseName;
-    if (description !== undefined) course.description = description;
-    if (department) course.department = department;
-    if (program !== undefined) course.program = program || null;
-    if (creditHours) course.creditHours = creditHours;
-    if (courseType) course.courseType = courseType;
-    if (prerequisites !== undefined) course.prerequisites = prerequisites;
-    if (isActive !== undefined) course.isActive = isActive;
+    // Prepare update data
+    const updateData = {};
+    if (courseCode) updateData.courseCode = courseCode.toUpperCase();
+    if (courseName) updateData.courseName = courseName;
+    if (description !== undefined) updateData.description = description;
+    if (departmentId) updateData.departmentId = departmentId;
+    if (programId !== undefined) updateData.programId = programId || null;
+    if (creditHours) updateData.creditHours = parseInt(creditHours);
+    if (courseType) updateData.courseType = courseType;
+    if (prerequisites !== undefined) {
+      updateData.prerequisites = {
+        set: prerequisites.map(id => ({ id }))
+      };
+    }
+    if (isActive !== undefined) updateData.isActive = isActive;
 
-    await course.save();
-
-    // Populate references before returning
-    await course.populate([
-      { path: 'department', select: 'departmentCode name' },
-      { path: 'program', select: 'programCode name' },
-      { path: 'prerequisites', select: 'courseCode courseName' }
-    ]);
+    const updatedCourse = await prisma.course.update({
+      where: { id },
+      data: updateData,
+      include: {
+        department: { select: { id: true, departmentCode: true, name: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+      }
+    });
 
     res.status(200).json({
       success: true,
       message: 'Course updated successfully',
-      data: course
+      data: updatedCourse
     });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Course, Department, or Program not found'
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Error updating course',
@@ -515,7 +568,7 @@ export const deleteCourse = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const course = await Course.findById(id);
+    const course = await prisma.course.findUnique({ where: { id } });
 
     if (!course) {
       return res.status(404).json({
@@ -525,22 +578,40 @@ export const deleteCourse = async (req, res) => {
     }
 
     // Check if this course is a prerequisite for other courses
-    const dependentCourses = await Course.find({ prerequisites: id });
+    const dependentCourses = await prisma.course.findMany({
+      where: {
+        prerequisites: {
+          some: { id }
+        }
+      }
+    });
+
     if (dependentCourses.length > 0) {
       return res.status(400).json({
         success: false,
         message: `Cannot delete course. It is a prerequisite for: ${dependentCourses.map(c => c.courseCode).join(', ')}`,
-        dependentCourses: dependentCourses.map(c => ({ _id: c._id, courseCode: c.courseCode, courseName: c.courseName }))
+        dependentCourses: dependentCourses.map(c => ({ id: c.id, courseCode: c.courseCode, courseName: c.courseName }))
       });
     }
 
-    await course.softDelete(req.user._id);
+    // Soft delete
+    const deletedCourse = await prisma.course.update({
+      where: { id },
+      data: { isActive: false }
+    });
 
     res.status(200).json({
       success: true,
-      message: 'Course deleted successfully'
+      message: 'Course deleted successfully',
+      data: deletedCourse
     });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found'
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Error deleting course',
@@ -558,7 +629,7 @@ export const restoreCourse = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const course = await Course.findById(id).setOptions({ includeSoftDeleted: true });
+    const course = await prisma.course.findUnique({ where: { id } });
 
     if (!course) {
       return res.status(404).json({
@@ -567,26 +638,27 @@ export const restoreCourse = async (req, res) => {
       });
     }
 
-    if (!course.isDeleted) {
+    if (course.isActive) {
       return res.status(400).json({
         success: false,
         message: 'Course is not deleted'
       });
     }
 
-    await course.restore();
-
-    // Populate references before returning
-    await course.populate([
-      { path: 'department', select: 'departmentCode name' },
-      { path: 'program', select: 'programCode name' },
-      { path: 'prerequisites', select: 'courseCode courseName' }
-    ]);
+    const restoredCourse = await prisma.course.update({
+      where: { id },
+      data: { isActive: true },
+      include: {
+        department: { select: { id: true, departmentCode: true, name: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+      }
+    });
 
     res.status(200).json({
       success: true,
       message: 'Course restored successfully',
-      data: course
+      data: restoredCourse
     });
   } catch (error) {
     res.status(500).json({
@@ -606,7 +678,7 @@ export const permanentDeleteCourse = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const course = await Course.findById(id).setOptions({ includeSoftDeleted: true });
+    const course = await prisma.course.findUnique({ where: { id } });
 
     if (!course) {
       return res.status(404).json({
@@ -615,23 +687,36 @@ export const permanentDeleteCourse = async (req, res) => {
       });
     }
 
-    // Check if this course is a prerequisite for other courses (including soft-deleted)
-    const dependentCourses = await Course.find({ prerequisites: id }).setOptions({ includeSoftDeleted: true });
+    // Check if this course is a prerequisite for other courses
+    const dependentCourses = await prisma.course.findMany({
+      where: {
+        prerequisites: {
+          some: { id }
+        }
+      }
+    });
+
     if (dependentCourses.length > 0) {
       return res.status(400).json({
         success: false,
         message: `Cannot permanently delete course. It is referenced by: ${dependentCourses.map(c => c.courseCode).join(', ')}`,
-        dependentCourses: dependentCourses.map(c => ({ _id: c._id, courseCode: c.courseCode, courseName: c.courseName }))
+        dependentCourses: dependentCourses.map(c => ({ id: c.id, courseCode: c.courseCode, courseName: c.courseName }))
       });
     }
 
-    await Course.findByIdAndDelete(id);
+    await prisma.course.delete({ where: { id } });
 
     res.status(200).json({
       success: true,
       message: 'Course permanently deleted'
     });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found'
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Error permanently deleting course',

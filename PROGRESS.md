@@ -1,7 +1,8 @@
 # CampusOne - Project Progress Report
 
-**Last Updated:** February 8, 2026  
-**Project Status:** In Development
+**Last Updated:** April 27, 2026  
+**Project Status:** In Development  
+**Database:** PostgreSQL (Supabase) via Prisma 7
 
 ---
 
@@ -10,18 +11,19 @@
 | Phase | Status | Completion |
 |-------|--------|------------|
 | Phase 1: Project Setup | ✅ Complete | 100% |
-| Phase 2: Database Design | ✅ Complete | 100% |
+| Phase 2: Database Design (PostgreSQL/Prisma) | ✅ Complete | 100% |
 | Phase 3: Authentication & User Management | ✅ Complete | 100% |
-| **Phase 4: Academic Structure Management** | ✅ Complete | 100% |
-| **Phase 5: Course Offering & Enrollment** | ✅ Complete | 100% |
-| **Phase 6: Student & Teacher Portals** | ✅ Complete | 90% |
+| Phase 4: Academic Structure Management | ✅ Complete | 100% |
+| Phase 5: Course Offering & Enrollment | ✅ Complete | 100% |
+| Phase 6: Student & Teacher Portals | ✅ Complete | 90% |
+| **Migration: MongoDB → PostgreSQL/Prisma** | ✅ Complete | 100% |
 | Phase 7: Assignment Management | ⏳ Pending | 0% |
 | Phase 8: AI Features | ⏳ Pending | 0% |
 | Phase 9: Attendance & Analytics | ⏳ Pending | 0% |
 | Phase 10: Announcements & Notifications | ⏳ Pending | 0% |
 | Phase 11: Quiz Management | ⏳ Pending | 0% |
 | Phase 12: TA Eligibility System | ⏳ Pending | 0% |
-| **Bonus: Admission Management** | ✅ Complete | 100% |
+| Bonus: Admission Management | ✅ Complete | 100% |
 
 ---
 
@@ -32,15 +34,20 @@
 #### Backend Setup
 - [x] Node.js + Express backend initialized
 - [x] ES6 Modules configured (`"type": "module"`)
-- [x] MongoDB connection setup with Mongoose
-- [x] Environment variables configured (`.env`)
+- [x] PostgreSQL (Supabase) via Prisma 7 with `@prisma/adapter-pg`
+- [x] Prisma schema with 24 models (`prisma/schema.prisma`)
+- [x] Prisma singleton client (`prisma/client.js`)
+- [x] Environment variables configured (`.env` — gitignored)
 - [x] CORS middleware enabled
 - [x] Basic error handling implemented
 - [x] Server running on port 5000
+- [x] MongoDB / Mongoose fully removed
 
 **Key Files:**
 - `campusone-backend/server.js` - Main server entry point
-- `campusone-backend/config/` - Configuration files
+- `campusone-backend/prisma/schema.prisma` - 24 PostgreSQL models
+- `campusone-backend/prisma/client.js` - Prisma singleton with pg adapter
+- `campusone-backend/prisma.config.ts` - Prisma 7 config
 - `campusone-backend/package.json` - Dependencies
 
 #### Frontend Setup

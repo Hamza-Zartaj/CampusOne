@@ -1,8 +1,4 @@
-import Course from '../models/Course.js';
-import CourseOffering from '../models/CourseOffering.js';
-import Program from '../models/Program.js';
-import Department from '../models/Department.js';
-import Teacher from '../models/Teacher.js';
+import prisma from '../prisma/client.js';
 import AuditLogger from '../services/auditLogger.js';
 
 /**
@@ -27,7 +23,7 @@ const parseCSV = (csvString, delimiter = ',') => {
     const values = [];
     let current = '';
     let inQuotes = false;
-    
+
     for (let j = 0; j < line.length; j++) {
       const char = line[j];
       if (char === '"') {
@@ -57,7 +53,7 @@ const parseCSV = (csvString, delimiter = ',') => {
  * @desc    Import courses from CSV
  * @route   POST /api/import/courses
  * @access  Private (Admin)
- * 
+ *
  * Expected CSV columns:
  * courseCode, courseName, description, departmentCode, programCode, creditHours,
  * lectureHours, labHours, tutorialHours, courseType, domain, prerequisites, corequisites
@@ -86,13 +82,19 @@ export const importCourses = async (req, res) => {
     }
 
     // Pre-fetch departments and programs for lookup
-    const departments = await Department.find({}).lean();
-    const programs = await Program.find({}).lean();
-    const existingCourses = await Course.find({}).lean();
+    const departments = await prisma.department.findMany({
+      select: { id: true, departmentCode: true }
+    });
+    const programs = await prisma.program.findMany({
+      select: { id: true, programCode: true }
+    });
+    const existingCourses = await prisma.course.findMany({
+      select: { id: true, courseCode: true }
+    });
 
-    const deptMap = new Map(departments.map(d => [d.departmentCode, d._id]));
-    const programMap = new Map(programs.map(p => [p.programCode, p._id]));
-    const courseMap = new Map(existingCourses.map(c => [c.courseCode, c]));
+    const deptMap = new Map(departments.map(d => [d.departmentCode, d.id]));
+    const programMap = new Map(programs.map(p => [p.programCode, p.id]));
+    const courseMap = new Map(existingCourses.map(c => [c.courseCode, c.id]));
 
     const results = {
       successful: [],
@@ -109,8 +111,8 @@ export const importCourses = async (req, res) => {
         }
 
         // Check if exists
-        const existing = courseMap.get(courseCode);
-        if (existing && !updateExisting) {
+        const existingId = courseMap.get(courseCode);
+        if (existingId && !updateExisting) {
           results.skipped.push({ row: row._rowNumber, courseCode, reason: 'Already exists' });
           continue;
         }
@@ -137,9 +139,9 @@ export const importCourses = async (req, res) => {
         if (row.prerequisites?.trim()) {
           const prereqCodes = row.prerequisites.split(';').map(c => c.trim().toUpperCase());
           for (const code of prereqCodes) {
-            const prereq = courseMap.get(code);
-            if (prereq) {
-              prerequisites.push(prereq._id);
+            const prereqId = courseMap.get(code);
+            if (prereqId) {
+              prerequisites.push(prereqId);
             }
           }
         }
@@ -149,9 +151,9 @@ export const importCourses = async (req, res) => {
         if (row.corequisites?.trim()) {
           const coreqCodes = row.corequisites.split(';').map(c => c.trim().toUpperCase());
           for (const code of coreqCodes) {
-            const coreq = courseMap.get(code);
-            if (coreq) {
-              corequisites.push(coreq._id);
+            const coreqId = courseMap.get(code);
+            if (coreqId) {
+              corequisites.push(coreqId);
             }
           }
         }
@@ -160,26 +162,26 @@ export const importCourses = async (req, res) => {
           courseCode,
           courseName: row.courseName?.trim(),
           description: row.description?.trim(),
-          department: departmentId,
-          program: programId,
+          departmentId,
+          programId,
           creditHours: parseInt(row.creditHours) || 3,
-          lectureHours: parseInt(row.lectureHours) || 0,
-          labHours: parseInt(row.labHours) || 0,
-          tutorialHours: parseInt(row.tutorialHours) || 0,
           courseType: row.courseType?.trim() || 'core',
-          domain: row.domain?.trim(),
           prerequisites,
-          corequisites,
-          isActive: true
+          domain: row.domain?.trim()
         };
 
-        if (existing && updateExisting) {
-          await Course.findByIdAndUpdate(existing._id, courseData);
+        if (existingId && updateExisting) {
+          await prisma.course.update({
+            where: { id: existingId },
+            data: courseData
+          });
           results.successful.push({ row: row._rowNumber, courseCode, action: 'updated' });
         } else {
-          const newCourse = await Course.create(courseData);
-          courseMap.set(courseCode, newCourse); // Add to map for prereq lookups
-          results.successful.push({ row: row._rowNumber, courseCode, action: 'created', id: newCourse._id });
+          const newCourse = await prisma.course.create({
+            data: courseData
+          });
+          courseMap.set(courseCode, newCourse.id);
+          results.successful.push({ row: row._rowNumber, courseCode, action: 'created', id: newCourse.id });
         }
       } catch (error) {
         results.failed.push({ row: row._rowNumber, courseCode: row.courseCode, reason: error.message });
@@ -189,7 +191,7 @@ export const importCourses = async (req, res) => {
     // Log import
     await AuditLogger.logImport({
       importType: 'courses',
-      performedBy: req.user._id,
+      performedBy: req.user.id,
       performedByRole: req.user.role,
       targetModel: 'Course',
       totalRows: rows.length,
@@ -224,7 +226,7 @@ export const importCourses = async (req, res) => {
  * @desc    Import curriculum from CSV
  * @route   POST /api/import/curriculum
  * @access  Private (Admin)
- * 
+ *
  * Expected CSV columns:
  * programCode, semesterNumber, courseCode, isRequired, electiveGroup
  */
@@ -252,8 +254,12 @@ export const importCurriculum = async (req, res) => {
     }
 
     // Pre-fetch data
-    const programs = await Program.find({});
-    const courses = await Course.find({}).lean();
+    const programs = await prisma.program.findMany({
+      select: { id: true, programCode: true }
+    });
+    const courses = await prisma.course.findMany({
+      select: { id: true, courseCode: true }
+    });
 
     const programMap = new Map(programs.map(p => [p.programCode, p]));
     const courseMap = new Map(courses.map(c => [c.courseCode, c]));
@@ -310,9 +316,8 @@ export const importCurriculum = async (req, res) => {
         const electiveGroup = row.electiveGroup?.trim();
 
         if (isRequired) {
-          semester.requiredCourses.push(course._id);
+          semester.requiredCourses.push(course.id);
         } else if (electiveGroup) {
-          // Find or create elective slot
           let slot = semester.electiveSlots.find(s => s.name === electiveGroup);
           if (!slot) {
             slot = {
@@ -324,7 +329,7 @@ export const importCurriculum = async (req, res) => {
             };
             semester.electiveSlots.push(slot);
           }
-          slot.allowedCourses.push(course._id);
+          slot.allowedCourses.push(course.id);
         }
 
         results.successful.push({ row: row._rowNumber, programCode, semesterNumber, courseCode });
@@ -336,37 +341,35 @@ export const importCurriculum = async (req, res) => {
     // Apply updates to programs
     for (const [programCode, update] of programUpdates) {
       const program = update.program;
-      
+      let curriculum = program.curriculum || [];
+
       if (replaceExisting) {
-        program.curriculum = [];
+        curriculum = [];
       }
 
       for (const [semesterNumber, semData] of update.semesters) {
-        // Find existing semester in curriculum
-        let semesterIndex = program.curriculum.findIndex(s => s.semesterNumber === semesterNumber);
-        
+        let semesterIndex = curriculum.findIndex(s => s.semesterNumber === semesterNumber);
+
         if (semesterIndex === -1) {
-          program.curriculum.push({
+          curriculum.push({
             semesterNumber,
             requiredCourses: semData.requiredCourses,
             electiveSlots: semData.electiveSlots
           });
         } else if (replaceExisting) {
-          program.curriculum[semesterIndex] = {
+          curriculum[semesterIndex] = {
             semesterNumber,
             requiredCourses: semData.requiredCourses,
             electiveSlots: semData.electiveSlots
           };
         } else {
-          // Merge
-          const existing = program.curriculum[semesterIndex];
+          const existing = curriculum[semesterIndex];
           const existingReqIds = existing.requiredCourses.map(c => c.toString());
           for (const courseId of semData.requiredCourses) {
             if (!existingReqIds.includes(courseId.toString())) {
               existing.requiredCourses.push(courseId);
             }
           }
-          // Merge elective slots
           for (const newSlot of semData.electiveSlots) {
             const existingSlot = existing.electiveSlots.find(s => s.name === newSlot.name);
             if (existingSlot) {
@@ -383,15 +386,17 @@ export const importCurriculum = async (req, res) => {
         }
       }
 
-      // Sort curriculum by semester number
-      program.curriculum.sort((a, b) => a.semesterNumber - b.semesterNumber);
-      await program.save();
+      curriculum.sort((a, b) => a.semesterNumber - b.semesterNumber);
+      await prisma.program.update({
+        where: { id: program.id },
+        data: { curriculum }
+      });
     }
 
     // Log import
     await AuditLogger.logImport({
       importType: 'curriculum',
-      performedBy: req.user._id,
+      performedBy: req.user.id,
       performedByRole: req.user.role,
       targetModel: 'Program',
       totalRows: rows.length,
@@ -426,7 +431,7 @@ export const importCurriculum = async (req, res) => {
  * @desc    Import course offerings from CSV
  * @route   POST /api/import/offerings
  * @access  Private (Admin)
- * 
+ *
  * Expected CSV columns:
  * courseCode, programCode, academicYear, semesterNumber, semesterName, section,
  * teacherEmployeeId, maxCapacity, schedule (JSON or formatted string)
@@ -455,13 +460,19 @@ export const importOfferings = async (req, res) => {
     }
 
     // Pre-fetch data
-    const courses = await Course.find({}).lean();
-    const programs = await Program.find({}).lean();
-    const teachers = await Teacher.find({}).lean();
+    const courses = await prisma.course.findMany({
+      select: { id: true, courseCode: true }
+    });
+    const programs = await prisma.program.findMany({
+      select: { id: true, programCode: true }
+    });
+    const teachers = await prisma.teacher.findMany({
+      select: { id: true, employeeId: true }
+    });
 
-    const courseMap = new Map(courses.map(c => [c.courseCode, c]));
-    const programMap = new Map(programs.map(p => [p.programCode, p]));
-    const teacherMap = new Map(teachers.map(t => [t.employeeId, t]));
+    const courseMap = new Map(courses.map(c => [c.courseCode, c.id]));
+    const programMap = new Map(programs.map(p => [p.programCode, p.id]));
+    const teacherMap = new Map(teachers.map(t => [t.employeeId, t.id]));
 
     const results = {
       successful: [],
@@ -483,31 +494,33 @@ export const importOfferings = async (req, res) => {
           continue;
         }
 
-        const course = courseMap.get(courseCode);
-        if (!course) {
+        const courseId = courseMap.get(courseCode);
+        if (!courseId) {
           results.failed.push({ row: row._rowNumber, reason: `Course not found: ${courseCode}` });
           continue;
         }
 
-        const program = programMap.get(programCode);
-        if (!program) {
+        const programId = programMap.get(programCode);
+        if (!programId) {
           results.failed.push({ row: row._rowNumber, reason: `Program not found: ${programCode}` });
           continue;
         }
 
-        const teacher = teacherMap.get(teacherEmployeeId);
-        if (!teacher) {
+        const teacherId = teacherMap.get(teacherEmployeeId);
+        if (!teacherId) {
           results.failed.push({ row: row._rowNumber, reason: `Teacher not found: ${teacherEmployeeId}` });
           continue;
         }
 
         // Check for existing offering
-        const existingOffering = await CourseOffering.findOne({
-          course: course._id,
-          program: program._id,
-          academicYear,
-          semesterNumber,
-          section
+        const existingOffering = await prisma.courseOffering.findFirst({
+          where: {
+            courseId,
+            programId,
+            academicYear,
+            semesterNumber,
+            section
+          }
         });
 
         if (existingOffering && !updateExisting) {
@@ -524,10 +537,8 @@ export const importOfferings = async (req, res) => {
         let schedule = [];
         if (row.schedule?.trim()) {
           try {
-            // Try JSON parse first
             schedule = JSON.parse(row.schedule);
           } catch {
-            // Try custom format: "Mon 09:00-10:30 Room101;Wed 09:00-10:30 Room101"
             const slots = row.schedule.split(';');
             for (const slot of slots) {
               const match = slot.trim().match(/^(\w+)\s+(\d{2}:\d{2})-(\d{2}:\d{2})\s*(.*)$/);
@@ -549,22 +560,23 @@ export const importOfferings = async (req, res) => {
         }
 
         const offeringData = {
-          course: course._id,
-          program: program._id,
+          courseId,
+          programId,
           academicYear,
           semesterNumber,
           semesterName: row.semesterName?.trim(),
           section,
-          teacher: teacher._id,
+          teacherId,
           maxCapacity: parseInt(row.maxCapacity) || 60,
           schedule,
-          enrollmentStatus: row.enrollmentStatus?.trim() || 'open',
-          status: row.status?.trim() || 'scheduled',
-          isActive: true
+          currentEnrollment: 0
         };
 
         if (existingOffering && updateExisting) {
-          await CourseOffering.findByIdAndUpdate(existingOffering._id, offeringData);
+          await prisma.courseOffering.update({
+            where: { id: existingOffering.id },
+            data: offeringData
+          });
           results.successful.push({
             row: row._rowNumber,
             courseCode,
@@ -572,13 +584,15 @@ export const importOfferings = async (req, res) => {
             action: 'updated'
           });
         } else {
-          const newOffering = await CourseOffering.create(offeringData);
+          const newOffering = await prisma.courseOffering.create({
+            data: offeringData
+          });
           results.successful.push({
             row: row._rowNumber,
             courseCode,
             section,
             action: 'created',
-            id: newOffering._id
+            id: newOffering.id
           });
         }
       } catch (error) {
@@ -593,7 +607,7 @@ export const importOfferings = async (req, res) => {
     // Log import
     await AuditLogger.logImport({
       importType: 'offerings',
-      performedBy: req.user._id,
+      performedBy: req.user.id,
       performedByRole: req.user.role,
       targetModel: 'CourseOffering',
       totalRows: rows.length,
@@ -683,76 +697,104 @@ export const getCSVTemplate = async (req, res) => {
 };
 
 /**
- * @desc    Get audit logs
- * @route   GET /api/import/audit-logs
+ * @desc    Get import statistics
+ * @route   GET /api/import/stats
  * @access  Private (Admin)
  */
-export const getAuditLogs = async (req, res) => {
+export const getImportStats = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 50,
-      action,
-      category,
-      performedBy,
-      targetModel,
-      targetId,
-      academicYear,
-      semesterNumber,
-      program,
-      startDate,
-      endDate
-    } = req.query;
-
-    const result = await AuditLogger.query({
-      action,
-      category,
-      performedBy,
-      targetModel,
-      targetId,
-      academicYear,
-      semesterNumber: semesterNumber ? parseInt(semesterNumber) : undefined,
-      program,
-      startDate,
-      endDate
-    }, { page, limit });
+    const courses = await prisma.course.count();
+    const programs = await prisma.program.count();
+    const offerings = await prisma.courseOffering.count();
+    const departments = await prisma.department.count();
 
     res.status(200).json({
       success: true,
-      data: result.logs,
-      pagination: result.pagination
+      data: {
+        courses,
+        programs,
+        offerings,
+        departments
+      }
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error fetching audit logs',
-      error: error.message
+      message: 'Error fetching statistics'
     });
   }
 };
 
 /**
- * @desc    Get audit trail for entity
- * @route   GET /api/import/audit-logs/:model/:id
+ * @desc    Get import audit logs
+ * @route   GET /api/import/audit-logs
+ * @access  Private (Admin)
+ */
+export const getAuditLogs = async (req, res) => {
+  try {
+    const { page = 1, limit = 50, action, entityType, userId } = req.query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const where = {};
+    if (action) where.action = { contains: action, mode: 'insensitive' };
+    if (entityType) where.entityType = entityType;
+    if (userId) where.userId = userId;
+
+    const [total, logs] = await Promise.all([
+      prisma.auditLog.count({ where }),
+      prisma.auditLog.findMany({
+        where,
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true } }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum
+      })
+    ]);
+
+    res.status(200).json({
+      success: true,
+      count: logs.length,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum)
+      },
+      data: logs
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching audit logs', error: error.message });
+  }
+};
+
+/**
+ * @desc    Get audit trail for a specific entity
+ * @route   GET /api/import/audit-trail/:entityType/:entityId
  * @access  Private (Admin)
  */
 export const getEntityAuditTrail = async (req, res) => {
   try {
-    const { model, id } = req.params;
-    const { page = 1, limit = 50 } = req.query;
+    const { entityType, entityId } = req.params;
 
-    const result = await AuditLogger.getEntityAuditTrail(model, id, { page, limit });
+    const logs = await prisma.auditLog.findMany({
+      where: { entityType, entityId },
+      include: {
+        user: { select: { id: true, name: true, email: true, role: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
 
     res.status(200).json({
       success: true,
-      data: result.logs,
-      pagination: result.pagination
+      count: logs.length,
+      data: logs
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching audit trail',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error fetching entity audit trail', error: error.message });
   }
 };

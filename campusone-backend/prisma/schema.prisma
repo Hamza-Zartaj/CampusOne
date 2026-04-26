@@ -1,0 +1,682 @@
+// Prisma Schema for CampusOne - PostgreSQL
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============ USER MODELS ============
+
+model User {
+  id                    String    @id @default(cuid())
+  username              String    @unique
+  email                 String    @unique
+  name                  String
+  password              String
+  profilePicture        String?
+  role                  String    // "student", "teacher", "admin", "ta"
+  isActive              Boolean   @default(true)
+  
+  // Security
+  accountLocked         Boolean   @default(false)
+  failedLoginAttempts   Int       @default(0)
+  accountLockedUntil    DateTime?
+  
+  // 2FA
+  twoFactorSecret       String?
+  twoFactorEnabled      Boolean   @default(false)
+  twoFactorMethod       String?   // "authenticator", "email"
+  emailOTP              String?
+  emailOTPExpiry        DateTime?
+  
+  // Relationships
+  student               Student?
+  teacher               Teacher?
+  admin                 Admin?
+  ta                    TA?
+  
+  // Audit
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([role])
+  @@index([email])
+}
+
+model Student {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  studentId             String    @unique
+  enrollmentYear        Int
+  department            String
+  batch                 String
+  currentSemester       Int
+  
+  // Academic Info
+  enrolledCourses       Json      @default("[]")
+  completedCourses      Json      @default("[]")
+  cgpa                  Float     @default(0)
+  totalCredits          Int       @default(0)
+  
+  // Personal Info
+  phone                 String?
+  address               String?
+  emergencyContact      String?
+  dateOfBirth           DateTime?
+  
+  // Relationships
+  enrollments           Enrollment[]
+  submissions           Submission[]
+  quizAttempts          QuizAttempt[]
+  taEligibility         TAEligibility?
+  ta                    TA?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([studentId])
+}
+
+model Teacher {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  employeeId            String    @unique
+  department            String
+  designation           String
+  qualification         String?
+  specialization        Json      @default("[]")
+  
+  // Contact
+  officeRoom            String?
+  officeHours           String?
+  phone                 String?
+  extensionNumber       String?
+  
+  // Academic
+  researchInterests     Json      @default("[]")
+  teachingCourses       Json      @default("[]")
+  
+  // Relationships
+  courseOfferings       CourseOffering[]
+  semesterIncharges     SemesterIncharge[]
+  taAssignments         TA[] @relation("TeacherTAs")
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([employeeId])
+}
+
+model Admin {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  employeeId            String    @unique
+  department            String?
+  designation           String
+  phone                 String?
+  officeRoom            String?
+  
+  isSuperAdmin          Boolean   @default(false)
+  permissions           Json      @default("[]")
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([isSuperAdmin])
+}
+
+model TA {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId             String    @unique
+  student               Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId             String?
+  teacher               Teacher?  @relation("TeacherTAs", fields: [teacherId], references: [id])
+  
+  assignedCourses       Json      @default("[]")
+  responsibilities      Json      @default("[]")
+  totalHoursCompleted   Int       @default(0)
+  performanceRating     Float     @default(0)
+  status                String    @default("active")
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([status])
+}
+
+// ============ ACADEMIC STRUCTURE ============
+
+model Department {
+  id                    String    @id @default(cuid())
+  departmentCode        String    @unique
+  name                  String
+  description           String?
+  headOfDepartmentId    String?
+  
+  // Relationships
+  programs              Program[]
+  courses               Course[]
+  
+  // Soft Delete
+  isDeleted             Boolean   @default(false)
+  deletedAt             DateTime?
+  deletedBy             String?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([isDeleted])
+}
+
+model Program {
+  id                    String    @id @default(cuid())
+  programCode           String    @unique
+  name                  String
+  description           String?
+  departmentId          String
+  department            Department @relation(fields: [departmentId], references: [id])
+  
+  type                  String
+  durationYears         Int
+  totalSemesters        Int
+  totalCredits          Int
+  eligibilityCriteria   String?
+  
+  curriculum            Json      @default("[]")
+  
+  // Relationships
+  courses               Course[]
+  offerings             CourseOffering[]
+  enrollments           Enrollment[]
+  semesterIncharges     SemesterIncharge[]
+  
+  // Soft Delete
+  isDeleted             Boolean   @default(false)
+  deletedAt             DateTime?
+  deletedBy             String?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([departmentId])
+  @@index([isDeleted])
+}
+
+model Course {
+  id                    String    @id @default(cuid())
+  courseCode            String    @unique
+  courseName            String
+  description           String?
+  departmentId          String
+  department            Department @relation(fields: [departmentId], references: [id])
+  programId             String
+  program               Program   @relation(fields: [programId], references: [id])
+  
+  creditHours           Int
+  courseType            String
+  prerequisites         Json      @default("[]")
+  domain                String?
+  
+  // Relationships
+  offerings             CourseOffering[]
+  assignments           Assignment[]
+  quizzes               Quiz[]
+  announcements         Announcement[]
+  qna                   QNA[]
+  attendance            Attendance[]
+  
+  // Soft Delete
+  isDeleted             Boolean   @default(false)
+  deletedAt             DateTime?
+  deletedBy             String?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([courseCode])
+  @@index([departmentId])
+  @@index([programId])
+  @@index([isDeleted])
+}
+
+model CourseOffering {
+  id                    String    @id @default(cuid())
+  courseId              String
+  course                Course    @relation(fields: [courseId], references: [id])
+  programId             String
+  program               Program   @relation(fields: [programId], references: [id])
+  
+  academicYear          String
+  semesterNumber        Int
+  semesterName          String
+  section               String
+  
+  teacherId             String
+  teacher               Teacher   @relation(fields: [teacherId], references: [id])
+  tas                   Json      @default("[]")
+  
+  maxCapacity           Int
+  currentEnrollment     Int       @default(0)
+  schedule              Json      @default("[]")
+  materials             Json      @default("[]")
+  
+  // Relationships
+  enrollments           Enrollment[]
+  
+  // Soft Delete
+  isDeleted             Boolean   @default(false)
+  deletedAt             DateTime?
+  deletedBy             String?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@unique([courseId, academicYear, semesterNumber, section])
+  @@index([courseId])
+  @@index([programId])
+  @@index([teacherId])
+}
+
+// ============ ENROLLMENT & GRADING ============
+
+model Enrollment {
+  id                    String    @id @default(cuid())
+  studentId             String
+  student               Student   @relation(fields: [studentId], references: [id])
+  courseOfferingId      String
+  courseOffering        CourseOffering @relation(fields: [courseOfferingId], references: [id])
+  programId             String
+  program               Program   @relation(fields: [programId], references: [id])
+  
+  academicYear          String
+  semesterNumber        Int
+  
+  status                String    @default("enrolled")
+  enrollmentType        String    @default("regular")
+  
+  // Waitlist
+  waitlistPosition      Int?
+  waitlistAddedAt       DateTime?
+  promotedFromWaitlistAt DateTime?
+  
+  // Grades
+  midtermMarks          Float?
+  finalMarks            Float?
+  assignmentMarks       Float?
+  quizMarks             Float?
+  labMarks              Float?
+  totalMarks            Float?
+  obtainedMarks         Float?
+  percentage            Float?
+  grade                 String?
+  gpa                   Float?
+  gradingStatus         String    @default("pending")
+  
+  enrolledAt            DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@unique([studentId, courseOfferingId])
+  @@index([studentId])
+  @@index([courseOfferingId])
+  @@index([status])
+}
+
+model SemesterIncharge {
+  id                    String    @id @default(cuid())
+  teacherId             String
+  teacher               Teacher   @relation(fields: [teacherId], references: [id])
+  programId             String
+  program               Program   @relation(fields: [programId], references: [id])
+  departmentId          String?
+  
+  academicYear          String
+  semesterNumber        Int
+  batch                 String
+  
+  responsibilities      Json      @default("[]")
+  startDate             DateTime
+  endDate               DateTime?
+  status                String    @default("active")
+  remarks               String?
+  appointedBy           String?
+  appointedAt           DateTime  @default(now())
+  
+  // Soft Delete
+  isDeleted             Boolean   @default(false)
+  deletedAt             DateTime?
+  deletedBy             String?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([teacherId])
+  @@index([programId])
+  @@index([status])
+}
+
+// ============ ACADEMIC ACTIVITIES ============
+
+model Assignment {
+  id                    String    @id @default(cuid())
+  courseId              String
+  course                Course    @relation(fields: [courseId], references: [id])
+  
+  title                 String
+  description           String?
+  dueDate               DateTime
+  totalMarks            Int       @default(100)
+  lateSubmissionAllowed Boolean   @default(true)
+  fileUrl               String?
+  createdBy             String
+  
+  // Relationships
+  submissions           Submission[]
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([courseId])
+  @@index([dueDate])
+}
+
+model Submission {
+  id                    String    @id @default(cuid())
+  assignmentId          String
+  assignment            Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId             String
+  student               Student   @relation(fields: [studentId], references: [id])
+  
+  fileUrl               String
+  submittedAt           DateTime  @default(now())
+  isLate                Boolean   @default(false)
+  marksObtained         Int?
+  feedback              String?
+  
+  // Plagiarism
+  similarityScore       Float?
+  similarityStatus      String?
+  
+  // Grading
+  gradedBy              String?
+  gradedAt              DateTime?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@unique([assignmentId, studentId])
+  @@index([studentId])
+  @@index([assignmentId])
+}
+
+model Attendance {
+  id                    String    @id @default(cuid())
+  courseId              String
+  course                Course    @relation(fields: [courseId], references: [id])
+  date                  DateTime
+  
+  records               Json
+  markedBy              String
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@unique([courseId, date])
+  @@index([courseId])
+  @@index([date])
+}
+
+model Announcement {
+  id                    String    @id @default(cuid())
+  courseId              String?
+  course                Course?   @relation(fields: [courseId], references: [id])
+  
+  title                 String
+  content               String
+  priority              String    @default("medium")
+  targetAudience        String    @default("all")
+  createdBy             String
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([courseId])
+  @@index([createdAt])
+}
+
+// ============ ADVANCED LEARNING ============
+
+model Quiz {
+  id                    String    @id @default(cuid())
+  courseId              String
+  course                Course    @relation(fields: [courseId], references: [id])
+  
+  title                 String
+  description           String?
+  difficulty            String    @default("medium")
+  duration              Int
+  startTime             DateTime?
+  endTime               DateTime?
+  totalMarks            Int
+  passingMarks          Int
+  
+  questions             Json
+  
+  // Proctoring
+  allowTabSwitch        Boolean   @default(true)
+  requireCamera         Boolean   @default(false)
+  requireScreenShare    Boolean   @default(false)
+  showCorrectAnswers    Boolean   @default(true)
+  
+  // Relationships
+  attempts              QuizAttempt[]
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([courseId])
+}
+
+model QuizAttempt {
+  id                    String    @id @default(cuid())
+  quizId                String
+  quiz                  Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  studentId             String
+  student               Student   @relation(fields: [studentId], references: [id])
+  
+  answers               Json
+  startedAt             DateTime  @default(now())
+  submittedAt           DateTime?
+  totalMarksObtained    Float?
+  
+  status                String    @default("in-progress")
+  terminationReason     String?
+  tabSwitchCount        Int       @default(0)
+  
+  // Proctoring
+  cameraEnabled         Boolean   @default(false)
+  screenShareEnabled    Boolean   @default(false)
+  violations            Json      @default("[]")
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([quizId])
+  @@index([studentId])
+}
+
+model QNA {
+  id                    String    @id @default(cuid())
+  courseId              String
+  course                Course    @relation(fields: [courseId], references: [id])
+  askedBy               String
+  
+  question              String
+  description           String?
+  tags                  Json      @default("[]")
+  attachments           Json      @default("[]")
+  
+  answers               Json
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([courseId])
+}
+
+// ============ ADMINISTRATIVE & SYSTEM ============
+
+model TAEligibility {
+  id                    String    @id @default(cuid())
+  studentId             String    @unique
+  student               Student   @relation(fields: [studentId], references: [id])
+  teacherId             String?
+  
+  completedCourses      Json      @default("[]")
+  currentSemester       Int
+  eligibleForSemesters  Json      @default("[]")
+  
+  isApproved            Boolean   @default(false)
+  approvedBy            String?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([studentId])
+}
+
+model Notification {
+  id                    String    @id @default(cuid())
+  userId                String
+  
+  type                  String
+  title                 String
+  message               String
+  isRead                Boolean   @default(false)
+  relatedId             String?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model Summary {
+  id                    String    @id @default(cuid())
+  courseId              String
+  originalFileUrl       String
+  summaryText           String
+  generatedBy           String
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([courseId])
+}
+
+model AuditLog {
+  id                    String    @id @default(cuid())
+  action                String
+  category              String
+  performedBy           String
+  performedByRole       String
+  
+  targetModel           String
+  targetId              String
+  relatedEntities       Json      @default("[]")
+  
+  previousValue         Json?
+  newValue              Json?
+  
+  academicYear          String?
+  semester              Int?
+  description           String?
+  remarks               String?
+  
+  createdAt             DateTime  @default(now())
+  
+  @@index([performedBy])
+  @@index([targetModel])
+  @@index([category])
+}
+
+// ============ ADMISSION MANAGEMENT ============
+
+model AdmissionSettings {
+  id                    String    @id @default(cuid())
+  isOpen                Boolean   @default(false)
+  startDate             DateTime?
+  endDate               DateTime?
+  
+  applicationFormFields Json      @default("[]")
+  instructions          String?
+  maxApplications       Int?
+  
+  requiresDocuments     Boolean   @default(false)
+  requiredDocuments     Json      @default("[]")
+  notificationEmails    Json      @default("[]")
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model AdmissionApplication {
+  id                    String    @id @default(cuid())
+  
+  // Personal Info
+  fullName              String
+  email                 String
+  phone                 String
+  cnic                  String
+  dateOfBirth           DateTime
+  gender                String
+  cnicFront             String?
+  cnicBack              String?
+  
+  // Guardian Info
+  guardianRelation      String?
+  guardianName          String?
+  guardianPhone         String?
+  guardianCnic          String?
+  guardianCnicUpload    String?
+  
+  // Address
+  street                String?
+  city                  String
+  state                 String?
+  country               String
+  zipCode               String?
+  nationality           String?
+  
+  // Education
+  previousEducation     Json      @default("[]")
+  results               Json      @default("[]")
+  
+  // Program Selection
+  preferredPrograms     Json      @default("[]")
+  
+  // Status
+  applicationStatus     String    @default("submitted")
+  applicationNumber     String    @unique
+  applicationDate       DateTime  @default(now())
+  documents             Json      @default("[]")
+  remarks               String?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([email])
+  @@index([applicationStatus])
+}

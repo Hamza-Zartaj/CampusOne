@@ -1,8 +1,4 @@
-import Enrollment from '../models/Enrollment.js';
-import CourseOffering from '../models/CourseOffering.js';
-import Teacher from '../models/Teacher.js';
-import Student from '../models/Student.js';
-import AuditLogger from '../services/auditLogger.js';
+import prisma from '../prisma/client.js';
 
 // Grade point mapping
 const GRADE_POINTS = {
@@ -24,15 +20,15 @@ const GRADE_THRESHOLDS = {
 
 // Helper: Get teacher from user
 const getTeacherFromUser = async (userId) => {
-  const teacher = await Teacher.findOne({ userId });
+  const teacher = await prisma.teacher.findUnique({ where: { userId } });
   return teacher;
 };
 
-// Helper: Verify teacher owns the offering
+// Helper: Verify teacher ownership
 const verifyTeacherOwnership = async (teacherId, offeringId) => {
-  const offering = await CourseOffering.findById(offeringId);
+  const offering = await prisma.courseOffering.findUnique({ where: { id: offeringId } });
   if (!offering) return { valid: false, error: 'Course offering not found', status: 404 };
-  if (offering.teacher.toString() !== teacherId.toString()) {
+  if (offering.teacherId !== teacherId) {
     return { valid: false, error: 'You are not assigned to this course offering', status: 403 };
   }
   return { valid: true, offering };
@@ -48,12 +44,14 @@ const calculateGrade = (totalMarks) => {
   return 'F';
 };
 
-// @desc    Get my course offerings (as teacher)
-// @route   GET /api/teacher-tools/my-offerings
-// @access  Private (Teacher)
+/**
+ * @desc    Get my course offerings (as teacher)
+ * @route   GET /api/teacher-tools/my-offerings
+ * @access  Private (Teacher)
+ */
 export const getMyOfferings = async (req, res) => {
   try {
-    const teacher = await getTeacherFromUser(req.user._id);
+    const teacher = await getTeacherFromUser(req.user.id);
     if (!teacher) {
       return res.status(404).json({
         success: false,
@@ -63,20 +61,20 @@ export const getMyOfferings = async (req, res) => {
 
     const { academicYear, semesterNumber, status } = req.query;
 
-    const query = { teacher: teacher._id };
-    if (academicYear) query.academicYear = academicYear;
-    if (semesterNumber) query.semesterNumber = parseInt(semesterNumber);
-    if (status) query.status = status;
+    const where = { teacherId: teacher.id };
+    if (academicYear) where.academicYear = academicYear;
+    if (semesterNumber) where.semesterNumber = parseInt(semesterNumber);
+    if (status) where.status = status;
 
-    const offerings = await CourseOffering.find(query)
-      .populate('course', 'courseCode courseName creditHours courseType')
-      .populate('program', 'programCode programName')
-      .populate({
-        path: 'tas',
-        select: 'userId',
-        populate: { path: 'userId', select: 'firstName lastName email' }
-      })
-      .sort({ academicYear: -1, semesterNumber: 1 });
+    const offerings = await prisma.courseOffering.findMany({
+      where,
+      include: {
+        course: { select: { id: true, courseCode: true, courseName: true, creditHours: true, courseType: true } },
+        program: { select: { id: true, programCode: true, name: true } },
+        tas: { select: { id: true, studentId: true, user: { select: { id: true, name: true, email: true } } } }
+      },
+      orderBy: [{ academicYear: 'desc' }, { semesterNumber: 'asc' }]
+    });
 
     res.status(200).json({
       success: true,
@@ -92,15 +90,17 @@ export const getMyOfferings = async (req, res) => {
   }
 };
 
-// @desc    Get enrolled students for a course offering
-// @route   GET /api/teacher-tools/offerings/:offeringId/students
-// @access  Private (Teacher)
+/**
+ * @desc    Get enrolled students for a course offering
+ * @route   GET /api/teacher-tools/offerings/:offeringId/students
+ * @access  Private (Teacher)
+ */
 export const getEnrolledStudents = async (req, res) => {
   try {
     const { offeringId } = req.params;
     const { status, sortBy = 'name' } = req.query;
 
-    const teacher = await getTeacherFromUser(req.user._id);
+    const teacher = await getTeacherFromUser(req.user.id);
     if (!teacher) {
       return res.status(404).json({
         success: false,
@@ -108,8 +108,7 @@ export const getEnrolledStudents = async (req, res) => {
       });
     }
 
-    // Verify ownership
-    const ownership = await verifyTeacherOwnership(teacher._id, offeringId);
+    const ownership = await verifyTeacherOwnership(teacher.id, offeringId);
     if (!ownership.valid) {
       return res.status(ownership.status).json({
         success: false,
@@ -117,36 +116,40 @@ export const getEnrolledStudents = async (req, res) => {
       });
     }
 
-    const query = { 
-      courseOffering: offeringId,
-      status: { $nin: ['dropped', 'withdrawn'] }
+    const where = {
+      courseOfferingId: offeringId,
+      status: { notIn: ['dropped', 'withdrawn'] }
     };
-    if (status) query.status = status;
+    if (status) where.status = status;
 
-    const enrollments = await Enrollment.find(query)
-      .populate({
-        path: 'student',
-        select: 'studentId userId batch currentSemester',
-        populate: { path: 'userId', select: 'firstName lastName email' }
-      })
-      .sort({ enrolledAt: 1 });
+    const enrollments = await prisma.enrollment.findMany({
+      where,
+      include: {
+        student: {
+          select: {
+            id: true,
+            studentId: true,
+            batch: true,
+            currentSemester: true,
+            user: { select: { id: true, name: true, email: true } }
+          }
+        }
+      },
+      orderBy: { enrolledAt: 'asc' }
+    });
 
-    // Format response
     const students = enrollments.map((enrollment, index) => ({
-      enrollmentId: enrollment._id,
+      enrollmentId: enrollment.id,
       rollNumber: index + 1,
       studentId: enrollment.student?.studentId,
-      studentObjectId: enrollment.student?._id,
-      name: enrollment.student?.userId 
-        ? `${enrollment.student.userId.firstName} ${enrollment.student.userId.lastName}`
-        : 'Unknown',
-      email: enrollment.student?.userId?.email,
+      studentObjectId: enrollment.student?.id,
+      name: enrollment.student?.user?.name || 'Unknown',
+      email: enrollment.student?.user?.email,
       batch: enrollment.student?.batch,
       currentSemester: enrollment.student?.currentSemester,
       enrollmentStatus: enrollment.status,
       enrollmentType: enrollment.enrollmentType,
       enrolledAt: enrollment.enrolledAt,
-      // Current marks
       midtermMarks: enrollment.midtermMarks,
       finalMarks: enrollment.finalMarks,
       assignmentMarks: enrollment.assignmentMarks,
@@ -157,7 +160,6 @@ export const getEnrolledStudents = async (req, res) => {
       gradePoints: enrollment.gradePoints
     }));
 
-    // Sort
     if (sortBy === 'name') {
       students.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortBy === 'studentId') {
@@ -169,7 +171,7 @@ export const getEnrolledStudents = async (req, res) => {
     res.status(200).json({
       success: true,
       offering: {
-        id: ownership.offering._id,
+        id: ownership.offering.id,
         academicYear: ownership.offering.academicYear,
         semesterNumber: ownership.offering.semesterNumber,
         section: ownership.offering.section,
@@ -187,15 +189,17 @@ export const getEnrolledStudents = async (req, res) => {
   }
 };
 
-// @desc    Upload marks for a single student
-// @route   PUT /api/teacher-tools/enrollments/:enrollmentId/marks
-// @access  Private (Teacher)
+/**
+ * @desc    Upload marks for a single student
+ * @route   PUT /api/teacher-tools/enrollments/:enrollmentId/marks
+ * @access  Private (Teacher)
+ */
 export const uploadStudentMarks = async (req, res) => {
   try {
     const { enrollmentId } = req.params;
     const { midtermMarks, finalMarks, assignmentMarks, quizMarks, labMarks, totalMarks, remarks } = req.body;
 
-    const teacher = await getTeacherFromUser(req.user._id);
+    const teacher = await getTeacherFromUser(req.user.id);
     if (!teacher) {
       return res.status(404).json({
         success: false,
@@ -203,8 +207,10 @@ export const uploadStudentMarks = async (req, res) => {
       });
     }
 
-    const enrollment = await Enrollment.findById(enrollmentId)
-      .populate('courseOffering');
+    const enrollment = await prisma.enrollment.findUnique({
+      where: { id: enrollmentId },
+      include: { courseOffering: true }
+    });
 
     if (!enrollment) {
       return res.status(404).json({
@@ -213,8 +219,7 @@ export const uploadStudentMarks = async (req, res) => {
       });
     }
 
-    // Verify ownership
-    const ownership = await verifyTeacherOwnership(teacher._id, enrollment.courseOffering._id);
+    const ownership = await verifyTeacherOwnership(teacher.id, enrollment.courseOfferingId);
     if (!ownership.valid) {
       return res.status(ownership.status).json({
         success: false,
@@ -222,7 +227,6 @@ export const uploadStudentMarks = async (req, res) => {
       });
     }
 
-    // Check if results are locked
     if (ownership.offering.resultsLocked) {
       return res.status(400).json({
         success: false,
@@ -230,21 +234,24 @@ export const uploadStudentMarks = async (req, res) => {
       });
     }
 
-    // Update marks
-    if (midtermMarks !== undefined) enrollment.midtermMarks = midtermMarks;
-    if (finalMarks !== undefined) enrollment.finalMarks = finalMarks;
-    if (assignmentMarks !== undefined) enrollment.assignmentMarks = assignmentMarks;
-    if (quizMarks !== undefined) enrollment.quizMarks = quizMarks;
-    if (labMarks !== undefined) enrollment.labMarks = labMarks;
-    if (totalMarks !== undefined) enrollment.totalMarks = totalMarks;
-    if (remarks !== undefined) enrollment.remarks = remarks;
+    const updateData = {};
+    if (midtermMarks !== undefined) updateData.midtermMarks = midtermMarks;
+    if (finalMarks !== undefined) updateData.finalMarks = finalMarks;
+    if (assignmentMarks !== undefined) updateData.assignmentMarks = assignmentMarks;
+    if (quizMarks !== undefined) updateData.quizMarks = quizMarks;
+    if (labMarks !== undefined) updateData.labMarks = labMarks;
+    if (totalMarks !== undefined) updateData.totalMarks = totalMarks;
+    if (remarks !== undefined) updateData.remarks = remarks;
 
-    await enrollment.save();
+    const updated = await prisma.enrollment.update({
+      where: { id: enrollmentId },
+      data: updateData
+    });
 
     res.status(200).json({
       success: true,
       message: 'Marks uploaded successfully',
-      data: enrollment
+      data: updated
     });
   } catch (error) {
     res.status(500).json({
@@ -255,13 +262,15 @@ export const uploadStudentMarks = async (req, res) => {
   }
 };
 
-// @desc    Bulk upload marks for a course offering
-// @route   PUT /api/teacher-tools/offerings/:offeringId/bulk-marks
-// @access  Private (Teacher)
+/**
+ * @desc    Bulk upload marks for a course offering
+ * @route   PUT /api/teacher-tools/offerings/:offeringId/bulk-marks
+ * @access  Private (Teacher)
+ */
 export const bulkUploadMarks = async (req, res) => {
   try {
     const { offeringId } = req.params;
-    const { marks } = req.body; // Array of { enrollmentId, midtermMarks, finalMarks, assignmentMarks, quizMarks, labMarks, totalMarks }
+    const { marks } = req.body;
 
     if (!marks || !Array.isArray(marks)) {
       return res.status(400).json({
@@ -270,7 +279,7 @@ export const bulkUploadMarks = async (req, res) => {
       });
     }
 
-    const teacher = await getTeacherFromUser(req.user._id);
+    const teacher = await getTeacherFromUser(req.user.id);
     if (!teacher) {
       return res.status(404).json({
         success: false,
@@ -278,8 +287,7 @@ export const bulkUploadMarks = async (req, res) => {
       });
     }
 
-    // Verify ownership
-    const ownership = await verifyTeacherOwnership(teacher._id, offeringId);
+    const ownership = await verifyTeacherOwnership(teacher.id, offeringId);
     if (!ownership.valid) {
       return res.status(ownership.status).json({
         success: false,
@@ -287,7 +295,6 @@ export const bulkUploadMarks = async (req, res) => {
       });
     }
 
-    // Check if results are locked
     if (ownership.offering.resultsLocked) {
       return res.status(400).json({
         success: false,
@@ -302,9 +309,11 @@ export const bulkUploadMarks = async (req, res) => {
 
     for (const entry of marks) {
       try {
-        const enrollment = await Enrollment.findOne({
-          _id: entry.enrollmentId,
-          courseOffering: offeringId
+        const enrollment = await prisma.enrollment.findFirst({
+          where: {
+            id: entry.enrollmentId,
+            courseOfferingId: offeringId
+          }
         });
 
         if (!enrollment) {
@@ -315,19 +324,23 @@ export const bulkUploadMarks = async (req, res) => {
           continue;
         }
 
-        // Update marks
-        if (entry.midtermMarks !== undefined) enrollment.midtermMarks = entry.midtermMarks;
-        if (entry.finalMarks !== undefined) enrollment.finalMarks = entry.finalMarks;
-        if (entry.assignmentMarks !== undefined) enrollment.assignmentMarks = entry.assignmentMarks;
-        if (entry.quizMarks !== undefined) enrollment.quizMarks = entry.quizMarks;
-        if (entry.labMarks !== undefined) enrollment.labMarks = entry.labMarks;
-        if (entry.totalMarks !== undefined) enrollment.totalMarks = entry.totalMarks;
-        if (entry.remarks !== undefined) enrollment.remarks = entry.remarks;
+        const updateData = {};
+        if (entry.midtermMarks !== undefined) updateData.midtermMarks = entry.midtermMarks;
+        if (entry.finalMarks !== undefined) updateData.finalMarks = entry.finalMarks;
+        if (entry.assignmentMarks !== undefined) updateData.assignmentMarks = entry.assignmentMarks;
+        if (entry.quizMarks !== undefined) updateData.quizMarks = entry.quizMarks;
+        if (entry.labMarks !== undefined) updateData.labMarks = entry.labMarks;
+        if (entry.totalMarks !== undefined) updateData.totalMarks = entry.totalMarks;
+        if (entry.remarks !== undefined) updateData.remarks = entry.remarks;
 
-        await enrollment.save();
+        await prisma.enrollment.update({
+          where: { id: enrollment.id },
+          data: updateData
+        });
+
         results.successful.push({
           enrollmentId: entry.enrollmentId,
-          studentId: enrollment.student
+          studentId: enrollment.studentId
         });
       } catch (error) {
         results.failed.push({
@@ -356,15 +369,17 @@ export const bulkUploadMarks = async (req, res) => {
   }
 };
 
-// @desc    Submit grade for a single student
-// @route   PUT /api/teacher-tools/enrollments/:enrollmentId/grade
-// @access  Private (Teacher)
+/**
+ * @desc    Submit grade for a single student
+ * @route   PUT /api/teacher-tools/enrollments/:enrollmentId/grade
+ * @access  Private (Teacher)
+ */
 export const submitStudentGrade = async (req, res) => {
   try {
     const { enrollmentId } = req.params;
     const { grade, autoCalculate = false } = req.body;
 
-    const teacher = await getTeacherFromUser(req.user._id);
+    const teacher = await getTeacherFromUser(req.user.id);
     if (!teacher) {
       return res.status(404).json({
         success: false,
@@ -372,8 +387,10 @@ export const submitStudentGrade = async (req, res) => {
       });
     }
 
-    const enrollment = await Enrollment.findById(enrollmentId)
-      .populate('courseOffering');
+    const enrollment = await prisma.enrollment.findUnique({
+      where: { id: enrollmentId },
+      include: { courseOffering: true }
+    });
 
     if (!enrollment) {
       return res.status(404).json({
@@ -382,8 +399,7 @@ export const submitStudentGrade = async (req, res) => {
       });
     }
 
-    // Verify ownership
-    const ownership = await verifyTeacherOwnership(teacher._id, enrollment.courseOffering._id);
+    const ownership = await verifyTeacherOwnership(teacher.id, enrollment.courseOfferingId);
     if (!ownership.valid) {
       return res.status(ownership.status).json({
         success: false,
@@ -391,7 +407,6 @@ export const submitStudentGrade = async (req, res) => {
       });
     }
 
-    // Check if results are locked
     if (ownership.offering.resultsLocked) {
       return res.status(400).json({
         success: false,
@@ -399,7 +414,6 @@ export const submitStudentGrade = async (req, res) => {
       });
     }
 
-    // Determine grade
     let finalGrade = grade;
     if (autoCalculate && enrollment.totalMarks !== undefined) {
       finalGrade = calculateGrade(enrollment.totalMarks);
@@ -412,7 +426,6 @@ export const submitStudentGrade = async (req, res) => {
       });
     }
 
-    // Validate grade
     if (!GRADE_POINTS.hasOwnProperty(finalGrade)) {
       return res.status(400).json({
         success: false,
@@ -421,50 +434,29 @@ export const submitStudentGrade = async (req, res) => {
       });
     }
 
-    // Store previous values for audit
-    const previousGrade = enrollment.grade;
-    const previousGradePoints = enrollment.gradePoints;
-    const previousTotalMarks = enrollment.totalMarks;
+    const updateData = {
+      grade: finalGrade,
+      gradePoints: GRADE_POINTS[finalGrade]
+    };
 
-    enrollment.grade = finalGrade;
-    enrollment.gradePoints = GRADE_POINTS[finalGrade];
-
-    // Update status based on grade
     if (!['I', 'W'].includes(finalGrade)) {
-      enrollment.status = finalGrade === 'F' ? 'failed' : 'completed';
-      enrollment.completedAt = new Date();
+      updateData.status = finalGrade === 'F' ? 'failed' : 'completed';
+      updateData.completedAt = new Date();
     }
 
-    await enrollment.save();
-
-    // Audit log
-    await AuditLogger.logGradeChange({
-      performedBy: req.user._id,
-      performedByRole: req.user.role,
-      enrollmentId: enrollment._id,
-      studentId: enrollment.student,
-      courseOfferingId: enrollment.courseOffering._id,
-      previousGrade,
-      previousGradePoints,
-      previousTotalMarks,
-      newGrade: finalGrade,
-      newGradePoints: enrollment.gradePoints,
-      newTotalMarks: enrollment.totalMarks,
-      academicYear: enrollment.academicYear,
-      semesterNumber: enrollment.semesterNumber,
-      isUpdate: !!previousGrade,
-      ipAddress: req.ip,
-      userAgent: req.get('User-Agent')
+    const updated = await prisma.enrollment.update({
+      where: { id: enrollmentId },
+      data: updateData
     });
 
     res.status(200).json({
       success: true,
       message: 'Grade submitted successfully',
       data: {
-        enrollmentId: enrollment._id,
-        grade: enrollment.grade,
-        gradePoints: enrollment.gradePoints,
-        status: enrollment.status
+        enrollmentId: updated.id,
+        grade: updated.grade,
+        gradePoints: updated.gradePoints,
+        status: updated.status
       }
     });
   } catch (error) {
@@ -476,15 +468,17 @@ export const submitStudentGrade = async (req, res) => {
   }
 };
 
-// @desc    Submit final grades for entire course offering
-// @route   PUT /api/teacher-tools/offerings/:offeringId/submit-grades
-// @access  Private (Teacher)
+/**
+ * @desc    Submit final grades for entire course offering
+ * @route   PUT /api/teacher-tools/offerings/:offeringId/submit-grades
+ * @access  Private (Teacher)
+ */
 export const submitFinalGrades = async (req, res) => {
   try {
     const { offeringId } = req.params;
-    const { autoCalculate = true, grades } = req.body; // grades: optional array of { enrollmentId, grade }
+    const { autoCalculate = true, grades } = req.body;
 
-    const teacher = await getTeacherFromUser(req.user._id);
+    const teacher = await getTeacherFromUser(req.user.id);
     if (!teacher) {
       return res.status(404).json({
         success: false,
@@ -492,8 +486,7 @@ export const submitFinalGrades = async (req, res) => {
       });
     }
 
-    // Verify ownership
-    const ownership = await verifyTeacherOwnership(teacher._id, offeringId);
+    const ownership = await verifyTeacherOwnership(teacher.id, offeringId);
     if (!ownership.valid) {
       return res.status(ownership.status).json({
         success: false,
@@ -501,7 +494,6 @@ export const submitFinalGrades = async (req, res) => {
       });
     }
 
-    // Check if results are locked
     if (ownership.offering.resultsLocked) {
       return res.status(400).json({
         success: false,
@@ -509,16 +501,16 @@ export const submitFinalGrades = async (req, res) => {
       });
     }
 
-    // Get all active enrollments
-    const enrollments = await Enrollment.find({
-      courseOffering: offeringId,
-      status: { $in: ['enrolled', 'active'] }
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        courseOfferingId: offeringId,
+        status: { in: ['enrolled', 'active'] }
+      }
     });
 
-    // Create a grade map from provided grades
     const gradeMap = new Map();
     if (grades && Array.isArray(grades)) {
-      grades.forEach(g => gradeMap.set(g.enrollmentId.toString(), g.grade));
+      grades.forEach(g => gradeMap.set(g.enrollmentId, g.grade));
     }
 
     const results = {
@@ -531,55 +523,61 @@ export const submitFinalGrades = async (req, res) => {
       try {
         let finalGrade;
 
-        // Check if grade was explicitly provided
-        if (gradeMap.has(enrollment._id.toString())) {
-          finalGrade = gradeMap.get(enrollment._id.toString());
+        if (gradeMap.has(enrollment.id)) {
+          finalGrade = gradeMap.get(enrollment.id);
         } else if (autoCalculate && enrollment.totalMarks !== undefined) {
           finalGrade = calculateGrade(enrollment.totalMarks);
         } else {
           results.skipped.push({
-            enrollmentId: enrollment._id,
+            enrollmentId: enrollment.id,
             reason: 'No grade provided and no total marks for auto-calculation'
           });
           continue;
         }
 
-        // Validate grade
         if (!GRADE_POINTS.hasOwnProperty(finalGrade)) {
           results.failed.push({
-            enrollmentId: enrollment._id,
+            enrollmentId: enrollment.id,
             reason: `Invalid grade: ${finalGrade}`
           });
           continue;
         }
 
-        enrollment.grade = finalGrade;
-        enrollment.gradePoints = GRADE_POINTS[finalGrade];
+        const updateData = {
+          grade: finalGrade,
+          gradePoints: GRADE_POINTS[finalGrade]
+        };
 
-        // Update status
         if (!['I', 'W'].includes(finalGrade)) {
-          enrollment.status = finalGrade === 'F' ? 'failed' : 'completed';
-          enrollment.completedAt = new Date();
+          updateData.status = finalGrade === 'F' ? 'failed' : 'completed';
+          updateData.completedAt = new Date();
         }
 
-        await enrollment.save();
+        await prisma.enrollment.update({
+          where: { id: enrollment.id },
+          data: updateData
+        });
+
         results.successful.push({
-          enrollmentId: enrollment._id,
+          enrollmentId: enrollment.id,
           grade: finalGrade,
           gradePoints: GRADE_POINTS[finalGrade]
         });
       } catch (error) {
         results.failed.push({
-          enrollmentId: enrollment._id,
+          enrollmentId: enrollment.id,
           reason: error.message
         });
       }
     }
 
-    // Update offering
-    ownership.offering.gradesSubmittedAt = new Date();
-    ownership.offering.gradesSubmittedBy = req.user._id;
-    await ownership.offering.save();
+    await prisma.courseOffering.update({
+      where: { id: offeringId },
+      data: {
+        gradesSubmittedAt: new Date(),
+        gradesSubmittedBy: teacher.userId
+      }
+    });
 
     res.status(200).json({
       success: true,
@@ -601,18 +599,19 @@ export const submitFinalGrades = async (req, res) => {
   }
 };
 
-// @desc    Lock results for a course offering
-// @route   PUT /api/teacher-tools/offerings/:offeringId/lock-results
-// @access  Private (Teacher/Admin)
+/**
+ * @desc    Lock results for a course offering
+ * @route   PUT /api/teacher-tools/offerings/:offeringId/lock-results
+ * @access  Private (Teacher/Admin)
+ */
 export const lockResults = async (req, res) => {
   try {
     const { offeringId } = req.params;
 
-    const teacher = await getTeacherFromUser(req.user._id);
+    const teacher = await getTeacherFromUser(req.user.id);
     
-    // Teachers can only lock their own offerings
     if (teacher) {
-      const ownership = await verifyTeacherOwnership(teacher._id, offeringId);
+      const ownership = await verifyTeacherOwnership(teacher.id, offeringId);
       if (!ownership.valid) {
         return res.status(ownership.status).json({
           success: false,
@@ -621,7 +620,7 @@ export const lockResults = async (req, res) => {
       }
     }
 
-    const offering = await CourseOffering.findById(offeringId);
+    const offering = await prisma.courseOffering.findUnique({ where: { id: offeringId } });
     if (!offering) {
       return res.status(404).json({
         success: false,
@@ -636,11 +635,12 @@ export const lockResults = async (req, res) => {
       });
     }
 
-    // Check if all grades are submitted
-    const pendingEnrollments = await Enrollment.countDocuments({
-      courseOffering: offeringId,
-      status: { $in: ['enrolled', 'active'] },
-      grade: { $exists: false }
+    const pendingEnrollments = await prisma.enrollment.count({
+      where: {
+        courseOfferingId: offeringId,
+        status: { in: ['enrolled', 'active'] },
+        grade: null
+      }
     });
 
     if (pendingEnrollments > 0) {
@@ -650,32 +650,23 @@ export const lockResults = async (req, res) => {
       });
     }
 
-    offering.resultsLocked = true;
-    offering.resultsLockedAt = new Date();
-    offering.resultsLockedBy = req.user._id;
-    offering.status = 'completed';
-    await offering.save();
-
-    // Audit log
-    await AuditLogger.logResultsLock({
-      performedBy: req.user._id,
-      performedByRole: req.user.role,
-      courseOfferingId: offering._id,
-      courseId: offering.course,
-      academicYear: offering.academicYear,
-      semesterNumber: offering.semesterNumber,
-      isLock: true,
-      ipAddress: req.ip,
-      userAgent: req.get('User-Agent')
+    const updated = await prisma.courseOffering.update({
+      where: { id: offeringId },
+      data: {
+        resultsLocked: true,
+        resultsLockedAt: new Date(),
+        resultsLockedBy: req.user.id,
+        status: 'completed'
+      }
     });
 
     res.status(200).json({
       success: true,
       message: 'Results locked successfully',
       data: {
-        offeringId: offering._id,
-        resultsLocked: offering.resultsLocked,
-        resultsLockedAt: offering.resultsLockedAt
+        offeringId: updated.id,
+        resultsLocked: updated.resultsLocked,
+        resultsLockedAt: updated.resultsLockedAt
       }
     });
   } catch (error) {
@@ -687,15 +678,17 @@ export const lockResults = async (req, res) => {
   }
 };
 
-// @desc    Unlock results for a course offering (Admin only)
-// @route   PUT /api/teacher-tools/offerings/:offeringId/unlock-results
-// @access  Private (Admin only)
+/**
+ * @desc    Unlock results for a course offering (Admin only)
+ * @route   PUT /api/teacher-tools/offerings/:offeringId/unlock-results
+ * @access  Private (Admin only)
+ */
 export const unlockResults = async (req, res) => {
   try {
     const { offeringId } = req.params;
     const { reason } = req.body;
 
-    const offering = await CourseOffering.findById(offeringId);
+    const offering = await prisma.courseOffering.findUnique({ where: { id: offeringId } });
     if (!offering) {
       return res.status(404).json({
         success: false,
@@ -710,31 +703,21 @@ export const unlockResults = async (req, res) => {
       });
     }
 
-    offering.resultsLocked = false;
-    offering.resultsLockedAt = undefined;
-    offering.resultsLockedBy = undefined;
-    await offering.save();
-
-    // Audit log for unlock
-    await AuditLogger.logResultsLock({
-      performedBy: req.user._id,
-      performedByRole: req.user.role,
-      courseOfferingId: offering._id,
-      courseId: offering.course,
-      academicYear: offering.academicYear,
-      semesterNumber: offering.semesterNumber,
-      isLock: false,
-      reason,
-      ipAddress: req.ip,
-      userAgent: req.get('User-Agent')
+    const updated = await prisma.courseOffering.update({
+      where: { id: offeringId },
+      data: {
+        resultsLocked: false,
+        resultsLockedAt: null,
+        resultsLockedBy: null
+      }
     });
 
     res.status(200).json({
       success: true,
       message: 'Results unlocked successfully',
       data: {
-        offeringId: offering._id,
-        resultsLocked: offering.resultsLocked
+        offeringId: updated.id,
+        resultsLocked: updated.resultsLocked
       }
     });
   } catch (error) {
@@ -746,14 +729,16 @@ export const unlockResults = async (req, res) => {
   }
 };
 
-// @desc    Get grade summary for a course offering
-// @route   GET /api/teacher-tools/offerings/:offeringId/grade-summary
-// @access  Private (Teacher)
+/**
+ * @desc    Get grade summary for a course offering
+ * @route   GET /api/teacher-tools/offerings/:offeringId/grade-summary
+ * @access  Private (Teacher)
+ */
 export const getGradeSummary = async (req, res) => {
   try {
     const { offeringId } = req.params;
 
-    const teacher = await getTeacherFromUser(req.user._id);
+    const teacher = await getTeacherFromUser(req.user.id);
     if (!teacher) {
       return res.status(404).json({
         success: false,
@@ -761,8 +746,7 @@ export const getGradeSummary = async (req, res) => {
       });
     }
 
-    // Verify ownership
-    const ownership = await verifyTeacherOwnership(teacher._id, offeringId);
+    const ownership = await verifyTeacherOwnership(teacher.id, offeringId);
     if (!ownership.valid) {
       return res.status(ownership.status).json({
         success: false,
@@ -770,13 +754,13 @@ export const getGradeSummary = async (req, res) => {
       });
     }
 
-    // Get all enrollments
-    const enrollments = await Enrollment.find({
-      courseOffering: offeringId,
-      status: { $nin: ['dropped'] }
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        courseOfferingId: offeringId,
+        status: { notIn: ['dropped'] }
+      }
     });
 
-    // Calculate statistics
     const stats = {
       totalEnrolled: enrollments.length,
       graded: 0,
@@ -839,7 +823,7 @@ export const getGradeSummary = async (req, res) => {
     res.status(200).json({
       success: true,
       offering: {
-        id: ownership.offering._id,
+        id: ownership.offering.id,
         resultsLocked: ownership.offering.resultsLocked,
         gradesSubmittedAt: ownership.offering.gradesSubmittedAt
       },
@@ -854,15 +838,16 @@ export const getGradeSummary = async (req, res) => {
   }
 };
 
-// @desc    Export grades for a course offering
-// @route   GET /api/teacher-tools/offerings/:offeringId/export-grades
-// @access  Private (Teacher)
+/**
+ * @desc    Export grades for a course offering
+ * @route   GET /api/teacher-tools/offerings/:offeringId/export-grades
+ * @access  Private (Teacher)
+ */
 export const exportGrades = async (req, res) => {
   try {
     const { offeringId } = req.params;
-    const { format = 'json' } = req.query;
 
-    const teacher = await getTeacherFromUser(req.user._id);
+    const teacher = await getTeacherFromUser(req.user.id);
     if (!teacher) {
       return res.status(404).json({
         success: false,
@@ -870,8 +855,7 @@ export const exportGrades = async (req, res) => {
       });
     }
 
-    // Verify ownership
-    const ownership = await verifyTeacherOwnership(teacher._id, offeringId);
+    const ownership = await verifyTeacherOwnership(teacher.id, offeringId);
     if (!ownership.valid) {
       return res.status(ownership.status).json({
         success: false,
@@ -879,30 +863,37 @@ export const exportGrades = async (req, res) => {
       });
     }
 
-    // Get offering details
-    const offering = await CourseOffering.findById(offeringId)
-      .populate('course', 'courseCode courseName creditHours')
-      .populate('program', 'programCode programName');
+    const offering = await prisma.courseOffering.findUnique({
+      where: { id: offeringId },
+      include: {
+        course: { select: { id: true, courseCode: true, courseName: true, creditHours: true } },
+        program: { select: { id: true, programCode: true, name: true } }
+      }
+    });
 
-    // Get all enrollments
-    const enrollments = await Enrollment.find({
-      courseOffering: offeringId,
-      status: { $nin: ['dropped'] }
-    })
-      .populate({
-        path: 'student',
-        select: 'studentId userId batch',
-        populate: { path: 'userId', select: 'firstName lastName email' }
-      })
-      .sort({ 'student.studentId': 1 });
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        courseOfferingId: offeringId,
+        status: { notIn: ['dropped'] }
+      },
+      include: {
+        student: {
+          select: {
+            id: true,
+            studentId: true,
+            batch: true,
+            user: { select: { id: true, name: true, email: true } }
+          }
+        }
+      },
+      orderBy: { 'student.studentId': 'asc' }
+    });
 
     const exportData = enrollments.map((enrollment, index) => ({
       sNo: index + 1,
       studentId: enrollment.student?.studentId,
-      name: enrollment.student?.userId 
-        ? `${enrollment.student.userId.firstName} ${enrollment.student.userId.lastName}`
-        : '',
-      email: enrollment.student?.userId?.email,
+      name: enrollment.student?.user?.name || '',
+      email: enrollment.student?.user?.email,
       batch: enrollment.student?.batch,
       midtermMarks: enrollment.midtermMarks,
       finalMarks: enrollment.finalMarks,
@@ -912,37 +903,20 @@ export const exportGrades = async (req, res) => {
       totalMarks: enrollment.totalMarks,
       grade: enrollment.grade,
       gradePoints: enrollment.gradePoints,
-      status: enrollment.status,
-      remarks: enrollment.remarks
+      status: enrollment.status
     }));
-
-    if (format === 'csv') {
-      // Generate CSV
-      const headers = Object.keys(exportData[0] || {}).join(',');
-      const rows = exportData.map(row => 
-        Object.values(row).map(v => `"${v || ''}"`).join(',')
-      ).join('\n');
-      const csv = `${headers}\n${rows}`;
-
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="${offering.course.courseCode}_grades.csv"`);
-      return res.send(csv);
-    }
 
     res.status(200).json({
       success: true,
       offering: {
         courseCode: offering.course.courseCode,
         courseName: offering.course.courseName,
-        creditHours: offering.course.creditHours,
-        program: offering.program.programCode,
         academicYear: offering.academicYear,
         semesterNumber: offering.semesterNumber,
-        section: offering.section,
-        resultsLocked: offering.resultsLocked
+        section: offering.section
       },
-      count: exportData.length,
-      data: exportData
+      data: exportData,
+      count: exportData.length
     });
   } catch (error) {
     res.status(500).json({
@@ -953,67 +927,58 @@ export const exportGrades = async (req, res) => {
   }
 };
 
-// @desc    Get marks template for a course offering
-// @route   GET /api/teacher-tools/offerings/:offeringId/marks-template
-// @access  Private (Teacher)
+/**
+ * @desc    Get Excel marks upload template for a course offering
+ * @route   GET /api/teacher-tools/offerings/:offeringId/marks-template
+ * @access  Private (Teacher)
+ */
 export const getMarksTemplate = async (req, res) => {
   try {
     const { offeringId } = req.params;
 
-    const teacher = await getTeacherFromUser(req.user._id);
-    if (!teacher) {
-      return res.status(404).json({
-        success: false,
-        message: 'Teacher profile not found'
-      });
-    }
-
-    // Verify ownership
-    const ownership = await verifyTeacherOwnership(teacher._id, offeringId);
-    if (!ownership.valid) {
-      return res.status(ownership.status).json({
-        success: false,
-        message: ownership.error
-      });
-    }
-
-    // Get all active enrollments
-    const enrollments = await Enrollment.find({
-      courseOffering: offeringId,
-      status: { $in: ['enrolled', 'active'] }
-    })
-      .populate({
-        path: 'student',
-        select: 'studentId userId',
-        populate: { path: 'userId', select: 'firstName lastName' }
-      })
-      .sort({ 'student.studentId': 1 });
-
-    const template = enrollments.map(enrollment => ({
-      enrollmentId: enrollment._id.toString(),
-      studentId: enrollment.student?.studentId,
-      name: enrollment.student?.userId 
-        ? `${enrollment.student.userId.firstName} ${enrollment.student.userId.lastName}`
-        : '',
-      midtermMarks: null,
-      finalMarks: null,
-      assignmentMarks: null,
-      quizMarks: null,
-      labMarks: null,
-      totalMarks: null
-    }));
-
-    res.status(200).json({
-      success: true,
-      message: 'Use this template for bulk marks upload',
-      count: template.length,
-      data: template
+    const offering = await prisma.courseOffering.findUnique({
+      where: { id: offeringId },
+      include: {
+        course: { select: { courseCode: true, courseName: true } },
+        enrollments: {
+          where: { status: { in: ['enrolled', 'active'] } },
+          include: {
+            student: {
+              select: {
+                studentId: true,
+                user: { select: { name: true } }
+              }
+            }
+          }
+        }
+      }
     });
+
+    if (!offering) {
+      return res.status(404).json({ success: false, message: 'Course offering not found' });
+    }
+
+    const template = {
+      courseCode: offering.course?.courseCode,
+      courseName: offering.course?.courseName,
+      section: offering.section,
+      semester: offering.semesterNumber,
+      academicYear: offering.academicYear,
+      columns: ['studentId', 'studentName', 'midtermMarks', 'finalMarks', 'assignmentMarks', 'quizMarks', 'labMarks'],
+      students: offering.enrollments.map(e => ({
+        enrollmentId: e.id,
+        studentId: e.student?.studentId,
+        studentName: e.student?.user?.name,
+        midtermMarks: '',
+        finalMarks: '',
+        assignmentMarks: '',
+        quizMarks: '',
+        labMarks: ''
+      }))
+    };
+
+    res.status(200).json({ success: true, data: template });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error generating marks template',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error generating marks template', error: error.message });
   }
 };

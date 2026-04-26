@@ -1,9 +1,6 @@
-import User from '../models/User.js';
-import Student from '../models/Student.js';
-import Teacher from '../models/Teacher.js';
-import TA from '../models/TA.js';
-import Admin from '../models/Admin.js';
+import prisma from '../prisma/client.js';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import speakeasy from 'speakeasy';
 import qrcode from 'qrcode';
 import { generateOTP, sendOTPEmail, send2FAEnabledEmail } from '../services/emailService.js';
@@ -25,18 +22,38 @@ const getRoleSpecificData = async (userId, role) => {
   
   switch (role) {
     case 'student':
-      roleData = await Student.findOne({ userId }).populate('enrolledCourses.courseId');
+      roleData = await prisma.student.findUnique({
+        where: { userId },
+        include: {
+          enrollments: {
+            include: { courseOffering: { include: { course: true } } }
+          }
+        }
+      });
       break;
     case 'teacher':
-      roleData = await Teacher.findOne({ userId }).populate('teachingCourses.courseId');
+      roleData = await prisma.teacher.findUnique({
+        where: { userId },
+        include: {
+          courseOfferings: {
+            include: { course: true }
+          }
+        }
+      });
       break;
     case 'ta':
-      roleData = await TA.findOne({ userId })
-        .populate('studentId')
-        .populate('assignedCourses.courseId');
+      roleData = await prisma.ta.findUnique({
+        where: { userId },
+        include: {
+          student: true,
+          teacher: true
+        }
+      });
       break;
     case 'admin':
-      roleData = await Admin.findOne({ userId });
+      roleData = await prisma.admin.findUnique({
+        where: { userId }
+      });
       break;
   }
   
@@ -62,7 +79,6 @@ export const register = async (req, res) => {
 
     // Check if trying to create an admin account
     if (role === 'admin') {
-      // Only super admins can create admin accounts
       if (!req.user || req.user.role !== 'admin') {
         return res.status(403).json({
           success: false,
@@ -70,7 +86,9 @@ export const register = async (req, res) => {
         });
       }
 
-      const adminRecord = await Admin.findOne({ userId: req.user._id });
+      const adminRecord = await prisma.admin.findUnique({
+        where: { userId: req.user.id }
+      });
       if (!adminRecord || !adminRecord.isSuperAdmin) {
         return res.status(403).json({
           success: false,
@@ -89,7 +107,9 @@ export const register = async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUser = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -120,15 +140,15 @@ export const register = async (req, res) => {
         username = roleSpecificData.studentId.toLowerCase();
         break;
       case 'ta':
-        // For TA, we need to get the student's studentId
         if (!roleSpecificData.studentId) {
           return res.status(400).json({
             success: false,
             message: 'Please provide studentId for TA (TA must be a student)'
           });
         }
-        // studentId here refers to the Student model reference, not the studentId field
-        const studentRecord = await Student.findById(roleSpecificData.studentId);
+        const studentRecord = await prisma.student.findUnique({
+          where: { id: roleSpecificData.studentId }
+        });
         if (!studentRecord) {
           return res.status(400).json({
             success: false,
@@ -140,7 +160,9 @@ export const register = async (req, res) => {
     }
 
     // Check if username already exists
-    const existingUsername = await User.findOne({ username });
+    const existingUsername = await prisma.user.findUnique({
+      where: { username }
+    });
     if (existingUsername) {
       return res.status(400).json({
         success: false,
@@ -148,101 +170,111 @@ export const register = async (req, res) => {
       });
     }
 
-    // Create base user
-    const user = await User.create({
-      name,
-      username,
-      email: email.toLowerCase(),
-      password, // Will be hashed by pre-save hook in User model
-      role,
-      isFirstLogin: true // Set to true for first-time login flow
-    });
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create role-specific record
-    let roleRecord;
-    try {
-      switch (role) {
-        case 'student': {
-          const { studentId, enrollmentYear, department, batch, currentSemester } = roleSpecificData;
-          if (!studentId || !enrollmentYear || !department) {
-            throw new Error('Please provide studentId, enrollmentYear, and department for student');
-          }
-          roleRecord = await Student.create({
-            userId: user._id,
-            studentId,
-            enrollmentYear,
-            department,
-            batch,
-            currentSemester: currentSemester || 1
-          });
-          break;
+    // Create user and role-specific record in transaction
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          name,
+          username,
+          email: email.toLowerCase(),
+          password: hashedPassword,
+          role,
+          isFirstLogin: true
         }
-
-        case 'teacher': {
-          const { employeeId: teacherEmpId, department: teacherDept, designation } = roleSpecificData;
-          if (!teacherEmpId || !teacherDept) {
-            throw new Error('Please provide employeeId and department for teacher');
-          }
-          roleRecord = await Teacher.create({
-            userId: user._id,
-            employeeId: teacherEmpId,
-            department: teacherDept,
-            designation: designation || 'Lecturer'
-          });
-          break;
-        }
-
-        case 'ta': {
-          const { studentId } = roleSpecificData;
-          if (!studentId) {
-            throw new Error('Please provide studentId for TA (TA must be a student)');
-          }
-          roleRecord = await TA.create({
-            userId: user._id,
-            studentId
-          });
-          break;
-        }
-
-        case 'admin': {
-          const { employeeId: adminEmpId, department: adminDept, designation: adminDesig, isSuperAdmin } = roleSpecificData;
-          if (!adminEmpId || !adminDept) {
-            throw new Error('Please provide employeeId and department for admin');
-          }
-          
-          // Only super admins can create other super admins
-          const canCreateSuperAdmin = req.adminRecord && req.adminRecord.isSuperAdmin;
-          
-          roleRecord = await Admin.create({
-            userId: user._id,
-            employeeId: adminEmpId,
-            department: adminDept,
-            designation: adminDesig || 'Administrator',
-            isSuperAdmin: canCreateSuperAdmin && isSuperAdmin === true ? true : false
-          });
-          break;
-        }
-      }
-    } catch (roleError) {
-      // If role-specific record creation fails, delete the user
-      await User.findByIdAndDelete(user._id);
-      return res.status(400).json({
-        success: false,
-        message: roleError.message
       });
-    }
+
+      let roleRecord;
+      try {
+        switch (role) {
+          case 'student': {
+            const { studentId, enrollmentYear, department, batch, currentSemester } = roleSpecificData;
+            if (!studentId || !enrollmentYear || !department) {
+              throw new Error('Please provide studentId, enrollmentYear, and department for student');
+            }
+            roleRecord = await tx.student.create({
+              data: {
+                userId: user.id,
+                studentId,
+                enrollmentYear,
+                department,
+                batch,
+                currentSemester: currentSemester || 1
+              }
+            });
+            break;
+          }
+
+          case 'teacher': {
+            const { employeeId: teacherEmpId, department: teacherDept, designation } = roleSpecificData;
+            if (!teacherEmpId || !teacherDept) {
+              throw new Error('Please provide employeeId and department for teacher');
+            }
+            roleRecord = await tx.teacher.create({
+              data: {
+                userId: user.id,
+                employeeId: teacherEmpId,
+                department: teacherDept,
+                designation: designation || 'Lecturer'
+              }
+            });
+            break;
+          }
+
+          case 'ta': {
+            const { studentId } = roleSpecificData;
+            if (!studentId) {
+              throw new Error('Please provide studentId for TA (TA must be a student)');
+            }
+            roleRecord = await tx.ta.create({
+              data: {
+                userId: user.id,
+                studentId
+              }
+            });
+            break;
+          }
+
+          case 'admin': {
+            const { employeeId: adminEmpId, department: adminDept, designation: adminDesig, isSuperAdmin } = roleSpecificData;
+            if (!adminEmpId || !adminDept) {
+              throw new Error('Please provide employeeId and department for admin');
+            }
+            
+            const canCreateSuperAdmin = req.adminRecord && req.adminRecord.isSuperAdmin;
+            
+            roleRecord = await tx.admin.create({
+              data: {
+                userId: user.id,
+                employeeId: adminEmpId,
+                department: adminDept,
+                designation: adminDesig || 'Administrator',
+                isSuperAdmin: canCreateSuperAdmin && isSuperAdmin === true ? true : false
+              }
+            });
+            break;
+          }
+        }
+      } catch (roleError) {
+        throw roleError;
+      }
+
+      return { user, roleRecord };
+    });
 
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
       data: {
         user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          role: result.user.role
         },
-        roleData: roleRecord
+        roleData: result.roleRecord
       }
     });
   } catch (error) {
@@ -263,7 +295,6 @@ export const login = async (req, res) => {
   try {
     const { username, password, rememberDevice } = req.body;
 
-    // Validate input
     if (!username || !password) {
       return res.status(400).json({
         success: false,
@@ -271,13 +302,15 @@ export const login = async (req, res) => {
       });
     }
 
-    // Find user by username or email (include password field)
-    const user = await User.findOne({
-      $or: [
-        { username: username.toLowerCase() },
-        { email: username.toLowerCase() }
-      ]
-    }).select('+password');
+    // Find user by username or email
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: username.toLowerCase() },
+          { email: username.toLowerCase() }
+        ]
+      }
+    });
 
     if (!user) {
       return res.status(401).json({
@@ -288,12 +321,16 @@ export const login = async (req, res) => {
 
     // Check if account is locked
     if (user.accountLocked) {
-      if (user.accountLockedUntil && user.accountLockedUntil < Date.now()) {
+      if (user.accountLockedUntil && user.accountLockedUntil < new Date()) {
         // Unlock account
-        user.accountLocked = false;
-        user.accountLockedUntil = null;
-        user.failedLoginAttempts = 0;
-        await user.save();
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            accountLocked: false,
+            accountLockedUntil: null,
+            failedLoginAttempts: 0
+          }
+        });
       } else {
         return res.status(401).json({
           success: false,
@@ -312,17 +349,24 @@ export const login = async (req, res) => {
     }
 
     // Verify password
-    const isPasswordMatch = await user.comparePassword(password);
+    const isPasswordMatch = await bcrypt.compare(password, user.password);
 
     if (!isPasswordMatch) {
       // Increment failed login attempts
-      user.failedLoginAttempts += 1;
+      const updated = await prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: user.failedLoginAttempts + 1 }
+      });
 
       // Lock account if failed attempts >= 5
-      if (user.failedLoginAttempts >= 5) {
-        user.accountLocked = true;
-        user.accountLockedUntil = new Date(Date.now() + 30 * 60 * 1000); // Lock for 30 minutes
-        await user.save();
+      if (updated.failedLoginAttempts >= 5) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            accountLocked: true,
+            accountLockedUntil: new Date(Date.now() + 30 * 60 * 1000)
+          }
+        });
 
         return res.status(401).json({
           success: false,
@@ -330,20 +374,14 @@ export const login = async (req, res) => {
         });
       }
 
-      await user.save();
-
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials',
-        attemptsRemaining: 5 - user.failedLoginAttempts
+        attemptsRemaining: 5 - updated.failedLoginAttempts
       });
     }
 
     // Reset failed login attempts on successful login
-    user.failedLoginAttempts = 0;
-    user.lastLogin = Date.now();
-
-    // Generate device fingerprint
     const deviceFingerprint = {
       userAgent: req.headers['user-agent'],
       ipAddress: req.ip || req.connection.remoteAddress,
@@ -352,30 +390,34 @@ export const login = async (req, res) => {
 
     const deviceId = generateDeviceId(deviceFingerprint);
 
-    // Check if device is trusted
-    const trustedDevice = user.trustedDevices.find(d => d.deviceId === deviceId);
+    // Update user with lastLogin and check trusted devices
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginAttempts: 0,
+        lastLogin: new Date()
+      }
+    });
+
+    const trustedDevice = user.trustedDevices?.find(d => d.deviceId === deviceId);
     const isTrusted = !!trustedDevice;
-
-    // Update last used time for trusted device
-    if (trustedDevice) {
-      trustedDevice.lastUsed = Date.now();
-    }
-
-    await user.save();
 
     // Check if 2FA is enabled and device is not trusted
     if (user.twoFactorEnabled && !isTrusted) {
-      // If email 2FA, send OTP automatically
       if (user.twoFactorMethod === 'email') {
         const otp = generateOTP();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-        user.emailOTP = {
-          code: otp,
-          expiresAt,
-          attempts: 0
-        };
-        await user.save();
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            emailOTP: {
+              code: otp,
+              expiresAt,
+              attempts: 0
+            }
+          }
+        });
 
         await sendOTPEmail(user.email, user.name, otp);
 
@@ -384,40 +426,41 @@ export const login = async (req, res) => {
           requires2FA: true,
           twoFactorMethod: 'email',
           message: 'OTP sent to your email',
-          userId: user._id,
+          userId: user.id,
           email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3')
         });
       }
 
-      // For authenticator app
       return res.status(200).json({
         success: true,
         requires2FA: true,
         twoFactorMethod: 'authenticator',
         message: '2FA verification required',
-        userId: user._id
+        userId: user.id
       });
     }
 
     // Add device to trusted devices if requested
     if (rememberDevice && !isTrusted) {
-      user.trustedDevices.push({
+      const devices = user.trustedDevices || [];
+      devices.push({
         deviceId,
         deviceName: deviceFingerprint.deviceName,
         ipAddress: deviceFingerprint.ipAddress,
-        lastUsed: Date.now()
+        lastUsed: new Date()
       });
-      await user.save();
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { trustedDevices: devices }
+      });
     }
 
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     // Get role-specific data
-    const roleData = await getRoleSpecificData(user._id, user.role);
-
-    // Remove password from response
-    user.password = undefined;
+    const roleData = await getRoleSpecificData(user.id, user.role);
 
     // Check if this is first login
     if (user.isFirstLogin) {
@@ -428,7 +471,7 @@ export const login = async (req, res) => {
         token,
         data: {
           user: {
-            id: user._id,
+            id: user.id,
             name: user.name,
             email: user.email,
             role: user.role,
@@ -447,7 +490,7 @@ export const login = async (req, res) => {
       token,
       data: {
         user: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
@@ -482,8 +525,9 @@ export const verify2FAToken = async (req, res) => {
       });
     }
 
-    // Fetch user with twoFactorSecret (since it has select: false in model)
-    const user = await User.findById(userId).select('+twoFactorSecret');
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
 
     if (!user) {
       return res.status(404).json({
@@ -524,27 +568,27 @@ export const verify2FAToken = async (req, res) => {
     const deviceId = generateDeviceId(deviceFingerprint);
 
     // Add device to trusted devices if requested
-    if (rememberDevice) {
-      const deviceExists = user.trustedDevices.some(d => d.deviceId === deviceId);
-      
-      if (!deviceExists) {
-        user.trustedDevices.push({
-          deviceId,
-          deviceName: deviceFingerprint.deviceName,
-          ipAddress: deviceFingerprint.ipAddress,
-          lastUsed: Date.now()
-        });
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        lastLogin: new Date(),
+        trustedDevices: rememberDevice
+          ? Array.from(new Set([...(user.trustedDevices || []).map(d => JSON.stringify(d)), JSON.stringify({
+              deviceId,
+              deviceName: deviceFingerprint.deviceName,
+              ipAddress: deviceFingerprint.ipAddress,
+              lastUsed: new Date()
+            })]))
+              .map(d => JSON.parse(d))
+          : user.trustedDevices
       }
-    }
-
-    user.lastLogin = Date.now();
-    await user.save();
+    });
 
     // Generate token
-    const jwtToken = generateToken(user._id);
+    const jwtToken = generateToken(user.id);
 
     // Get role-specific data
-    const roleData = await getRoleSpecificData(user._id, user.role);
+    const roleData = await getRoleSpecificData(user.id, user.role);
 
     res.status(200).json({
       success: true,
@@ -552,7 +596,7 @@ export const verify2FAToken = async (req, res) => {
       token: jwtToken,
       data: {
         user: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
@@ -578,8 +622,7 @@ export const verify2FAToken = async (req, res) => {
  */
 export const setup2FA = async (req, res) => {
   try {
-    // Fetch user with twoFactorSecret field (since it has select: false in model)
-    const user = await User.findById(req.user._id).select('+twoFactorSecret');
+    const user = req.user;
 
     // Generate secret
     const secret = speakeasy.generateSecret({
@@ -588,8 +631,10 @@ export const setup2FA = async (req, res) => {
     });
 
     // Save secret to user (temporary, until confirmed)
-    user.twoFactorSecret = secret.base32;
-    await user.save();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { twoFactorSecret: secret.base32 }
+    });
 
     // Generate QR code
     const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
@@ -619,8 +664,7 @@ export const setup2FA = async (req, res) => {
 export const enable2FA = async (req, res) => {
   try {
     const { token } = req.body;
-    // Fetch user with twoFactorSecret (since it has select: false in model)
-    const user = await User.findById(req.user._id).select('+twoFactorSecret');
+    const user = req.user;
 
     if (!token) {
       return res.status(400).json({
@@ -652,8 +696,10 @@ export const enable2FA = async (req, res) => {
     }
 
     // Enable 2FA
-    user.twoFactorEnabled = true;
-    await user.save();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { twoFactorEnabled: true }
+    });
 
     res.status(200).json({
       success: true,
@@ -676,8 +722,7 @@ export const enable2FA = async (req, res) => {
 export const disable2FA = async (req, res) => {
   try {
     const { password, token } = req.body;
-    // Fetch user with password and twoFactorSecret (both have select: false in model)
-    const user = await User.findById(req.user._id).select('+password +twoFactorSecret');
+    const user = req.user;
 
     if (!password || !token) {
       return res.status(400).json({
@@ -687,7 +732,7 @@ export const disable2FA = async (req, res) => {
     }
 
     // Verify password
-    const isPasswordMatch = await user.comparePassword(password);
+    const isPasswordMatch = await bcrypt.compare(password, user.password);
     if (!isPasswordMatch) {
       return res.status(401).json({
         success: false,
@@ -711,10 +756,14 @@ export const disable2FA = async (req, res) => {
     }
 
     // Disable 2FA
-    user.twoFactorEnabled = false;
-    user.twoFactorSecret = null;
-    user.trustedDevices = []; // Clear trusted devices
-    await user.save();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        twoFactorEnabled: false,
+        twoFactorSecret: null,
+        trustedDevices: []
+      }
+    });
 
     res.status(200).json({
       success: true,
@@ -741,7 +790,7 @@ export const getTrustedDevices = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        trustedDevices: user.trustedDevices
+        trustedDevices: user.trustedDevices || []
       }
     });
   } catch (error) {
@@ -763,8 +812,12 @@ export const removeTrustedDevice = async (req, res) => {
     const { deviceId } = req.params;
     const user = req.user;
 
-    user.trustedDevices = user.trustedDevices.filter(d => d.deviceId !== deviceId);
-    await user.save();
+    const filteredDevices = (user.trustedDevices || []).filter(d => d.deviceId !== deviceId);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { trustedDevices: filteredDevices }
+    });
 
     res.status(200).json({
       success: true,
@@ -786,9 +839,6 @@ export const removeTrustedDevice = async (req, res) => {
  */
 export const logout = async (req, res) => {
   try {
-    // In JWT, logout is handled client-side by removing token
-    // But we can add additional logic here if needed
-    
     res.status(200).json({
       success: true,
       message: 'Logged out successfully'
@@ -812,12 +862,12 @@ export const getMe = async (req, res) => {
     const user = req.user;
 
     // Get role-specific data
-    const roleData = await getRoleSpecificData(user._id, user.role);
+    const roleData = await getRoleSpecificData(user.id, user.role);
 
     res.status(200).json({
       success: true,
       data: {
-        _id: user._id,
+        id: user.id,
         name: user.name,
         username: user.username,
         email: user.email,
@@ -852,7 +902,6 @@ export const completeFirstTimeSetup = async (req, res) => {
     const { currentPassword, newPassword, enable2FA, twoFactorMethod } = req.body;
     const userId = req.user.id;
 
-    // Validate input
     if (!currentPassword || !newPassword) {
       return res.status(400).json({
         success: false,
@@ -860,7 +909,6 @@ export const completeFirstTimeSetup = async (req, res) => {
       });
     }
 
-    // Validate new password strength
     if (newPassword.length < 8) {
       return res.status(400).json({
         success: false,
@@ -868,8 +916,9 @@ export const completeFirstTimeSetup = async (req, res) => {
       });
     }
 
-    // Find user with password
-    const user = await User.findById(userId).select('+password');
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
 
     if (!user) {
       return res.status(404).json({
@@ -879,7 +928,7 @@ export const completeFirstTimeSetup = async (req, res) => {
     }
 
     // Verify current password
-    const isPasswordMatch = await user.comparePassword(currentPassword);
+    const isPasswordMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isPasswordMatch) {
       return res.status(401).json({
         success: false,
@@ -888,7 +937,7 @@ export const completeFirstTimeSetup = async (req, res) => {
     }
 
     // Check if new password is different from current
-    const isSamePassword = await user.comparePassword(newPassword);
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
     if (isSamePassword) {
       return res.status(400).json({
         success: false,
@@ -896,11 +945,18 @@ export const completeFirstTimeSetup = async (req, res) => {
       });
     }
 
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
     // Update password
-    user.password = newPassword;
-    user.isFirstLogin = false;
-    user.passwordChangedAt = Date.now();
-    await user.save();
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+        isFirstLogin: false,
+        passwordChangedAt: new Date()
+      }
+    });
 
     // If 2FA setup is requested
     let twoFactorData = null;
@@ -908,16 +964,19 @@ export const completeFirstTimeSetup = async (req, res) => {
       const method = twoFactorMethod || 'authenticator';
       
       if (method === 'email') {
-        // Generate and send OTP for email verification
         const otp = generateOTP();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-        user.emailOTP = {
-          code: otp,
-          expiresAt,
-          attempts: 0
-        };
-        await user.save();
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            emailOTP: {
+              code: otp,
+              expiresAt,
+              attempts: 0
+            }
+          }
+        });
 
         await sendOTPEmail(user.email, user.name, otp);
 
@@ -933,10 +992,11 @@ export const completeFirstTimeSetup = async (req, res) => {
           length: 32
         });
 
-        user.twoFactorSecret = secret.base32;
-        await user.save();
+        await prisma.user.update({
+          where: { id: userId },
+          data: { twoFactorSecret: secret.base32 }
+        });
 
-        // Generate QR code
         const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
 
         twoFactorData = {
@@ -973,7 +1033,10 @@ export const skip2FASetup = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const user = await User.findById(userId);
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -981,9 +1044,10 @@ export const skip2FASetup = async (req, res) => {
       });
     }
 
-    // Mark first login as complete
-    user.isFirstLogin = false;
-    await user.save();
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isFirstLogin: false }
+    });
 
     res.status(200).json({
       success: true,
@@ -1007,7 +1071,10 @@ export const setupEmail2FA = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const user = await User.findById(userId);
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -1015,19 +1082,20 @@ export const setupEmail2FA = async (req, res) => {
       });
     }
 
-    // Generate OTP
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Save OTP to user
-    user.emailOTP = {
-      code: otp,
-      expiresAt,
-      attempts: 0
-    };
-    await user.save();
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        emailOTP: {
+          code: otp,
+          expiresAt,
+          attempts: 0
+        }
+      }
+    });
 
-    // Send OTP email
     const emailResult = await sendOTPEmail(user.email, user.name, otp);
     
     if (!emailResult.success) {
@@ -1041,8 +1109,8 @@ export const setupEmail2FA = async (req, res) => {
       success: true,
       message: 'OTP sent to your email address',
       data: {
-        email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'), // Mask email
-        expiresIn: 600 // seconds
+        email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'),
+        expiresIn: 600
       }
     });
   } catch (error) {
@@ -1071,8 +1139,9 @@ export const enableEmail2FA = async (req, res) => {
       });
     }
 
-    // Find user with email OTP data
-    const user = await User.findById(userId).select('+emailOTP.code +emailOTP.expiresAt');
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
 
     if (!user) {
       return res.status(404).json({
@@ -1081,7 +1150,6 @@ export const enableEmail2FA = async (req, res) => {
       });
     }
 
-    // Check if OTP exists
     if (!user.emailOTP || !user.emailOTP.code) {
       return res.status(400).json({
         success: false,
@@ -1089,14 +1157,17 @@ export const enableEmail2FA = async (req, res) => {
       });
     }
 
-    // Check attempts
-    if (user.emailOTP.attempts >= 5) {
-      user.emailOTP = {
-        code: null,
-        expiresAt: null,
-        attempts: 0
-      };
-      await user.save();
+    if ((user.emailOTP.attempts || 0) >= 5) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          emailOTP: {
+            code: null,
+            expiresAt: null,
+            attempts: 0
+          }
+        }
+      });
       
       return res.status(429).json({
         success: false,
@@ -1104,14 +1175,17 @@ export const enableEmail2FA = async (req, res) => {
       });
     }
 
-    // Check if OTP expired
     if (new Date() > user.emailOTP.expiresAt) {
-      user.emailOTP = {
-        code: null,
-        expiresAt: null,
-        attempts: 0
-      };
-      await user.save();
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          emailOTP: {
+            code: null,
+            expiresAt: null,
+            attempts: 0
+          }
+        }
+      });
 
       return res.status(400).json({
         success: false,
@@ -1119,30 +1193,39 @@ export const enableEmail2FA = async (req, res) => {
       });
     }
 
-    // Verify OTP
     if (user.emailOTP.code !== otp) {
-      user.emailOTP.attempts += 1;
-      await user.save();
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          emailOTP: {
+            ...user.emailOTP,
+            attempts: (user.emailOTP.attempts || 0) + 1
+          }
+        }
+      });
 
       return res.status(400).json({
         success: false,
         message: 'Invalid OTP code',
-        attemptsRemaining: 5 - user.emailOTP.attempts
+        attemptsRemaining: 5 - ((user.emailOTP.attempts || 0) + 1)
       });
     }
 
     // Enable 2FA
-    user.twoFactorEnabled = true;
-    user.twoFactorMethod = 'email';
-    user.emailOTP = {
-      code: null,
-      expiresAt: null,
-      attempts: 0
-    };
-    user.isFirstLogin = false;
-    await user.save();
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        twoFactorEnabled: true,
+        twoFactorMethod: 'email',
+        emailOTP: {
+          code: null,
+          expiresAt: null,
+          attempts: 0
+        },
+        isFirstLogin: false
+      }
+    });
 
-    // Send confirmation email
     await send2FAEnabledEmail(user.email, user.name, 'email');
 
     res.status(200).json({
@@ -1174,7 +1257,10 @@ export const sendLoginOTP = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId);
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -1189,19 +1275,20 @@ export const sendLoginOTP = async (req, res) => {
       });
     }
 
-    // Generate OTP
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Save OTP to user
-    user.emailOTP = {
-      code: otp,
-      expiresAt,
-      attempts: 0
-    };
-    await user.save();
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        emailOTP: {
+          code: otp,
+          expiresAt,
+          attempts: 0
+        }
+      }
+    });
 
-    // Send OTP email
     const emailResult = await sendOTPEmail(user.email, user.name, otp);
     
     if (!emailResult.success) {
@@ -1215,7 +1302,7 @@ export const sendLoginOTP = async (req, res) => {
       success: true,
       message: 'OTP sent to your email address',
       data: {
-        email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'), // Mask email
+        email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'),
         expiresIn: 600
       }
     });
@@ -1244,8 +1331,9 @@ export const verifyEmailOTP = async (req, res) => {
       });
     }
 
-    // Find user with email OTP data
-    const user = await User.findById(userId).select('+emailOTP.code +emailOTP.expiresAt');
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
 
     if (!user) {
       return res.status(404).json({
@@ -1254,7 +1342,6 @@ export const verifyEmailOTP = async (req, res) => {
       });
     }
 
-    // Check if OTP exists
     if (!user.emailOTP || !user.emailOTP.code) {
       return res.status(400).json({
         success: false,
@@ -1262,14 +1349,17 @@ export const verifyEmailOTP = async (req, res) => {
       });
     }
 
-    // Check attempts
-    if (user.emailOTP.attempts >= 5) {
-      user.emailOTP = {
-        code: null,
-        expiresAt: null,
-        attempts: 0
-      };
-      await user.save();
+    if ((user.emailOTP.attempts || 0) >= 5) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          emailOTP: {
+            code: null,
+            expiresAt: null,
+            attempts: 0
+          }
+        }
+      });
       
       return res.status(429).json({
         success: false,
@@ -1277,14 +1367,17 @@ export const verifyEmailOTP = async (req, res) => {
       });
     }
 
-    // Check if OTP expired
     if (new Date() > user.emailOTP.expiresAt) {
-      user.emailOTP = {
-        code: null,
-        expiresAt: null,
-        attempts: 0
-      };
-      await user.save();
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          emailOTP: {
+            code: null,
+            expiresAt: null,
+            attempts: 0
+          }
+        }
+      });
 
       return res.status(400).json({
         success: false,
@@ -1292,53 +1385,63 @@ export const verifyEmailOTP = async (req, res) => {
       });
     }
 
-    // Verify OTP
     if (user.emailOTP.code !== otp) {
-      user.emailOTP.attempts += 1;
-      await user.save();
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          emailOTP: {
+            ...user.emailOTP,
+            attempts: (user.emailOTP.attempts || 0) + 1
+          }
+        }
+      });
 
       return res.status(400).json({
         success: false,
         message: 'Invalid OTP code',
-        attemptsRemaining: 5 - user.emailOTP.attempts
+        attemptsRemaining: 5 - ((user.emailOTP.attempts || 0) + 1)
       });
     }
 
-    // Clear OTP
-    user.emailOTP = {
-      code: null,
-      expiresAt: null,
-      attempts: 0
+    // Clear OTP and add device to trusted devices if requested
+    const deviceFingerprint = {
+      userAgent: req.headers['user-agent'],
+      ipAddress: req.ip || req.connection.remoteAddress,
+      deviceName: extractDeviceName(req.headers['user-agent'])
     };
 
-    // Add device to trusted devices if requested
+    const deviceId = generateDeviceId(deviceFingerprint);
+    const devices = user.trustedDevices || [];
+
     if (rememberDevice) {
-      const deviceFingerprint = {
-        userAgent: req.headers['user-agent'],
-        ipAddress: req.ip || req.connection.remoteAddress,
-        deviceName: extractDeviceName(req.headers['user-agent'])
-      };
-
-      const deviceId = generateDeviceId(deviceFingerprint);
-
-      const trustedDevice = user.trustedDevices.find(d => d.deviceId === deviceId);
+      const trustedDevice = devices.find(d => d.deviceId === deviceId);
       if (!trustedDevice) {
-        user.trustedDevices.push({
+        devices.push({
           deviceId,
           deviceName: deviceFingerprint.deviceName,
           ipAddress: deviceFingerprint.ipAddress,
-          lastUsed: Date.now()
+          lastUsed: new Date()
         });
       }
     }
 
-    await user.save();
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        emailOTP: {
+          code: null,
+          expiresAt: null,
+          attempts: 0
+        },
+        trustedDevices: devices
+      }
+    });
 
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     // Get role-specific data
-    const roleData = await getRoleSpecificData(user._id, user.role);
+    const roleData = await getRoleSpecificData(user.id, user.role);
 
     res.status(200).json({
       success: true,
@@ -1346,7 +1449,7 @@ export const verifyEmailOTP = async (req, res) => {
       token,
       data: {
         user: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
@@ -1381,18 +1484,17 @@ export const forgotPassword = async (req, res) => {
       });
     }
 
-    // Find user
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
 
     if (!user) {
-      // Don't reveal if user exists for security
       return res.status(200).json({
         success: true,
         message: 'If an account exists with this email, you will receive verification instructions'
       });
     }
 
-    // Check if user has 2FA enabled
     if (!user.twoFactorEnabled) {
       return res.status(400).json({
         success: false,
@@ -1400,18 +1502,20 @@ export const forgotPassword = async (req, res) => {
       });
     }
 
-    // Generate OTP for password reset
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    user.emailOTP = {
-      code: otp,
-      expiresAt,
-      attempts: 0
-    };
-    await user.save();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailOTP: {
+          code: otp,
+          expiresAt,
+          attempts: 0
+        }
+      }
+    });
 
-    // Send OTP based on user's 2FA method
     if (user.twoFactorMethod === 'email') {
       await sendOTPEmail(user.email, user.name, otp);
       
@@ -1419,18 +1523,17 @@ export const forgotPassword = async (req, res) => {
         success: true,
         message: 'Verification code sent to your email',
         data: {
-          userId: user._id,
+          userId: user.id,
           method: 'email',
           email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3')
         }
       });
     } else {
-      // For authenticator method
       return res.status(200).json({
         success: true,
         message: 'Please enter the code from your authenticator app',
         data: {
-          userId: user._id,
+          userId: user.id,
           method: 'authenticator'
         }
       });
@@ -1460,7 +1563,9 @@ export const verifyResetCode = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId).select('+emailOTP.code +emailOTP.expiresAt +twoFactorSecret');
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
 
     if (!user) {
       return res.status(404).json({
@@ -1473,7 +1578,6 @@ export const verifyResetCode = async (req, res) => {
 
     // Verify based on method
     if (user.twoFactorMethod === 'email') {
-      // Check if OTP exists
       if (!user.emailOTP || !user.emailOTP.code) {
         return res.status(400).json({
           success: false,
@@ -1481,14 +1585,17 @@ export const verifyResetCode = async (req, res) => {
         });
       }
 
-      // Check attempts
-      if (user.emailOTP.attempts >= 5) {
-        user.emailOTP = {
-          code: null,
-          expiresAt: null,
-          attempts: 0
-        };
-        await user.save();
+      if ((user.emailOTP.attempts || 0) >= 5) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            emailOTP: {
+              code: null,
+              expiresAt: null,
+              attempts: 0
+            }
+          }
+        });
         
         return res.status(429).json({
           success: false,
@@ -1496,14 +1603,17 @@ export const verifyResetCode = async (req, res) => {
         });
       }
 
-      // Check if OTP expired
       if (new Date() > user.emailOTP.expiresAt) {
-        user.emailOTP = {
-          code: null,
-          expiresAt: null,
-          attempts: 0
-        };
-        await user.save();
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            emailOTP: {
+              code: null,
+              expiresAt: null,
+              attempts: 0
+            }
+          }
+        });
 
         return res.status(400).json({
           success: false,
@@ -1511,15 +1621,21 @@ export const verifyResetCode = async (req, res) => {
         });
       }
 
-      // Verify OTP
       if (user.emailOTP.code !== code) {
-        user.emailOTP.attempts += 1;
-        await user.save();
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            emailOTP: {
+              ...user.emailOTP,
+              attempts: (user.emailOTP.attempts || 0) + 1
+            }
+          }
+        });
 
         return res.status(400).json({
           success: false,
           message: 'Invalid verification code',
-          attemptsRemaining: 5 - user.emailOTP.attempts
+          attemptsRemaining: 5 - ((user.emailOTP.attempts || 0) + 1)
         });
       }
 
@@ -1550,19 +1666,23 @@ export const verifyResetCode = async (req, res) => {
 
     // Generate reset token
     const resetToken = jwt.sign(
-      { userId: user._id, purpose: 'password-reset' },
+      { userId: user.id, purpose: 'password-reset' },
       process.env.JWT_SECRET,
       { expiresIn: '15m' }
     );
 
     // Clear OTP if email method
     if (user.twoFactorMethod === 'email') {
-      user.emailOTP = {
-        code: null,
-        expiresAt: null,
-        attempts: 0
-      };
-      await user.save();
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          emailOTP: {
+            code: null,
+            expiresAt: null,
+            attempts: 0
+          }
+        }
+      });
     }
 
     res.status(200).json({
@@ -1597,7 +1717,6 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    // Validate password strength
     if (newPassword.length < 8) {
       return res.status(400).json({
         success: false,
@@ -1621,7 +1740,9 @@ export const resetPassword = async (req, res) => {
     }
 
     // Find user
-    const user = await User.findById(decoded.userId).select('+password');
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId }
+    });
 
     if (!user) {
       return res.status(404).json({
@@ -1631,7 +1752,7 @@ export const resetPassword = async (req, res) => {
     }
 
     // Check if new password is different from current
-    const isSamePassword = await user.comparePassword(newPassword);
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
     if (isSamePassword) {
       return res.status(400).json({
         success: false,
@@ -1639,10 +1760,16 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    // Update password
-    user.password = newPassword;
-    user.passwordChangedAt = Date.now();
-    await user.save();
+    // Hash and update password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: decoded.userId },
+      data: {
+        password: hashedPassword,
+        passwordChangedAt: new Date()
+      }
+    });
 
     res.status(200).json({
       success: true,
@@ -1700,5 +1827,8 @@ export default {
   setupEmail2FA,
   enableEmail2FA,
   sendLoginOTP,
-  verifyEmailOTP
+  verifyEmailOTP,
+  forgotPassword,
+  verifyResetCode,
+  resetPassword
 };

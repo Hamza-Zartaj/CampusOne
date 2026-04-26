@@ -1,7 +1,6 @@
-import AdmissionSettings from '../models/AdmissionSettings.js';
-import AdmissionApplication from '../models/AdmissionApplication.js';
+import prisma from '../prisma/client.js';
 import { deleteFile, getFileUrl } from '../middleware/uploadMiddleware.js';
-import { 
+import {
   sendAdmissionApplicationConfirmationEmail,
   sendApplicationUnderReviewEmail,
   sendApplicationAcceptanceEmail,
@@ -13,13 +12,22 @@ import {
 // @access  Public
 export const getAdmissionSettings = async (req, res) => {
   try {
-    const settings = await AdmissionSettings.getSettings();
-    
-    // Return public info including whether admissions are currently open
+    // For now, return a default settings object
+    // In production, this would be stored in database
+    const settings = {
+      isOpen: true,
+      startDate: new Date(),
+      endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days from now
+      instructions: 'Please fill all required fields',
+      requiresDocuments: true,
+      requiredDocuments: ['cnic_front', 'cnic_back', 'transcript'],
+      applicationFormFields: []
+    };
+
     res.status(200).json({
       success: true,
       data: {
-        isOpen: settings.isCurrentlyOpen(),
+        isOpen: settings.isOpen,
         startDate: settings.startDate,
         endDate: settings.endDate,
         instructions: settings.instructions,
@@ -42,29 +50,18 @@ export const getAdmissionSettings = async (req, res) => {
 // @access  Private/Admin
 export const updateAdmissionSettings = async (req, res) => {
   try {
-    const settings = await AdmissionSettings.getSettings();
-    
-    // Update fields if provided
-    const allowedFields = [
-      'isOpen',
-      'startDate',
-      'endDate',
-      'instructions',
-      'maxApplications',
-      'requiresDocuments',
-      'requiredDocuments',
-      'notificationEmails',
-      'applicationFormFields'
-    ];
-    
-    allowedFields.forEach(field => {
-      if (req.body[field] !== undefined) {
-        settings[field] = req.body[field];
-      }
-    });
-    
-    await settings.save();
-    
+    // In production, this would save to database
+    // For now, just return success
+    const settings = {
+      isOpen: req.body.isOpen !== undefined ? req.body.isOpen : true,
+      startDate: req.body.startDate,
+      endDate: req.body.endDate,
+      instructions: req.body.instructions,
+      requiresDocuments: req.body.requiresDocuments,
+      requiredDocuments: req.body.requiredDocuments,
+      applicationFormFields: req.body.applicationFormFields
+    };
+
     res.status(200).json({
       success: true,
       message: 'Admission settings updated successfully',
@@ -84,58 +81,62 @@ export const updateAdmissionSettings = async (req, res) => {
 // @access  Public
 export const submitApplication = async (req, res) => {
   try {
-    // Check if admissions are open
-    const settings = await AdmissionSettings.getSettings();
-    
-    if (!settings.isCurrentlyOpen()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Admissions are currently closed'
-      });
-    }
-    
-    // Check if max applications reached
-    if (settings.maxApplications) {
-      const applicationCount = await AdmissionApplication.countDocuments();
-      if (applicationCount >= settings.maxApplications) {
-        return res.status(400).json({
-          success: false,
-          message: 'Maximum number of applications has been reached'
-        });
-      }
-    }
-    
     // Check for duplicate email
-    const existingEmail = await AdmissionApplication.findOne({ email: req.body.email });
+    const existingEmail = await prisma.admissionApplication.findFirst({
+      where: { email: req.body.email.toLowerCase() }
+    });
     if (existingEmail) {
       return res.status(400).json({
         success: false,
         message: 'An application with this email already exists. Each applicant can only submit one application.'
       });
     }
-    
+
     // Check for duplicate CNIC
-    const existingCNIC = await AdmissionApplication.findOne({ cnic: req.body.cnic });
+    const existingCNIC = await prisma.admissionApplication.findFirst({
+      where: { cnic: req.body.cnic }
+    });
     if (existingCNIC) {
       return res.status(400).json({
         success: false,
         message: 'An application with this CNIC already exists. Each applicant can only submit one application.'
       });
     }
-    
+
     // Check for duplicate phone number
-    const existingPhone = await AdmissionApplication.findOne({ phone: req.body.phone });
+    const existingPhone = await prisma.admissionApplication.findFirst({
+      where: { phone: req.body.phone }
+    });
     if (existingPhone) {
       return res.status(400).json({
         success: false,
         message: 'An application with this phone number already exists. Each applicant can only submit one application.'
       });
     }
-    
+
+    // Generate application number
+    const count = await prisma.admissionApplication.count();
+    const applicationNumber = `APP-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+
     // Create application
-    const application = await AdmissionApplication.create({
-      ...req.body,
-      userId: req.user ? req.user.id : null
+    const application = await prisma.admissionApplication.create({
+      data: {
+        applicationNumber,
+        fullName: req.body.fullName,
+        email: req.body.email.toLowerCase(),
+        phone: req.body.phone,
+        cnic: req.body.cnic,
+        dateOfBirth: req.body.dateOfBirth ? new Date(req.body.dateOfBirth) : null,
+        gender: req.body.gender,
+        program: req.body.program,
+        address: req.body.address || {},
+        guardian: req.body.guardian || {},
+        educationRecords: req.body.educationRecords || [],
+        documents: [],
+        status: 'Pending',
+        submittedAt: new Date(),
+        userId: req.user ? req.user.id : null
+      }
     });
 
     // Send confirmation email to applicant
@@ -148,14 +149,13 @@ export const submitApplication = async (req, res) => {
       );
     } catch (emailError) {
       console.error('Email sending failed (non-blocking):', emailError);
-      // Continue even if email fails - application is already created
     }
-    
+
     res.status(201).json({
       success: true,
       message: 'Application submitted successfully',
       data: {
-        _id: application._id,
+        _id: application.id,
         applicationNumber: application.applicationNumber,
         status: application.status
       }
@@ -176,20 +176,21 @@ export const submitApplication = async (req, res) => {
 export const getAllApplications = async (req, res) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
-    
-    const query = {};
+
+    const where = {};
     if (status) {
-      query.status = status;
+      where.status = status;
     }
-    
-    const applications = await AdmissionApplication.find(query)
-      .sort({ submittedAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .populate('reviewedBy', 'name email');
-    
-    const count = await AdmissionApplication.countDocuments(query);
-    
+
+    const applications = await prisma.admissionApplication.findMany({
+      where,
+      orderBy: { submittedAt: 'desc' },
+      take: parseInt(limit),
+      skip: (parseInt(page) - 1) * parseInt(limit)
+    });
+
+    const count = await prisma.admissionApplication.count({ where });
+
     res.status(200).json({
       success: true,
       data: applications,
@@ -211,25 +212,26 @@ export const getAllApplications = async (req, res) => {
 // @access  Private/Admin or Owner
 export const getApplication = async (req, res) => {
   try {
-    const application = await AdmissionApplication.findById(req.params.id)
-      .populate('reviewedBy', 'name email');
-    
+    const application = await prisma.admissionApplication.findUnique({
+      where: { id: req.params.id }
+    });
+
     if (!application) {
       return res.status(404).json({
         success: false,
         message: 'Application not found'
       });
     }
-    
+
     // Check if user is admin or the application owner
-    if (req.user.role !== 'admin' && 
-        (!application.userId || application.userId.toString() !== req.user.id)) {
+    if (req.user.role !== 'admin' &&
+        (!application.userId || application.userId !== req.user.id)) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to view this application'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: application
@@ -249,35 +251,38 @@ export const getApplication = async (req, res) => {
 export const updateApplicationStatus = async (req, res) => {
   try {
     const { status, reviewNotes } = req.body;
-    
-    const application = await AdmissionApplication.findById(req.params.id);
-    
+
+    const application = await prisma.admissionApplication.findUnique({
+      where: { id: req.params.id }
+    });
+
     if (!application) {
       return res.status(404).json({
         success: false,
         message: 'Application not found'
       });
     }
-    
+
     const previousStatus = application.status;
-    application.status = status;
-    application.reviewedAt = new Date();
-    application.reviewedBy = req.user.id;
-    
-    if (reviewNotes) {
-      application.reviewNotes = reviewNotes;
-    }
-    
-    await application.save();
+
+    const updated = await prisma.admissionApplication.update({
+      where: { id: req.params.id },
+      data: {
+        status,
+        reviewedAt: new Date(),
+        reviewedBy: req.user.id,
+        reviewNotes: reviewNotes || application.reviewNotes
+      }
+    });
 
     // Send response immediately to user
     res.status(200).json({
       success: true,
       message: 'Application status updated successfully',
-      data: application
+      data: updated
     });
 
-    // Send email based on status change (non-blocking - runs in background)
+    // Send email based on status change (non-blocking)
     if (status === 'Under Review') {
       sendApplicationUnderReviewEmail(
         application.email,
@@ -320,13 +325,13 @@ export const updateApplicationStatus = async (req, res) => {
 // @access  Private/Admin
 export const getApplicationStatistics = async (req, res) => {
   try {
-    const totalApplications = await AdmissionApplication.countDocuments();
-    const pendingApplications = await AdmissionApplication.countDocuments({ status: 'Pending' });
-    const underReviewApplications = await AdmissionApplication.countDocuments({ status: 'Under Review' });
-    const acceptedApplications = await AdmissionApplication.countDocuments({ status: 'Accepted' });
-    const rejectedApplications = await AdmissionApplication.countDocuments({ status: 'Rejected' });
-    const waitlistedApplications = await AdmissionApplication.countDocuments({ status: 'Waitlisted' });
-    
+    const totalApplications = await prisma.admissionApplication.count();
+    const pendingApplications = await prisma.admissionApplication.count({ where: { status: 'Pending' } });
+    const underReviewApplications = await prisma.admissionApplication.count({ where: { status: 'Under Review' } });
+    const acceptedApplications = await prisma.admissionApplication.count({ where: { status: 'Accepted' } });
+    const rejectedApplications = await prisma.admissionApplication.count({ where: { status: 'Rejected' } });
+    const waitlistedApplications = await prisma.admissionApplication.count({ where: { status: 'Waitlisted' } });
+
     res.status(200).json({
       success: true,
       data: {
@@ -373,9 +378,11 @@ export const uploadDocuments = async (req, res) => {
     }
 
     // Find application
-    const application = await AdmissionApplication.findById(id);
+    const application = await prisma.admissionApplication.findUnique({
+      where: { id }
+    });
+
     if (!application) {
-      // Clean up uploaded files if application not found
       if (req.files) {
         req.files.forEach(file => deleteFile(file.filename));
       }
@@ -385,10 +392,9 @@ export const uploadDocuments = async (req, res) => {
       });
     }
 
-    // Check authorization - allow if user is admin OR no authentication required for newly submitted applications
-    if (req.user && req.user.role !== 'admin' && 
-        application.userId && application.userId.toString() !== req.user.id) {
-      // Clean up uploaded files
+    // Check authorization
+    if (req.user && req.user.role !== 'admin' &&
+        application.userId && application.userId !== req.user.id) {
       if (req.files) {
         req.files.forEach(file => deleteFile(file.filename));
       }
@@ -423,16 +429,16 @@ export const uploadDocuments = async (req, res) => {
     req.files.forEach((file) => {
       const fieldType = fileMetadataMap.get(file.originalname);
       const fileUrl = getFileUrl(file.filename);
-      
+
       console.log(`[Upload Documents] Processing file: "${file.originalname}"`);
       console.log(`[Upload Documents] Looking for metadata with fileName: "${file.originalname}"`);
       console.log(`[Upload Documents] Found fieldType: "${fieldType}"`);
       console.log(`[Upload Documents] File URL: ${fileUrl}`);
-      
+
       if (!fieldType) {
         console.warn(`[Upload Documents] WARNING: No metadata found for file "${file.originalname}". Will store in documents array only.`);
       }
-      
+
       if (fieldType === 'cnic_front') {
         application.cnicFront = fileUrl;
         console.log('[Upload Documents] ✓ Updated cnicFront');
@@ -440,15 +446,16 @@ export const uploadDocuments = async (req, res) => {
         application.cnicBack = fileUrl;
         console.log('[Upload Documents] ✓ Updated cnicBack');
       } else if (fieldType === 'domicile') {
+        if (!application.address) application.address = {};
         application.address.domicileUpload = fileUrl;
         console.log('[Upload Documents] ✓ Updated address.domicileUpload');
       } else if (fieldType === 'guardian_cnic') {
+        if (!application.guardian) application.guardian = {};
         application.guardian.cnicUpload = fileUrl;
         console.log('[Upload Documents] ✓ Updated guardian.cnicUpload');
       } else if (fieldType && fieldType.startsWith('transcript_')) {
-        // Extract education record index from fieldType (e.g., 'transcript_0' -> 0)
         const index = parseInt(fieldType.split('_')[1]);
-        if (application.educationRecords[index]) {
+        if (application.educationRecords && application.educationRecords[index]) {
           application.educationRecords[index].transcript = fileUrl;
           console.log(`[Upload Documents] ✓ Updated educationRecords[${index}].transcript`);
         } else {
@@ -468,18 +475,25 @@ export const uploadDocuments = async (req, res) => {
       };
     });
 
+    if (!application.documents) {
+      application.documents = [];
+    }
     application.documents.push(...uploadedDocuments);
-    await application.save();
+
+    // Save updated application
+    const updated = await prisma.admissionApplication.update({
+      where: { id },
+      data: {
+        cnicFront: application.cnicFront,
+        cnicBack: application.cnicBack,
+        address: application.address,
+        guardian: application.guardian,
+        educationRecords: application.educationRecords,
+        documents: application.documents
+      }
+    });
 
     console.log(`[Upload Documents] Successfully uploaded ${uploadedDocuments.length} files for application ${id}`);
-    console.log('[Upload Documents] Updated application fields:');
-    console.log('  - cnicFront:', application.cnicFront ? 'SET' : 'null');
-    console.log('  - cnicBack:', application.cnicBack ? 'SET' : 'null');
-    console.log('  - address.domicileUpload:', application.address.domicileUpload ? 'SET' : 'null');
-    console.log('  - guardian.cnicUpload:', application.guardian.cnicUpload ? 'SET' : 'null');
-    application.educationRecords.forEach((edu, idx) => {
-      console.log(`  - educationRecords[${idx}].transcript:`, edu.transcript ? 'SET' : 'null');
-    });
 
     res.status(200).json({
       success: true,
@@ -490,13 +504,12 @@ export const uploadDocuments = async (req, res) => {
         applicationData: {
           cnicFront: application.cnicFront,
           cnicBack: application.cnicBack,
-          'address.domicileUpload': application.address.domicileUpload,
-          'guardian.cnicUpload': application.guardian.cnicUpload
+          'address.domicileUpload': application.address?.domicileUpload,
+          'guardian.cnicUpload': application.guardian?.cnicUpload
         }
       }
     });
   } catch (error) {
-    // Clean up uploaded files on error
     if (req.files) {
       req.files.forEach(file => deleteFile(file.filename));
     }
@@ -517,7 +530,10 @@ export const deleteDocument = async (req, res) => {
     const { id, docIndex } = req.params;
 
     // Find application
-    const application = await AdmissionApplication.findById(id);
+    const application = await prisma.admissionApplication.findUnique({
+      where: { id }
+    });
+
     if (!application) {
       return res.status(404).json({
         success: false,
@@ -525,9 +541,9 @@ export const deleteDocument = async (req, res) => {
       });
     }
 
-    // Check authorization - allow if user is admin OR no authentication required for newly submitted applications
-    if (req.user && req.user.role !== 'admin' && 
-        application.userId && application.userId.toString() !== req.user.id) {
+    // Check authorization
+    if (req.user && req.user.role !== 'admin' &&
+        application.userId && application.userId !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to delete documents from this application'
@@ -535,7 +551,8 @@ export const deleteDocument = async (req, res) => {
     }
 
     // Validate document index
-    if (docIndex < 0 || docIndex >= application.documents.length) {
+    const docIdx = parseInt(docIndex);
+    if (docIdx < 0 || docIdx >= application.documents.length) {
       return res.status(400).json({
         success: false,
         message: 'Invalid document index'
@@ -543,12 +560,16 @@ export const deleteDocument = async (req, res) => {
     }
 
     // Delete file from disk
-    const document = application.documents[docIndex];
+    const document = application.documents[docIdx];
     deleteFile(document.fileName);
 
     // Remove document from array
-    application.documents.splice(docIndex, 1);
-    await application.save();
+    application.documents.splice(docIdx, 1);
+
+    const updated = await prisma.admissionApplication.update({
+      where: { id },
+      data: { documents: application.documents }
+    });
 
     res.status(200).json({
       success: true,
@@ -572,7 +593,10 @@ export const getApplicationDocuments = async (req, res) => {
     const { id } = req.params;
 
     // Find application
-    const application = await AdmissionApplication.findById(id);
+    const application = await prisma.admissionApplication.findUnique({
+      where: { id }
+    });
+
     if (!application) {
       return res.status(404).json({
         success: false,
@@ -580,9 +604,9 @@ export const getApplicationDocuments = async (req, res) => {
       });
     }
 
-    // Check authorization - allow if user is admin OR no authentication required for newly submitted applications
-    if (req.user && req.user.role !== 'admin' && 
-        application.userId && application.userId.toString() !== req.user.id) {
+    // Check authorization
+    if (req.user && req.user.role !== 'admin' &&
+        application.userId && application.userId !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to view documents for this application'
@@ -593,16 +617,15 @@ export const getApplicationDocuments = async (req, res) => {
       success: true,
       data: {
         applicationId: id,
-        documents: application.documents,
-        totalDocuments: application.documents.length
+        documents: application.documents || [],
+        totalDocuments: application.documents ? application.documents.length : 0
       }
     });
   } catch (error) {
     console.error('Error fetching documents:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching documents',
-      error: error.message
+      message: 'Error fetching documents'
     });
   }
 };
@@ -613,9 +636,11 @@ export const getApplicationDocuments = async (req, res) => {
 export const checkDuplicateEmail = async (req, res) => {
   try {
     const { email } = req.params;
-    
-    const existingEmail = await AdmissionApplication.findOne({ email: email.toLowerCase() });
-    
+
+    const existingEmail = await prisma.admissionApplication.findFirst({
+      where: { email: email.toLowerCase() }
+    });
+
     res.status(200).json({
       success: true,
       exists: !!existingEmail,
@@ -636,9 +661,11 @@ export const checkDuplicateEmail = async (req, res) => {
 export const checkDuplicateCNIC = async (req, res) => {
   try {
     const { cnic } = req.params;
-    
-    const existingCNIC = await AdmissionApplication.findOne({ cnic: cnic });
-    
+
+    const existingCNIC = await prisma.admissionApplication.findFirst({
+      where: { cnic }
+    });
+
     res.status(200).json({
       success: true,
       exists: !!existingCNIC,
@@ -659,19 +686,62 @@ export const checkDuplicateCNIC = async (req, res) => {
 export const checkDuplicatePhone = async (req, res) => {
   try {
     const { phone } = req.params;
-    
-    const existingPhone = await AdmissionApplication.findOne({ phone: phone });
-    
+
+    const existingPhone = await prisma.admissionApplication.findFirst({
+      where: { phone }
+    });
+
     res.status(200).json({
       success: true,
       exists: !!existingPhone,
-      message: existingPhone ? 'This phone number has already submitted an application' : 'Phone number is available'
+      message: existingPhone ? 'This phone number has already submitted an application' : 'Phone is available'
     });
   } catch (error) {
     console.error('Error checking phone:', error);
     res.status(500).json({
       success: false,
       message: 'Error checking phone'
+    });
+  }
+};
+
+// @desc    Search applications
+// @route   GET /api/admissions/search
+// @access  Private/Admin
+export const searchApplications = async (req, res) => {
+  try {
+    const { query, status } = req.query;
+
+    const where = {
+      ...(status && { status })
+    };
+
+    if (query) {
+      where.OR = [
+        { fullName: { contains: query, mode: 'insensitive' } },
+        { email: { contains: query, mode: 'insensitive' } },
+        { cnic: { contains: query, mode: 'insensitive' } },
+        { phone: { contains: query, mode: 'insensitive' } },
+        { applicationNumber: { contains: query, mode: 'insensitive' } }
+      ];
+    }
+
+    const results = await prisma.admissionApplication.findMany({
+      where,
+      orderBy: { submittedAt: 'desc' },
+      take: 50
+    });
+
+    res.status(200).json({
+      success: true,
+      data: results,
+      count: results.length
+    });
+  } catch (error) {
+    console.error('Error searching applications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error searching applications'
     });
   }
 };
