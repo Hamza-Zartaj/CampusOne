@@ -1,5 +1,4 @@
-import Program from '../models/Program.js';
-import Course from '../models/Course.js';
+import prisma from '../prisma/client.js';
 
 /**
  * @desc    Get all programs with pagination and search
@@ -10,31 +9,36 @@ export const getAllPrograms = async (req, res) => {
   try {
     const { page = 1, limit = 10, search, department, type, isActive, includeSoftDeleted } = req.query;
 
-    // Build query
-    const query = {};
+    // Build where clause
+    const where = {};
 
     // Filter by department
     if (department) {
-      query.department = department;
+      where.departmentId = department;
     }
 
     // Filter by program type
     if (type) {
-      query.type = type;
+      where.type = type;
     }
 
     // Filter by active status
     if (isActive !== undefined && isActive !== '' && isActive !== 'all') {
-      query.isActive = isActive === 'true';
+      where.isActive = isActive === 'true';
     }
 
-    // Search by name or code
+    // Search by name, code, or description
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { programCode: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { programCode: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
       ];
+    }
+
+    // Handle soft deletes
+    if (includeSoftDeleted !== 'true') {
+      where.isDeleted = false;
     }
 
     // Pagination
@@ -42,19 +46,25 @@ export const getAllPrograms = async (req, res) => {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // Query options
-    const queryOptions = includeSoftDeleted === 'true' ? { includeSoftDeleted: true } : {};
-
     // Get total count
-    const total = await Program.countDocuments(query).setOptions(queryOptions);
+    const total = await prisma.program.count({ where });
 
     // Get programs
-    const programs = await Program.find(query)
-      .setOptions(queryOptions)
-      .populate('department', 'departmentCode name')
-      .sort({ programCode: 1 })
-      .skip(skip)
-      .limit(limitNum);
+    const programs = await prisma.program.findMany({
+      where,
+      include: {
+        department: {
+          select: {
+            id: true,
+            departmentCode: true,
+            name: true
+          }
+        }
+      },
+      orderBy: { programCode: 'asc' },
+      skip,
+      take: limitNum
+    });
 
     // Calculate pagination info
     const totalPages = Math.ceil(total / limitNum);
@@ -90,8 +100,18 @@ export const getProgramById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const program = await Program.findById(id)
-      .populate('department', 'departmentCode name');
+    const program = await prisma.program.findUnique({
+      where: { id },
+      include: {
+        department: {
+          select: {
+            id: true,
+            departmentCode: true,
+            name: true
+          }
+        }
+      }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -123,15 +143,25 @@ export const getProgramsByDepartment = async (req, res) => {
     const { departmentId } = req.params;
     const { isActive } = req.query;
 
-    const query = { department: departmentId };
+    const where = { departmentId };
     
     if (isActive !== undefined && isActive !== '' && isActive !== 'all') {
-      query.isActive = isActive === 'true';
+      where.isActive = isActive === 'true';
     }
 
-    const programs = await Program.find(query)
-      .populate('department', 'departmentCode name')
-      .sort({ programCode: 1 });
+    const programs = await prisma.program.findMany({
+      where,
+      include: {
+        department: {
+          select: {
+            id: true,
+            departmentCode: true,
+            name: true
+          }
+        }
+      },
+      orderBy: { programCode: 'asc' }
+    });
 
     res.status(200).json({
       success: true,
@@ -158,7 +188,7 @@ export const createProgram = async (req, res) => {
       programCode,
       name,
       description,
-      department,
+      departmentId,
       type,
       durationYears,
       totalSemesters,
@@ -167,8 +197,9 @@ export const createProgram = async (req, res) => {
     } = req.body;
 
     // Check if program code already exists
-    const existingProgram = await Program.findOne({ programCode: programCode.toUpperCase() })
-      .setOptions({ includeSoftDeleted: true });
+    const existingProgram = await prisma.program.findUnique({
+      where: { programCode: programCode.toUpperCase() }
+    });
     
     if (existingProgram) {
       return res.status(400).json({
@@ -177,20 +208,28 @@ export const createProgram = async (req, res) => {
       });
     }
 
-    const program = await Program.create({
-      programCode,
-      name,
-      description,
-      department,
-      type,
-      durationYears,
-      totalSemesters,
-      totalCredits,
-      eligibilityCriteria
+    const program = await prisma.program.create({
+      data: {
+        programCode: programCode.toUpperCase(),
+        name,
+        description,
+        departmentId,
+        type,
+        durationYears,
+        totalSemesters,
+        totalCredits,
+        eligibilityCriteria
+      },
+      include: {
+        department: {
+          select: {
+            id: true,
+            departmentCode: true,
+            name: true
+          }
+        }
+      }
     });
-
-    // Populate department before returning
-    await program.populate('department', 'departmentCode name');
 
     res.status(201).json({
       success: true,
@@ -218,7 +257,7 @@ export const updateProgram = async (req, res) => {
       programCode,
       name,
       description,
-      department,
+      departmentId,
       type,
       durationYears,
       totalSemesters,
@@ -227,7 +266,9 @@ export const updateProgram = async (req, res) => {
       isActive
     } = req.body;
 
-    const program = await Program.findById(id);
+    const program = await prisma.program.findUnique({
+      where: { id }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -238,10 +279,9 @@ export const updateProgram = async (req, res) => {
 
     // Check if updating to a code that already exists
     if (programCode && programCode.toUpperCase() !== program.programCode) {
-      const existingProgram = await Program.findOne({ 
-        programCode: programCode.toUpperCase(),
-        _id: { $ne: id }
-      }).setOptions({ includeSoftDeleted: true });
+      const existingProgram = await prisma.program.findUnique({
+        where: { programCode: programCode.toUpperCase() }
+      });
       
       if (existingProgram) {
         return res.status(400).json({
@@ -251,27 +291,38 @@ export const updateProgram = async (req, res) => {
       }
     }
 
-    // Update fields
-    if (programCode) program.programCode = programCode;
-    if (name) program.name = name;
-    if (description !== undefined) program.description = description;
-    if (department) program.department = department;
-    if (type) program.type = type;
-    if (durationYears) program.durationYears = durationYears;
-    if (totalSemesters) program.totalSemesters = totalSemesters;
-    if (totalCredits) program.totalCredits = totalCredits;
-    if (eligibilityCriteria !== undefined) program.eligibilityCriteria = eligibilityCriteria;
-    if (isActive !== undefined) program.isActive = isActive;
+    // Build update data
+    const updateData = {};
+    
+    if (programCode) updateData.programCode = programCode.toUpperCase();
+    if (name) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (departmentId) updateData.departmentId = departmentId;
+    if (type) updateData.type = type;
+    if (durationYears) updateData.durationYears = durationYears;
+    if (totalSemesters) updateData.totalSemesters = totalSemesters;
+    if (totalCredits) updateData.totalCredits = totalCredits;
+    if (eligibilityCriteria !== undefined) updateData.eligibilityCriteria = eligibilityCriteria;
+    if (isActive !== undefined) updateData.isActive = isActive;
 
-    await program.save();
-
-    // Populate department before returning
-    await program.populate('department', 'departmentCode name');
+    const updated = await prisma.program.update({
+      where: { id },
+      data: updateData,
+      include: {
+        department: {
+          select: {
+            id: true,
+            departmentCode: true,
+            name: true
+          }
+        }
+      }
+    });
 
     res.status(200).json({
       success: true,
       message: 'Program updated successfully',
-      data: program
+      data: updated
     });
   } catch (error) {
     res.status(500).json({
@@ -291,7 +342,9 @@ export const deleteProgram = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const program = await Program.findById(id);
+    const program = await prisma.program.findUnique({
+      where: { id }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -300,7 +353,14 @@ export const deleteProgram = async (req, res) => {
       });
     }
 
-    await program.softDelete(req.user._id);
+    await prisma.program.update({
+      where: { id },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: req.user?.id
+      }
+    });
 
     res.status(200).json({
       success: true,
@@ -324,7 +384,9 @@ export const restoreProgram = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const program = await Program.findById(id).setOptions({ includeSoftDeleted: true });
+    const program = await prisma.program.findUnique({
+      where: { id }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -340,15 +402,28 @@ export const restoreProgram = async (req, res) => {
       });
     }
 
-    await program.restore();
-
-    // Populate department before returning
-    await program.populate('department', 'departmentCode name');
+    const restored = await prisma.program.update({
+      where: { id },
+      data: {
+        isDeleted: false,
+        deletedAt: null,
+        deletedBy: null
+      },
+      include: {
+        department: {
+          select: {
+            id: true,
+            departmentCode: true,
+            name: true
+          }
+        }
+      }
+    });
 
     res.status(200).json({
       success: true,
       message: 'Program restored successfully',
-      data: program
+      data: restored
     });
   } catch (error) {
     res.status(500).json({
@@ -368,7 +443,9 @@ export const permanentDeleteProgram = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const program = await Program.findById(id).setOptions({ includeSoftDeleted: true });
+    const program = await prisma.program.findUnique({
+      where: { id }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -377,7 +454,9 @@ export const permanentDeleteProgram = async (req, res) => {
       });
     }
 
-    await Program.findByIdAndDelete(id);
+    await prisma.program.delete({
+      where: { id }
+    });
 
     res.status(200).json({
       success: true,
@@ -401,10 +480,16 @@ export const getProgramCurriculum = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const program = await Program.findById(id)
-      .select('programCode name totalSemesters totalCredits curriculum')
-      .populate('curriculum.requiredCourses.course', 'courseCode courseName creditHours courseType domain')
-      .populate('curriculum.electiveSlots.allowedCourses', 'courseCode courseName creditHours courseType domain');
+    const program = await prisma.program.findUnique({
+      where: { id },
+      select: {
+        programCode: true,
+        name: true,
+        totalSemesters: true,
+        totalCredits: true,
+        curriculum: true
+      }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -414,19 +499,19 @@ export const getProgramCurriculum = async (req, res) => {
     }
 
     // Sort curriculum by semester number
-    const sortedCurriculum = program.curriculum.sort((a, b) => a.semesterNumber - b.semesterNumber);
+    const sortedCurriculum = (program.curriculum || []).sort((a, b) => a.semesterNumber - b.semesterNumber);
 
     // Calculate totals per semester
     const curriculumWithTotals = sortedCurriculum.map(sem => {
-      const requiredCredits = sem.requiredCourses.reduce((sum, rc) => {
-        return sum + (rc.course?.creditHours || 0);
+      const requiredCredits = (sem.requiredCourses || []).reduce((sum, rc) => {
+        return sum + (rc.creditHours || 0);
       }, 0);
       
-      const electiveMinCredits = sem.electiveSlots.reduce((sum, es) => sum + (es.minCredits || 0), 0);
-      const electiveMaxCredits = sem.electiveSlots.reduce((sum, es) => sum + (es.maxCredits || 0), 0);
+      const electiveMinCredits = (sem.electiveSlots || []).reduce((sum, es) => sum + (es.minCredits || 0), 0);
+      const electiveMaxCredits = (sem.electiveSlots || []).reduce((sum, es) => sum + (es.maxCredits || 0), 0);
 
       return {
-        ...sem.toObject(),
+        ...sem,
         calculatedCredits: {
           required: requiredCredits,
           electiveMin: electiveMinCredits,
@@ -466,10 +551,15 @@ export const getCurriculumBySemester = async (req, res) => {
     const { id, semesterNumber } = req.params;
     const semNum = parseInt(semesterNumber);
 
-    const program = await Program.findById(id)
-      .select('programCode name totalSemesters curriculum')
-      .populate('curriculum.requiredCourses.course', 'courseCode courseName creditHours courseType domain description prerequisites')
-      .populate('curriculum.electiveSlots.allowedCourses', 'courseCode courseName creditHours courseType domain description');
+    const program = await prisma.program.findUnique({
+      where: { id },
+      select: {
+        programCode: true,
+        name: true,
+        totalSemesters: true,
+        curriculum: true
+      }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -485,7 +575,7 @@ export const getCurriculumBySemester = async (req, res) => {
       });
     }
 
-    const semesterCurriculum = program.curriculum.find(s => s.semesterNumber === semNum);
+    const semesterCurriculum = (program.curriculum || []).find(s => s.semesterNumber === semNum);
 
     if (!semesterCurriculum) {
       return res.status(200).json({
@@ -506,19 +596,19 @@ export const getCurriculumBySemester = async (req, res) => {
     }
 
     // Calculate credits
-    const requiredCredits = semesterCurriculum.requiredCourses.reduce((sum, rc) => {
-      return sum + (rc.course?.creditHours || 0);
+    const requiredCredits = (semesterCurriculum.requiredCourses || []).reduce((sum, rc) => {
+      return sum + (rc.creditHours || 0);
     }, 0);
     
-    const electiveMinCredits = semesterCurriculum.electiveSlots.reduce((sum, es) => sum + (es.minCredits || 0), 0);
-    const electiveMaxCredits = semesterCurriculum.electiveSlots.reduce((sum, es) => sum + (es.maxCredits || 0), 0);
+    const electiveMinCredits = (semesterCurriculum.electiveSlots || []).reduce((sum, es) => sum + (es.minCredits || 0), 0);
+    const electiveMaxCredits = (semesterCurriculum.electiveSlots || []).reduce((sum, es) => sum + (es.maxCredits || 0), 0);
 
     res.status(200).json({
       success: true,
       data: {
         programCode: program.programCode,
         programName: program.name,
-        ...semesterCurriculum.toObject(),
+        ...semesterCurriculum,
         calculatedCredits: {
           required: requiredCredits,
           electiveMin: electiveMinCredits,
@@ -547,7 +637,9 @@ export const updateProgramCurriculum = async (req, res) => {
     const { id } = req.params;
     const { curriculum } = req.body;
 
-    const program = await Program.findById(id);
+    const program = await prisma.program.findUnique({
+      where: { id }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -572,33 +664,6 @@ export const updateProgramCurriculum = async (req, res) => {
           message: `Invalid semester number. Must be between 1 and ${program.totalSemesters}`
         });
       }
-
-      // Validate required courses exist
-      if (sem.requiredCourses && sem.requiredCourses.length > 0) {
-        const courseIds = sem.requiredCourses.map(rc => rc.course);
-        const courses = await Course.find({ _id: { $in: courseIds } });
-        if (courses.length !== courseIds.length) {
-          return res.status(400).json({
-            success: false,
-            message: `One or more required courses not found in semester ${sem.semesterNumber}`
-          });
-        }
-      }
-
-      // Validate allowed courses in elective slots
-      if (sem.electiveSlots && sem.electiveSlots.length > 0) {
-        for (const slot of sem.electiveSlots) {
-          if (slot.allowedCourses && slot.allowedCourses.length > 0) {
-            const courses = await Course.find({ _id: { $in: slot.allowedCourses } });
-            if (courses.length !== slot.allowedCourses.length) {
-              return res.status(400).json({
-                success: false,
-                message: `One or more allowed courses not found in elective slot "${slot.slotName}" for semester ${sem.semesterNumber}`
-              });
-            }
-          }
-        }
-      }
     }
 
     // Check for duplicate semester numbers
@@ -611,19 +676,15 @@ export const updateProgramCurriculum = async (req, res) => {
       });
     }
 
-    program.curriculum = curriculum;
-    await program.save();
-
-    // Populate and return
-    await program.populate([
-      { path: 'curriculum.requiredCourses.course', select: 'courseCode courseName creditHours courseType domain' },
-      { path: 'curriculum.electiveSlots.allowedCourses', select: 'courseCode courseName creditHours courseType domain' }
-    ]);
+    const updated = await prisma.program.update({
+      where: { id },
+      data: { curriculum }
+    });
 
     res.status(200).json({
       success: true,
       message: 'Curriculum updated successfully',
-      data: program.curriculum.sort((a, b) => a.semesterNumber - b.semesterNumber)
+      data: updated.curriculum?.sort((a, b) => a.semesterNumber - b.semesterNumber) || []
     });
   } catch (error) {
     res.status(500).json({
@@ -645,7 +706,9 @@ export const updateSemesterCurriculum = async (req, res) => {
     const semNum = parseInt(semesterNumber);
     const { semesterName, requiredCourses, electiveSlots, minCredits, maxCredits, notes } = req.body;
 
-    const program = await Program.findById(id);
+    const program = await prisma.program.findUnique({
+      where: { id }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -661,35 +724,9 @@ export const updateSemesterCurriculum = async (req, res) => {
       });
     }
 
-    // Validate required courses exist
-    if (requiredCourses && requiredCourses.length > 0) {
-      const courseIds = requiredCourses.map(rc => rc.course);
-      const courses = await Course.find({ _id: { $in: courseIds } });
-      if (courses.length !== courseIds.length) {
-        return res.status(400).json({
-          success: false,
-          message: 'One or more required courses not found'
-        });
-      }
-    }
-
-    // Validate allowed courses in elective slots
-    if (electiveSlots && electiveSlots.length > 0) {
-      for (const slot of electiveSlots) {
-        if (slot.allowedCourses && slot.allowedCourses.length > 0) {
-          const courses = await Course.find({ _id: { $in: slot.allowedCourses } });
-          if (courses.length !== slot.allowedCourses.length) {
-            return res.status(400).json({
-              success: false,
-              message: `One or more allowed courses not found in elective slot "${slot.slotName}"`
-            });
-          }
-        }
-      }
-    }
-
     // Find existing semester entry or create new one
-    const semIndex = program.curriculum.findIndex(s => s.semesterNumber === semNum);
+    const curriculum = program.curriculum || [];
+    const semIndex = curriculum.findIndex(s => s.semesterNumber === semNum);
     
     const semesterData = {
       semesterNumber: semNum,
@@ -702,20 +739,17 @@ export const updateSemesterCurriculum = async (req, res) => {
     };
 
     if (semIndex >= 0) {
-      program.curriculum[semIndex] = semesterData;
+      curriculum[semIndex] = semesterData;
     } else {
-      program.curriculum.push(semesterData);
+      curriculum.push(semesterData);
     }
 
-    await program.save();
+    const updated = await prisma.program.update({
+      where: { id },
+      data: { curriculum }
+    });
 
-    // Populate and get the updated semester
-    await program.populate([
-      { path: 'curriculum.requiredCourses.course', select: 'courseCode courseName creditHours courseType domain' },
-      { path: 'curriculum.electiveSlots.allowedCourses', select: 'courseCode courseName creditHours courseType domain' }
-    ]);
-
-    const updatedSemester = program.curriculum.find(s => s.semesterNumber === semNum);
+    const updatedSemester = updated.curriculum.find(s => s.semesterNumber === semNum);
 
     res.status(200).json({
       success: true,
@@ -742,7 +776,9 @@ export const addCourseToSemester = async (req, res) => {
     const semNum = parseInt(semesterNumber);
     const { courseId, isCompulsory = true } = req.body;
 
-    const program = await Program.findById(id);
+    const program = await prisma.program.findUnique({
+      where: { id }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -759,7 +795,10 @@ export const addCourseToSemester = async (req, res) => {
     }
 
     // Validate course exists
-    const course = await Course.findById(courseId);
+    const course = await prisma.course.findUnique({
+      where: { id: courseId }
+    });
+
     if (!course) {
       return res.status(404).json({
         success: false,
@@ -768,21 +807,22 @@ export const addCourseToSemester = async (req, res) => {
     }
 
     // Find or create semester entry
-    let semIndex = program.curriculum.findIndex(s => s.semesterNumber === semNum);
+    const curriculum = program.curriculum || [];
+    let semIndex = curriculum.findIndex(s => s.semesterNumber === semNum);
     
     if (semIndex < 0) {
-      program.curriculum.push({
+      curriculum.push({
         semesterNumber: semNum,
         semesterName: `Semester ${semNum}`,
         requiredCourses: [],
         electiveSlots: []
       });
-      semIndex = program.curriculum.length - 1;
+      semIndex = curriculum.length - 1;
     }
 
     // Check if course already exists in this semester
-    const courseExists = program.curriculum[semIndex].requiredCourses.some(
-      rc => rc.course.toString() === courseId
+    const courseExists = curriculum[semIndex].requiredCourses?.some(
+      rc => rc.courseId === courseId || rc.id === courseId
     );
 
     if (courseExists) {
@@ -793,17 +833,18 @@ export const addCourseToSemester = async (req, res) => {
     }
 
     // Add course
-    program.curriculum[semIndex].requiredCourses.push({
-      course: courseId,
-      isCompulsory
+    curriculum[semIndex].requiredCourses.push({
+      courseId,
+      isCompulsory,
+      creditHours: course.creditHours
     });
 
-    await program.save();
+    const updated = await prisma.program.update({
+      where: { id },
+      data: { curriculum }
+    });
 
-    // Populate and return
-    await program.populate('curriculum.requiredCourses.course', 'courseCode courseName creditHours courseType domain');
-
-    const updatedSemester = program.curriculum.find(s => s.semesterNumber === semNum);
+    const updatedSemester = updated.curriculum.find(s => s.semesterNumber === semNum);
 
     res.status(200).json({
       success: true,
@@ -829,7 +870,9 @@ export const removeCourseFromSemester = async (req, res) => {
     const { id, semesterNumber, courseId } = req.params;
     const semNum = parseInt(semesterNumber);
 
-    const program = await Program.findById(id);
+    const program = await prisma.program.findUnique({
+      where: { id }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -838,7 +881,8 @@ export const removeCourseFromSemester = async (req, res) => {
       });
     }
 
-    const semIndex = program.curriculum.findIndex(s => s.semesterNumber === semNum);
+    const curriculum = program.curriculum || [];
+    const semIndex = curriculum.findIndex(s => s.semesterNumber === semNum);
     
     if (semIndex < 0) {
       return res.status(404).json({
@@ -847,8 +891,8 @@ export const removeCourseFromSemester = async (req, res) => {
       });
     }
 
-    const courseIndex = program.curriculum[semIndex].requiredCourses.findIndex(
-      rc => rc.course.toString() === courseId
+    const courseIndex = curriculum[semIndex].requiredCourses?.findIndex(
+      rc => rc.courseId === courseId || rc.id === courseId
     );
 
     if (courseIndex < 0) {
@@ -858,8 +902,12 @@ export const removeCourseFromSemester = async (req, res) => {
       });
     }
 
-    program.curriculum[semIndex].requiredCourses.splice(courseIndex, 1);
-    await program.save();
+    curriculum[semIndex].requiredCourses.splice(courseIndex, 1);
+
+    await prisma.program.update({
+      where: { id },
+      data: { curriculum }
+    });
 
     res.status(200).json({
       success: true,
@@ -883,9 +931,11 @@ export const addElectiveSlot = async (req, res) => {
   try {
     const { id, semesterNumber } = req.params;
     const semNum = parseInt(semesterNumber);
-    const { slotName, domain, category, minCredits, maxCredits, allowedCourses, description } = req.body;
+    const { slotName, minCredits, maxCredits, allowedCourses } = req.body;
 
-    const program = await Program.findById(id);
+    const program = await prisma.program.findUnique({
+      where: { id }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -901,47 +951,35 @@ export const addElectiveSlot = async (req, res) => {
       });
     }
 
-    // Validate allowed courses if provided
-    if (allowedCourses && allowedCourses.length > 0) {
-      const courses = await Course.find({ _id: { $in: allowedCourses } });
-      if (courses.length !== allowedCourses.length) {
-        return res.status(400).json({
-          success: false,
-          message: 'One or more allowed courses not found'
-        });
-      }
-    }
-
     // Find or create semester entry
-    let semIndex = program.curriculum.findIndex(s => s.semesterNumber === semNum);
+    const curriculum = program.curriculum || [];
+    let semIndex = curriculum.findIndex(s => s.semesterNumber === semNum);
     
     if (semIndex < 0) {
-      program.curriculum.push({
+      curriculum.push({
         semesterNumber: semNum,
         semesterName: `Semester ${semNum}`,
         requiredCourses: [],
         electiveSlots: []
       });
-      semIndex = program.curriculum.length - 1;
+      semIndex = curriculum.length - 1;
     }
 
     // Add elective slot
-    program.curriculum[semIndex].electiveSlots.push({
-      slotName: slotName || `Elective ${program.curriculum[semIndex].electiveSlots.length + 1}`,
-      domain,
-      category: category || 'program',
-      minCredits: minCredits || 3,
-      maxCredits: maxCredits || 4,
-      allowedCourses: allowedCourses || [],
-      description
+    curriculum[semIndex].electiveSlots = curriculum[semIndex].electiveSlots || [];
+    curriculum[semIndex].electiveSlots.push({
+      slotName,
+      minCredits,
+      maxCredits,
+      allowedCourses: allowedCourses || []
     });
 
-    await program.save();
+    const updated = await prisma.program.update({
+      where: { id },
+      data: { curriculum }
+    });
 
-    // Populate and return
-    await program.populate('curriculum.electiveSlots.allowedCourses', 'courseCode courseName creditHours courseType domain');
-
-    const updatedSemester = program.curriculum.find(s => s.semesterNumber === semNum);
+    const updatedSemester = updated.curriculum.find(s => s.semesterNumber === semNum);
 
     res.status(200).json({
       success: true,
@@ -959,16 +997,17 @@ export const addElectiveSlot = async (req, res) => {
 
 /**
  * @desc    Remove an elective slot from a semester
- * @route   DELETE /api/programs/:id/curriculum/semester/:semesterNumber/elective/:slotIndex
+ * @route   DELETE /api/programs/:id/curriculum/semester/:semesterNumber/elective/:slotId
  * @access  Private/Admin
  */
 export const removeElectiveSlot = async (req, res) => {
   try {
-    const { id, semesterNumber, slotIndex } = req.params;
+    const { id, semesterNumber, slotId } = req.params;
     const semNum = parseInt(semesterNumber);
-    const slotIdx = parseInt(slotIndex);
 
-    const program = await Program.findById(id);
+    const program = await prisma.program.findUnique({
+      where: { id }
+    });
 
     if (!program) {
       return res.status(404).json({
@@ -977,7 +1016,8 @@ export const removeElectiveSlot = async (req, res) => {
       });
     }
 
-    const semIndex = program.curriculum.findIndex(s => s.semesterNumber === semNum);
+    const curriculum = program.curriculum || [];
+    const semIndex = curriculum.findIndex(s => s.semesterNumber === semNum);
     
     if (semIndex < 0) {
       return res.status(404).json({
@@ -986,15 +1026,23 @@ export const removeElectiveSlot = async (req, res) => {
       });
     }
 
-    if (slotIdx < 0 || slotIdx >= program.curriculum[semIndex].electiveSlots.length) {
+    const slotIndex = curriculum[semIndex].electiveSlots?.findIndex(
+      slot => slot.id === slotId
+    );
+
+    if (slotIndex < 0) {
       return res.status(404).json({
         success: false,
         message: 'Elective slot not found'
       });
     }
 
-    program.curriculum[semIndex].electiveSlots.splice(slotIdx, 1);
-    await program.save();
+    curriculum[semIndex].electiveSlots.splice(slotIndex, 1);
+
+    await prisma.program.update({
+      where: { id },
+      data: { curriculum }
+    });
 
     res.status(200).json({
       success: true,
@@ -1007,4 +1055,23 @@ export const removeElectiveSlot = async (req, res) => {
       error: error.message
     });
   }
+};
+
+export default {
+  getAllPrograms,
+  getProgramById,
+  getProgramsByDepartment,
+  createProgram,
+  updateProgram,
+  deleteProgram,
+  restoreProgram,
+  permanentDeleteProgram,
+  getProgramCurriculum,
+  getCurriculumBySemester,
+  updateProgramCurriculum,
+  updateSemesterCurriculum,
+  addCourseToSemester,
+  removeCourseFromSemester,
+  addElectiveSlot,
+  removeElectiveSlot
 };

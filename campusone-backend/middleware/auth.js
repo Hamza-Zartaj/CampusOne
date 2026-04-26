@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import prisma from '../prisma/client.js';
 import speakeasy from 'speakeasy';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -29,9 +29,22 @@ export const protect = async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       // Get user from token (exclude password)
-      req.user = await User.findById(decoded.id).select('-password');
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          name: true,
+          role: true,
+          isActive: true,
+          accountLocked: true,
+          accountLockedUntil: true,
+          failedLoginAttempts: true
+        }
+      });
 
-      if (!req.user) {
+      if (!user) {
         return res.status(401).json({
           success: false,
           message: 'User not found. Token is invalid.'
@@ -39,7 +52,7 @@ export const protect = async (req, res, next) => {
       }
 
       // Check if user is active
-      if (!req.user.isActive) {
+      if (!user.isActive) {
         return res.status(401).json({
           success: false,
           message: 'Your account has been deactivated. Please contact admin.'
@@ -47,23 +60,28 @@ export const protect = async (req, res, next) => {
       }
 
       // Check if account is locked
-      if (req.user.accountLocked) {
+      if (user.accountLocked) {
         // Check if lock has expired
-        if (req.user.accountLockedUntil && req.user.accountLockedUntil < Date.now()) {
+        if (user.accountLockedUntil && new Date(user.accountLockedUntil) < new Date()) {
           // Unlock account
-          req.user.accountLocked = false;
-          req.user.accountLockedUntil = null;
-          req.user.failedLoginAttempts = 0;
-          await req.user.save();
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              accountLocked: false,
+              accountLockedUntil: null,
+              failedLoginAttempts: 0
+            }
+          });
         } else {
           return res.status(401).json({
             success: false,
             message: 'Your account is locked due to multiple failed login attempts. Please try again later or contact admin.',
-            lockedUntil: req.user.accountLockedUntil
+            lockedUntil: user.accountLockedUntil
           });
         }
       }
 
+      req.user = user;
       next();
     } catch (error) {
       return res.status(401).json({
@@ -72,6 +90,7 @@ export const protect = async (req, res, next) => {
       });
     }
   } catch (error) {
+    console.error('Auth middleware error:', error);
     return res.status(500).json({
       success: false,
       message: 'Server error during authentication',
@@ -124,9 +143,10 @@ export const authorizeSuperAdmin = async (req, res, next) => {
       });
     }
 
-    // Import Admin model dynamically to avoid circular dependencies
-    const Admin = (await import('../models/Admin.js')).default;
-    const adminRecord = await Admin.findOne({ userId: req.user._id });
+    // Get admin record to check if super admin
+    const adminRecord = await prisma.admin.findUnique({
+      where: { userId: req.user.id }
+    });
 
     if (!adminRecord || !adminRecord.isSuperAdmin) {
       return res.status(403).json({
@@ -138,6 +158,7 @@ export const authorizeSuperAdmin = async (req, res, next) => {
     req.adminRecord = adminRecord;
     next();
   } catch (error) {
+    console.error('Super admin auth error:', error);
     return res.status(500).json({
       success: false,
       message: 'Error verifying Super Admin status',
@@ -162,7 +183,9 @@ export const verify2FA = async (req, res, next) => {
     }
 
     // Get user
-    const user = await User.findById(userId);
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
 
     if (!user) {
       return res.status(404).json({
@@ -183,7 +206,7 @@ export const verify2FA = async (req, res, next) => {
       secret: user.twoFactorSecret,
       encoding: 'base32',
       token: token,
-      window: 2 // Allow 2 time steps before and after
+      window: 2
     });
 
     if (!verified) {
@@ -193,9 +216,12 @@ export const verify2FA = async (req, res, next) => {
       });
     }
 
-    req.user = user;
+    // Remove sensitive fields
+    const { password, ...userWithoutPassword } = user;
+    req.user = userWithoutPassword;
     next();
   } catch (error) {
+    console.error('2FA verification error:', error);
     return res.status(500).json({
       success: false,
       message: 'Error verifying 2FA token',
@@ -214,21 +240,32 @@ export const checkDeviceTrust = async (req, res, next) => {
     
     // Generate device fingerprint
     const deviceFingerprint = {
-      userAgent: req.headers['user-agent'],
-      ipAddress: req.ip || req.connection.remoteAddress,
+      userAgent: req.headers['user-agent'] || 'Unknown',
+      ipAddress: req.ip || req.connection.remoteAddress || 'Unknown',
       deviceName: extractDeviceName(req.headers['user-agent'])
     };
 
-    // Check if device exists in trusted devices
-    const isTrusted = user.trustedDevices.some(device => 
-      device.deviceId === generateDeviceId(deviceFingerprint)
-    );
+    // Get user's trusted devices (from database)
+    if (user && user.id) {
+      const userWithDevices = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: {
+          trustedDevices: true
+        }
+      });
+
+      const trustedDevices = userWithDevices?.trustedDevices || [];
+      const isTrusted = trustedDevices.some(device => 
+        device.deviceId === generateDeviceId(deviceFingerprint)
+      );
+
+      req.isTrustedDevice = isTrusted;
+    }
 
     req.deviceFingerprint = deviceFingerprint;
-    req.isTrustedDevice = isTrusted;
-
     next();
   } catch (error) {
+    console.error('Device trust check error:', error);
     return res.status(500).json({
       success: false,
       message: 'Error checking device trust',
@@ -282,25 +319,39 @@ export const addTrustedDevice = async (req, res, next) => {
     if (rememberDevice && req.user && req.deviceFingerprint) {
       const deviceId = generateDeviceId(req.deviceFingerprint);
       
+      // Get current trusted devices
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { trustedDevices: true }
+      });
+
+      const trustedDevices = user?.trustedDevices || [];
+      
       // Check if device already exists
-      const deviceExists = req.user.trustedDevices.some(d => d.deviceId === deviceId);
+      const deviceExists = trustedDevices.some(d => d.deviceId === deviceId);
       
       if (!deviceExists) {
-        req.user.trustedDevices.push({
-          deviceId: deviceId,
+        // Add new device
+        const newDevice = {
+          deviceId,
           deviceName: req.deviceFingerprint.deviceName,
           ipAddress: req.deviceFingerprint.ipAddress,
-          lastUsed: Date.now()
+          lastUsed: new Date()
+        };
+
+        await prisma.user.update({
+          where: { id: req.user.id },
+          data: {
+            trustedDevices: [...trustedDevices, newDevice]
+          }
         });
-        await req.user.save();
       }
     }
     
     next();
   } catch (error) {
-    // Don't fail the request if device trust fails
-    console.error('Error adding trusted device:', error);
-    next();
+    console.error('Add trusted device error:', error);
+    next(); // Don't fail the request
   }
 };
 

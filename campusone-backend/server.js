@@ -1,5 +1,4 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
@@ -39,16 +38,16 @@ app.use(cors()); // Enable CORS for all routes
 // Serve static files from uploads directory
 app.use(express.static(path.join(__dirname, '../uploads')));
 
-// MongoDB Connection
+// Prisma Connection Test
+import prisma from './prisma/client.js';
+
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI, {
-      // Options removed as they are deprecated in Mongoose 6+
-    });
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    await prisma.$queryRaw`SELECT 1`;
+    console.log('✅ PostgreSQL (Prisma) Connected');
   } catch (error) {
-    console.error(`❌ MongoDB Connection Error: ${error.message}`);
-    process.exit(1); // Exit process with failure
+    console.error(`❌ Database Connection Error: ${error.message}`);
+    process.exit(1);
   }
 };
 
@@ -65,12 +64,13 @@ app.get('/', (req, res) => {
 });
 
 // Health check route
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK',
-    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-    uptime: process.uptime()
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'OK', database: 'Connected', uptime: process.uptime() });
+  } catch {
+    res.status(500).json({ status: 'ERROR', database: 'Disconnected', uptime: process.uptime() });
+  }
 });
 
 // Mount routes

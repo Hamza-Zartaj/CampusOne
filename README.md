@@ -1,6 +1,6 @@
 # CampusOne - Campus Management System
 
-A comprehensive MERN-based campus management system for academic operations including departments, programs, courses, student/teacher portals, and more.
+A comprehensive campus management system for academic operations including departments, programs, courses, student/teacher portals, and more.
 
 ---
 
@@ -10,15 +10,26 @@ A comprehensive MERN-based campus management system for academic operations incl
 | Library | Version | Purpose |
 |---------|---------|---------|
 | **Express** | 5.2.1 | REST API framework |
-| **Mongoose** | 9.0.2 | MongoDB object modeling & schema |
+| **Prisma** | 7.8.0 | ORM for PostgreSQL |
+| **@prisma/client** | 7.8.0 | Auto-generated type-safe DB client |
+| **@prisma/adapter-pg** | 7.8.0 | pg driver adapter for Prisma |
+| **pg** | latest | PostgreSQL driver |
 | **bcryptjs** | 3.0.3 | Password hashing & security |
 | **jsonwebtoken** | 9.0.3 | JWT authentication tokens |
-| **nodemailer** | 7.0.12 | Email notifications |
+| **nodemailer** | 8.0.6 | Email notifications |
 | **multer** | 2.0.2 | File upload handling |
 | **xlsx** | 0.18.5 | Excel import/export (bulk data) |
 | **speakeasy** | 2.0.0 | 2FA TOTP generation |
 | **qrcode** | 1.5.4 | QR code generation for 2FA |
-| **nodemon** | 3.1.11 | Development auto-reload |
+| **uuid** | 14.0.0 | Unique ID generation |
+| **nodemon** | 3.1.14 | Development auto-reload |
+
+### **Database**
+| Service | Details |
+|---------|---------|
+| **PostgreSQL** | Hosted on Supabase (ap-northeast-1) |
+| **Connection Pooling** | PgBouncer via port 6543 (`DATABASE_URL`) |
+| **Direct Connection** | Port 5432 (`DIRECT_URL`) for migrations |
 
 ### **Frontend**
 | Library | Version | Purpose |
@@ -52,51 +63,47 @@ Department → Program → Curriculum (by Semester) → Course → CourseOfferin
 
 ---
 
-## ✅ COMPLETED (90% of Core Features)
+## ✅ COMPLETED
 
-### Phase 1-3: Foundation ✅ Complete
+### Foundation ✅
 - Project setup (Node.js, React, Vite, Tailwind)
-- MongoDB schema design (20+ models)
+- PostgreSQL schema design via Prisma (24 models)
 - Authentication with JWT + 2FA support
+- Full MongoDB → PostgreSQL/Prisma migration
 
-### Phase 4-5: Academic Structure ✅ Complete
+### Academic Structure ✅
 - Departments, Programs, Courses
 - Course Offerings with scheduling
-- Student Enrollment system
+- Student Enrollment with prerequisite checking
 - Semester Incharge management
 
-### Phase 6: Portals ✅ 90% Complete
-- **Student Portal**: View courses, grades, enrollment
+### Portals ✅
+- **Student Portal**: View courses, grades, enrollment, CGPA, transcript
 - **Teacher Portal**: Manage students, mark attendance, upload grades
 - Dashboard layouts & navigation
 
-### Bonus: Admission Management ✅ Complete
+### Admission Management ✅
 - Application forms, status tracking
 - Admin review & decision workflow
+
+### System ✅
+- Bulk data import/export (Excel)
+- Audit logging (Prisma-based)
+- Email notifications
+- Multi-role authorization middleware
 
 ---
 
 ## ⏳ PENDING (Future Development)
 
-| Phase | Features | Status |
-|-------|----------|--------|
-| **Phase 7** | Assignment Management | 0% |
-| | • Create/submit/grade assignments | |
-| | • File upload & download | |
-| **Phase 8** | AI Features | 0% |
-| | • Plagiarism detection | |
-| | • Content summarization | |
-| **Phase 9** | Attendance & Analytics | 0% |
-| | • Mark attendance system | |
-| | • Low attendance warnings | |
-| **Phase 10** | Announcements & Notifications | 0% |
-| | • System announcements | |
-| | • Push notifications | |
-| **Phase 11** | Quiz Management | 0% |
-| | • Create quizzes (manual/Excel/AI) | |
-| | • Tab switch detection | |
-| **Phase 12** | TA Eligibility System | 0% |
-| | • TA applications & tracking | |
+| Feature | Status |
+|---------|--------|
+| Assignment Management (create/submit/grade) | Not started |
+| Attendance system & low attendance warnings | Not started |
+| Quiz Management (manual/Excel/AI) | Not started |
+| TA Eligibility system | Not started |
+| AI features (plagiarism detection, summarization) | Not started |
+| Push notifications | Not started |
 
 ---
 
@@ -104,12 +111,17 @@ Department → Program → Curriculum (by Semester) → Course → CourseOfferin
 
 ```
 campusone-backend/
-├── controllers/      → Business logic for each entity
-├── models/          → Mongoose schemas (20+ models)
+├── controllers/      → Business logic (14 controllers, all Prisma-based)
 ├── routes/          → API endpoints
-├── middleware/      → Auth, validation, file upload
-├── services/        → Email, audit logging
-├── server.js        → Express app entry point
+├── middleware/      → Auth, incharge auth, validation, file upload
+├── services/        → Email, audit logging (Prisma-based)
+├── prisma/
+│   ├── schema.prisma → 24 PostgreSQL models
+│   └── client.js    → Prisma singleton with pg adapter
+├── scripts/
+│   └── createSuperAdmin.js → CLI script to seed super admin
+├── prisma.config.ts → Prisma 7 config
+└── server.js        → Express app entry point
 
 campusone-frontend/
 ├── src/
@@ -118,7 +130,7 @@ campusone-frontend/
 │   │   ├── admin/   → Admin management pages
 │   │   ├── student/ → Student portal
 │   │   ├── teacher/ → Teacher tools
-│   │   ├── auth/    → Login/signup
+│   │   └── auth/    → Login/signup
 │   ├── utils/       → API client (axios)
 │   ├── styles/      → CSS variables & global styles
 │   └── App.jsx      → Main app with routing
@@ -132,8 +144,15 @@ campusone-frontend/
 ```bash
 cd campusone-backend
 npm install
+npx prisma generate
 npm run dev
 # Server runs on http://localhost:5000
+```
+
+### Create Super Admin (first time)
+```bash
+cd campusone-backend
+node scripts/createSuperAdmin.js
 ```
 
 ### Frontend
@@ -146,27 +165,29 @@ npm run dev
 
 ---
 
-## 📊 Database Models (20+)
+## 🔐 Environment Variables (campusone-backend/.env)
 
-**User Models**: User, Student, Teacher, TA, Admin  
-**Academic**: Department, Program, Course, CourseOffering, Enrollment  
-**Academic Activities**: Assignment, Submission, Attendance, Announcement  
-**Advanced**: Quiz, QuizAttempt, QNA, Summary, TAEligibility  
-**System**: Notification, AuditLog, AdmissionApplication, SemesterIncharge
+```
+DATABASE_URL=postgresql://...@...pooler.supabase.com:6543/postgres?pgbouncer=true
+DIRECT_URL=postgresql://...@...pooler.supabase.com:5432/postgres
+JWT_SECRET=...
+EMAIL_USER=...
+EMAIL_PASS=...
+```
 
 ---
 
 ## 🔐 Key Features
 
-- ✅ Multi-role access control (Super Admin, Admin, Teacher, Student, TA)
-- ✅ JWT + 2FA authentication
-- ✅ Course enrollment with prerequisite checking
-- ✅ Bulk data import/export (Excel)
-- ✅ File uploads for assignments & documents
-- ✅ Email notifications
-- ✅ Audit logging
+- Multi-role access control (Super Admin, Admin, Teacher, Student, TA)
+- JWT + 2FA authentication (TOTP + email OTP)
+- Course enrollment with prerequisite checking
+- Bulk data import/export (Excel)
+- File uploads for assignments & documents
+- Email notifications
+- Audit logging
 
 ---
 
-**Last Updated**: February 16, 2026  
-**Overall Completion**: ~60% (Core features 90%, Advanced features 0%)
+**Last Updated**: April 27, 2026  
+**Database**: PostgreSQL (Supabase) via Prisma 7

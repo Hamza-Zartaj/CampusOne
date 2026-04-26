@@ -1,4 +1,4 @@
-import Department from '../models/Department.js';
+import prisma from '../prisma/client.js';
 
 /**
  * @desc    Get all departments with pagination and search
@@ -9,21 +9,26 @@ export const getAllDepartments = async (req, res) => {
   try {
     const { page = 1, limit = 10, search, isActive, includeSoftDeleted } = req.query;
 
-    // Build query
-    const query = {};
+    // Build where clause
+    const where = {};
 
     // Filter by active status
     if (isActive !== undefined && isActive !== '' && isActive !== 'all') {
-      query.isActive = isActive === 'true';
+      where.isActive = isActive === 'true';
     }
 
-    // Search by name or code
+    // Search by name, code, or description
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { departmentCode: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { departmentCode: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
       ];
+    }
+
+    // Handle soft deletes
+    if (includeSoftDeleted !== 'true') {
+      where.isDeleted = false;
     }
 
     // Pagination
@@ -31,43 +36,48 @@ export const getAllDepartments = async (req, res) => {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // Query options
-    const queryOptions = includeSoftDeleted === 'true' ? { includeSoftDeleted: true } : {};
-
     // Get total count
-    const total = await Department.countDocuments(query).setOptions(queryOptions);
+    const total = await prisma.department.count({ where });
 
-    // Get departments
-    let departments = await Department.find(query)
-      .setOptions(queryOptions)
-      .populate({
-        path: 'headOfDepartment',
-        select: 'userId employeeId designation',
-        populate: {
-          path: 'userId',
-          select: 'name email username'
-        },
-        strictPopulate: false
-      })
-      .sort({ departmentCode: 1 })
-      .skip(skip)
-      .limit(limitNum);
+    // Get departments with HOD details
+    const departments = await prisma.department.findMany({
+      where,
+      include: {
+        headOfDepartment: {
+          include: {
+            userId: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                username: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { departmentCode: 'asc' },
+      skip,
+      take: limitNum
+    });
 
     // Transform HOD to flatten user info for easier frontend access
-    departments = departments.map(dept => {
-      const deptObj = dept.toObject ? dept.toObject() : dept;
-      if (deptObj.headOfDepartment && deptObj.headOfDepartment.userId) {
-        deptObj.headOfDepartment = {
-          _id: deptObj.headOfDepartment._id,
-          userId: deptObj.headOfDepartment.userId._id,
-          employeeId: deptObj.headOfDepartment.employeeId,
-          designation: deptObj.headOfDepartment.designation,
-          name: deptObj.headOfDepartment.userId.name,
-          email: deptObj.headOfDepartment.userId.email,
-          username: deptObj.headOfDepartment.userId.username
+    const transformedDepartments = departments.map(dept => {
+      if (dept.headOfDepartment && dept.headOfDepartment.userId) {
+        return {
+          ...dept,
+          headOfDepartment: {
+            id: dept.headOfDepartment.id,
+            userId: dept.headOfDepartment.userId.id,
+            employeeId: dept.headOfDepartment.employeeId,
+            designation: dept.headOfDepartment.designation,
+            name: dept.headOfDepartment.userId.name,
+            email: dept.headOfDepartment.userId.email,
+            username: dept.headOfDepartment.userId.username
+          }
         };
       }
-      return deptObj;
+      return dept;
     });
 
     // Calculate pagination info
@@ -75,7 +85,7 @@ export const getAllDepartments = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      count: departments.length,
+      count: transformedDepartments.length,
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -84,7 +94,7 @@ export const getAllDepartments = async (req, res) => {
         hasNext: pageNum < totalPages,
         hasPrev: pageNum > 1
       },
-      data: departments
+      data: transformedDepartments
     });
   } catch (error) {
     console.error('Error fetching departments:', error);
@@ -105,16 +115,23 @@ export const getDepartmentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const department = await Department.findById(id)
-      .populate({
-        path: 'headOfDepartment',
-        select: 'userId employeeId designation',
-        populate: {
-          path: 'userId',
-          select: 'name email username'
-        },
-        strictPopulate: false
-      });
+    const department = await prisma.department.findUnique({
+      where: { id },
+      include: {
+        headOfDepartment: {
+          include: {
+            userId: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                username: true
+              }
+            }
+          }
+        }
+      }
+    });
 
     if (!department) {
       return res.status(404).json({
@@ -123,17 +140,20 @@ export const getDepartmentById = async (req, res) => {
       });
     }
 
-    // Transform HOD to flatten user info for easier frontend access
-    let deptData = department.toObject ? department.toObject() : department;
+    // Transform HOD to flatten user info
+    let deptData = department;
     if (deptData.headOfDepartment && deptData.headOfDepartment.userId) {
-      deptData.headOfDepartment = {
-        _id: deptData.headOfDepartment._id,
-        userId: deptData.headOfDepartment.userId._id,
-        employeeId: deptData.headOfDepartment.employeeId,
-        designation: deptData.headOfDepartment.designation,
-        name: deptData.headOfDepartment.userId.name,
-        email: deptData.headOfDepartment.userId.email,
-        username: deptData.headOfDepartment.userId.username
+      deptData = {
+        ...deptData,
+        headOfDepartment: {
+          id: deptData.headOfDepartment.id,
+          userId: deptData.headOfDepartment.userId.id,
+          employeeId: deptData.headOfDepartment.employeeId,
+          designation: deptData.headOfDepartment.designation,
+          name: deptData.headOfDepartment.userId.name,
+          email: deptData.headOfDepartment.userId.email,
+          username: deptData.headOfDepartment.userId.username
+        }
       };
     }
 
@@ -178,21 +198,25 @@ export const createDepartment = async (req, res) => {
     // Ensure code is unique by appending counter if needed
     let uniqueCode = code;
     let counter = 1;
-    let existingCount = await Department.countDocuments({ departmentCode: uniqueCode })
-      .setOptions({ includeSoftDeleted: true });
+    let existingCount = await prisma.department.count({
+      where: { departmentCode: uniqueCode }
+    });
     
     while (existingCount > 0) {
       uniqueCode = code + counter;
       counter++;
-      existingCount = await Department.countDocuments({ departmentCode: uniqueCode })
-        .setOptions({ includeSoftDeleted: true });
+      existingCount = await prisma.department.count({
+        where: { departmentCode: uniqueCode }
+      });
     }
 
-    const department = await Department.create({
-      departmentCode: uniqueCode,
-      name: name.trim(),
-      description: description ? description.trim() : undefined,
-      headOfDepartment: headOfDepartment || undefined
+    const department = await prisma.department.create({
+      data: {
+        departmentCode: uniqueCode,
+        name: name.trim(),
+        description: description ? description.trim() : undefined,
+        headOfDepartment: headOfDepartment || null
+      }
     });
 
     res.status(201).json({
@@ -224,7 +248,9 @@ export const updateDepartment = async (req, res) => {
       isActive
     } = req.body;
 
-    const department = await Department.findById(id);
+    const department = await prisma.department.findUnique({
+      where: { id }
+    });
 
     if (!department) {
       return res.status(404).json({
@@ -233,18 +259,23 @@ export const updateDepartment = async (req, res) => {
       });
     }
 
-    // Update fields
-    if (name && name.trim()) department.name = name.trim();
-    if (description !== undefined) department.description = description ? description.trim() : '';
-    if (headOfDepartment !== undefined) department.headOfDepartment = headOfDepartment || null;
-    if (isActive !== undefined) department.isActive = isActive;
+    // Build update data
+    const updateData = {};
+    
+    if (name && name.trim()) updateData.name = name.trim();
+    if (description !== undefined) updateData.description = description ? description.trim() : '';
+    if (headOfDepartment !== undefined) updateData.headOfDepartment = headOfDepartment || null;
+    if (isActive !== undefined) updateData.isActive = isActive;
 
-    await department.save();
+    const updated = await prisma.department.update({
+      where: { id },
+      data: updateData
+    });
 
     res.status(200).json({
       success: true,
       message: 'Department updated successfully',
-      data: department
+      data: updated
     });
   } catch (error) {
     res.status(500).json({
@@ -264,7 +295,9 @@ export const deleteDepartment = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const department = await Department.findById(id);
+    const department = await prisma.department.findUnique({
+      where: { id }
+    });
 
     if (!department) {
       return res.status(404).json({
@@ -273,7 +306,15 @@ export const deleteDepartment = async (req, res) => {
       });
     }
 
-    await department.softDelete(req.user._id);
+    // Soft delete
+    await prisma.department.update({
+      where: { id },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: req.user?.id
+      }
+    });
 
     res.status(200).json({
       success: true,
@@ -297,7 +338,10 @@ export const restoreDepartment = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const department = await Department.findById(id).setOptions({ includeSoftDeleted: true });
+    // Find including soft-deleted records
+    const department = await prisma.department.findUnique({
+      where: { id }
+    });
 
     if (!department) {
       return res.status(404).json({
@@ -313,12 +357,19 @@ export const restoreDepartment = async (req, res) => {
       });
     }
 
-    await department.restore();
+    const restored = await prisma.department.update({
+      where: { id },
+      data: {
+        isDeleted: false,
+        deletedAt: null,
+        deletedBy: null
+      }
+    });
 
     res.status(200).json({
       success: true,
       message: 'Department restored successfully',
-      data: department
+      data: restored
     });
   } catch (error) {
     res.status(500).json({
@@ -330,15 +381,17 @@ export const restoreDepartment = async (req, res) => {
 };
 
 /**
- * @desc    Permanently delete department
+ * @desc    Permanently delete department (hard delete)
  * @route   DELETE /api/departments/:id/permanent
- * @access  Private/Super Admin
+ * @access  Private/SuperAdmin
  */
 export const permanentDeleteDepartment = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const department = await Department.findById(id).setOptions({ includeSoftDeleted: true });
+    const department = await prisma.department.findUnique({
+      where: { id }
+    });
 
     if (!department) {
       return res.status(404).json({
@@ -347,7 +400,10 @@ export const permanentDeleteDepartment = async (req, res) => {
       });
     }
 
-    await Department.findByIdAndDelete(id);
+    // Permanently delete from database
+    await prisma.department.delete({
+      where: { id }
+    });
 
     res.status(200).json({
       success: true,
@@ -360,4 +416,14 @@ export const permanentDeleteDepartment = async (req, res) => {
       error: error.message
     });
   }
+};
+
+export default {
+  getAllDepartments,
+  getDepartmentById,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
+  restoreDepartment,
+  permanentDeleteDepartment
 };

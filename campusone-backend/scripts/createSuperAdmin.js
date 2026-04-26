@@ -1,9 +1,8 @@
-import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import User from '../models/User.js';
-import Admin from '../models/Admin.js';
+import prisma from '../prisma/client.js';
 import readline from 'readline';
 
 // Get directory path for ES modules
@@ -26,23 +25,23 @@ const question = (query) => new Promise((resolve) => rl.question(query, resolve)
  */
 const createSuperAdmin = async () => {
   try {
-    // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
-    console.log('✅ Connected to MongoDB');
+    // Test DB connection
+    await prisma.$queryRaw`SELECT 1`;
+    console.log('✅ Connected to PostgreSQL');
 
     // Check if super admin already exists
-    const existingSuperAdmin = await Admin.findOne({ isSuperAdmin: true });
+    const existingSuperAdmin = await prisma.admin.findFirst({ where: { isSuperAdmin: true }, include: { user: true } });
     if (existingSuperAdmin) {
       console.log('\n⚠️  A Super Admin already exists in the system.');
-      const user = await User.findById(existingSuperAdmin.userId);
-      console.log(`   Username: ${user.username}`);
-      console.log(`   Email: ${user.email}`);
+      console.log(`   Username: ${existingSuperAdmin.user.username}`);
+      console.log(`   Email: ${existingSuperAdmin.user.email}`);
       console.log(`   Employee ID: ${existingSuperAdmin.employeeId}`);
-      
+
       const overwrite = await question('\nDo you want to create another Super Admin? (yes/no): ');
       if (overwrite.toLowerCase() !== 'yes' && overwrite.toLowerCase() !== 'y') {
         console.log('Operation cancelled.');
         rl.close();
+        await prisma.$disconnect();
         process.exit(0);
       }
     }
@@ -70,14 +69,11 @@ const createSuperAdmin = async () => {
 
     // Generate default email from employee ID
     const email = `${employeeId.toLowerCase()}@campusone.edu`;
-    const department = 'Administration'; // Default department for Super Admin
+    const department = 'Administration';
 
     // Check if user already exists
-    const existingUser = await User.findOne({
-      $or: [
-        { email: email.toLowerCase() },
-        { username: employeeId.toLowerCase() }
-      ]
+    const existingUser = await prisma.user.findFirst({
+      where: { OR: [{ email: email.toLowerCase() }, { username: employeeId.toLowerCase() }] }
     });
 
     if (existingUser) {
@@ -87,7 +83,7 @@ const createSuperAdmin = async () => {
     }
 
     // Check if employee ID is already taken
-    const existingAdmin = await Admin.findOne({ employeeId });
+    const existingAdmin = await prisma.admin.findFirst({ where: { employeeId } });
     if (existingAdmin) {
       console.error('❌ Employee ID already exists');
       rl.close();
@@ -96,34 +92,36 @@ const createSuperAdmin = async () => {
 
     console.log('\n⏳ Creating Super Admin account...');
 
-    // Create user account
-    const user = await User.create({
-      name,
-      email: email.toLowerCase(),
-      username: employeeId.toLowerCase(),
-      password, // Will be hashed by pre-save hook
-      role: 'admin',
-      isFirstLogin: true
-    });
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create admin record with super admin flag
-    const admin = await Admin.create({
-      userId: user._id,
-      employeeId,
-      department,
-      designation: 'Super Administrator',
-      isSuperAdmin: true,
-      permissions: [
-        'manage_users',
-        'manage_courses',
-        'manage_assignments',
-        'manage_attendance',
-        'manage_announcements',
-        'view_reports',
-        'system_config',
-        'manage_ta_eligibility',
-        'manage_quiz'
-      ]
+    const { user, admin } = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          name,
+          email: email.toLowerCase(),
+          username: employeeId.toLowerCase(),
+          password: hashedPassword,
+          role: 'admin',
+          isFirstLogin: true
+        }
+      });
+
+      const admin = await tx.admin.create({
+        data: {
+          userId: user.id,
+          employeeId,
+          department,
+          designation: 'Super Administrator',
+          isSuperAdmin: true,
+          permissions: [
+            'manage_users', 'manage_courses', 'manage_assignments',
+            'manage_attendance', 'manage_announcements', 'view_reports',
+            'system_config', 'manage_ta_eligibility', 'manage_quiz'
+          ]
+        }
+      });
+
+      return { user, admin };
     });
 
     console.log('\n✅ Super Admin account created successfully!');
@@ -140,10 +138,12 @@ const createSuperAdmin = async () => {
     console.log('⚠️  You will be required to change password and set email on first login.\n');
 
     rl.close();
+    await prisma.$disconnect();
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Error creating Super Admin:', error.message);
     rl.close();
+    await prisma.$disconnect();
     process.exit(1);
   }
 };

@@ -1,9 +1,4 @@
-import User from '../models/User.js';
-import Student from '../models/Student.js';
-import Teacher from '../models/Teacher.js';
-import TA from '../models/TA.js';
-import Admin from '../models/Admin.js';
-import Course from '../models/Course.js';
+import prisma from '../prisma/client.js';
 import xlsx from 'xlsx';
 import bcrypt from 'bcryptjs';
 
@@ -15,31 +10,54 @@ const getRoleSpecificData = async (userId, role) => {
   
   switch (role) {
     case 'student':
-      roleData = await Student.findOne({ userId })
-        .populate('enrolledCourses.courseId')
-        .populate('completedCourses.courseId');
+      roleData = await prisma.student.findUnique({
+        where: { userId },
+        include: {
+          enrollments: {
+            include: { courseOffering: { include: { course: true } } }
+          }
+        }
+      });
       
       // Also check if student is a TA
-      const taData = await TA.findOne({ userId })
-        .populate('assignedCourses.courseId');
+      const taData = await prisma.ta.findUnique({
+        where: { userId },
+        include: {
+          student: true,
+          teacher: true
+        }
+      });
       
       if (roleData && taData) {
-        // Convert to object and add TA data
-        roleData = roleData.toObject ? roleData.toObject() : roleData;
         roleData.taInfo = taData;
       }
       break;
+
     case 'teacher':
-      roleData = await Teacher.findOne({ userId })
-        .populate('teachingCourses.courseId');
+      roleData = await prisma.teacher.findUnique({
+        where: { userId },
+        include: {
+          courseOfferings: {
+            include: { course: true }
+          }
+        }
+      });
       break;
+
     case 'ta':
-      roleData = await TA.findOne({ userId })
-        .populate('studentId')
-        .populate('assignedCourses.courseId');
+      roleData = await prisma.ta.findUnique({
+        where: { userId },
+        include: {
+          student: true,
+          teacher: true
+        }
+      });
       break;
+
     case 'admin':
-      roleData = await Admin.findOne({ userId });
+      roleData = await prisma.admin.findUnique({
+        where: { userId }
+      });
       break;
   }
   
@@ -55,8 +73,8 @@ export const getAllUsers = async (req, res) => {
   try {
     const { role, isActive, page = 1, limit = 10, search } = req.query;
 
-    // Build query
-    const query = {};
+    // Build where clause
+    const where = {};
 
     // Filter by role - special handling for TA
     let isTAQuery = false;
@@ -70,32 +88,27 @@ export const getAllUsers = async (req, res) => {
       }
       
       if (role === 'ta') {
-        // Special case: TAs can be students with TA records
-        // We'll fetch from TA collection and get associated users
         isTAQuery = true;
       } else {
-        query.role = role;
+        where.role = role;
       }
     }
 
     // Filter by active status
-    // If isActive is explicitly provided (true/false), filter by it
-    // If isActive is empty string, show all users (both active and inactive)
-    // If isActive is undefined, default to only showing active users
     if (isActive === '' || isActive === 'all') {
       // Show all users (no filter)
     } else if (isActive !== undefined) {
-      query.isActive = isActive === 'true';
+      where.isActive = isActive === 'true';
     } else {
       // By default, only show active users
-      query.isActive = true;
+      where.isActive = true;
     }
 
     // Search by name or email
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } }
       ];
     }
 
@@ -109,29 +122,34 @@ export const getAllUsers = async (req, res) => {
 
     if (isTAQuery) {
       // Fetch TAs and their associated users
-      const taRecords = await TA.find()
-        .populate('userId')
-        .populate('studentId')
-        .populate('assignedCourses.courseId');
+      const taRecords = await prisma.ta.findMany({
+        include: {
+          student: true,
+          teacher: true,
+          user: true
+        }
+      });
       
       // Filter based on search and active status
       let filteredTAs = taRecords.filter(ta => {
-        const user = ta.userId;
+        const user = ta.user;
         if (!user) return false;
         
         // Check active status
-        if (query.isActive !== undefined && user.isActive !== query.isActive) {
+        if (where.isActive !== undefined && user.isActive !== where.isActive) {
           return false;
         }
         
         // Check search
-        if (query.$or) {
-          const searchMatches = query.$or.some(condition => {
-            if (condition.name && new RegExp(condition.name.$regex, condition.name.$options).test(user.name)) {
-              return true;
+        if (where.OR) {
+          const searchMatches = where.OR.some(condition => {
+            if (condition.name) {
+              const searchRegex = new RegExp(search, 'i');
+              if (searchRegex.test(user.name)) return true;
             }
-            if (condition.email && new RegExp(condition.email.$regex, condition.email.$options).test(user.email)) {
-              return true;
+            if (condition.email) {
+              const searchRegex = new RegExp(search, 'i');
+              if (searchRegex.test(user.email)) return true;
             }
             return false;
           });
@@ -148,26 +166,38 @@ export const getAllUsers = async (req, res) => {
       
       // Format data to match user response structure
       data = filteredTAs.map(ta => ({
-        ...ta.userId.toObject(),
+        ...ta.user,
         roleData: ta
       }));
     } else {
       // Original logic for non-TA queries
       // Get total count
-      totalCount = await User.countDocuments(query);
+      totalCount = await prisma.user.count({ where });
 
       // Get users
-      const users = await User.find(query)
-        .select('-password')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limitNum);
+      const users = await prisma.user.findMany({
+        where,
+        skip,
+        take: limitNum,
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          name: true,
+          role: true,
+          isActive: true,
+          profilePicture: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: 'desc' }
+      });
 
       // Fetch role-specific data for each user
       data = await Promise.all(users.map(async (user) => {
-        const roleData = await getRoleSpecificData(user._id, user.role);
+        const roleData = await getRoleSpecificData(user.id, user.role);
         return {
-          ...user.toObject(),
+          ...user,
           roleData: roleData || {}
         };
       }));
@@ -190,6 +220,7 @@ export const getAllUsers = async (req, res) => {
       data
     });
   } catch (error) {
+    console.error('Error fetching users:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching users',
@@ -207,7 +238,20 @@ export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = await User.findById(id).select('-password');
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        profilePicture: true,
+        createdAt: true,
+        updatedAt: true,
+      }
+    });
 
     if (!user) {
       return res.status(404).json({
@@ -217,16 +261,17 @@ export const getUserById = async (req, res) => {
     }
 
     // Get role-specific data
-    const roleData = await getRoleSpecificData(user._id, user.role);
+    const roleData = await getRoleSpecificData(user.id, user.role);
 
     res.status(200).json({
       success: true,
       data: {
-        ...user.toObject(),
+        ...user,
         roleData: roleData || {}
       }
     });
   } catch (error) {
+    console.error('Error fetching user:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching user',
@@ -246,7 +291,6 @@ export const createUser = async (req, res) => {
 
     // Check if trying to create an admin account
     if (role === 'admin') {
-      // Only super admins can create admin accounts
       if (!req.isSuperAdmin) {
         return res.status(403).json({
           success: false,
@@ -256,146 +300,173 @@ export const createUser = async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: email.toLowerCase() },
+          { username: username || email.split('@')[0].toLowerCase() }
+        ]
+      }
+    });
+
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'User with this email already exists'
+        message: existingUser.email === email.toLowerCase() 
+          ? 'User with this email already exists'
+          : 'Username already taken'
       });
     }
 
     // Generate username if not provided
     const finalUsername = username || email.split('@')[0].toLowerCase();
 
-    // Check if username exists
-    const existingUsername = await User.findOne({ username: finalUsername });
-    if (existingUsername) {
-      return res.status(400).json({
-        success: false,
-        message: 'Username already taken'
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Use transaction for consistency
+    const result = await prisma.$transaction(async (tx) => {
+      // Create base user
+      const user = await tx.user.create({
+        data: {
+          name,
+          email: email.toLowerCase(),
+          username: finalUsername,
+          password: hashedPassword,
+          role
+        }
       });
-    }
 
-    // Create base user
-    const user = await User.create({
-      name,
-      email: email.toLowerCase(),
-      username: finalUsername,
-      password, // Will be hashed by pre-save hook
-      role
-    });
-
-    // Create role-specific record
-    let roleRecord;
-    try {
-      switch (role) {
-        case 'student': {
-          const { studentId, enrollmentYear, department, batch, currentSemester } = roleSpecificData;
-          
-          // Check if student ID already exists
-          const existingStudent = await Student.findOne({ studentId });
-          if (existingStudent) {
-            throw new Error('Student with this student ID already exists');
+      // Create role-specific record
+      let roleRecord;
+      try {
+        switch (role) {
+          case 'student': {
+            const { studentId, enrollmentYear, department, batch, currentSemester } = roleSpecificData;
+            
+            // Check if student ID already exists
+            const existingStudent = await tx.student.findUnique({
+              where: { studentId }
+            });
+            if (existingStudent) {
+              throw new Error('Student with this student ID already exists');
+            }
+            
+            roleRecord = await tx.student.create({
+              data: {
+                userId: user.id,
+                studentId,
+                enrollmentYear,
+                department,
+                batch,
+                currentSemester: currentSemester || 1
+              }
+            });
+            break;
           }
-          
-          roleRecord = await Student.create({
-            userId: user._id,
-            studentId,
-            enrollmentYear,
-            department,
-            batch,
-            currentSemester: currentSemester || 1
-          });
-          break;
+
+          case 'teacher': {
+            const { employeeId: teacherEmpId, department: teacherDept, designation, qualification, specialization } = roleSpecificData;
+            
+            // Check if employee ID already exists
+            const existingTeacher = await tx.teacher.findUnique({
+              where: { employeeId: teacherEmpId }
+            });
+            if (existingTeacher) {
+              throw new Error('Teacher with this employee ID already exists');
+            }
+            
+            roleRecord = await tx.teacher.create({
+              data: {
+                userId: user.id,
+                employeeId: teacherEmpId,
+                department: teacherDept,
+                designation: designation || 'Lecturer',
+                qualification,
+                specialization: specialization || []
+              }
+            });
+            break;
+          }
+
+          case 'ta': {
+            const { studentId } = roleSpecificData;
+            
+            // Verify student exists
+            const student = await tx.student.findUnique({
+              where: { id: studentId }
+            });
+            if (!student) {
+              throw new Error('Student not found for TA assignment');
+            }
+            
+            roleRecord = await tx.ta.create({
+              data: {
+                userId: user.id,
+                studentId
+              }
+            });
+            break;
+          }
+
+          case 'admin': {
+            const { employeeId: adminEmpId, department: adminDept, designation: adminDesig, permissions, isSuperAdmin } = roleSpecificData;
+            
+            // Check if employee ID already exists
+            const existingAdmin = await tx.admin.findUnique({
+              where: { employeeId: adminEmpId }
+            });
+            if (existingAdmin) {
+              throw new Error('Admin with this employee ID already exists');
+            }
+            
+            // Only super admins can create other super admins
+            let canCreateSuperAdmin = false;
+            if (req.user && req.user.role === 'admin') {
+              const adminRecord = await tx.admin.findUnique({
+                where: { userId: req.user.id }
+              });
+              canCreateSuperAdmin = adminRecord?.isSuperAdmin || false;
+            }
+            
+            roleRecord = await tx.admin.create({
+              data: {
+                userId: user.id,
+                employeeId: adminEmpId,
+                department: adminDept,
+                designation: adminDesig || 'Administrator',
+                permissions: permissions || ['manage_users', 'manage_courses'],
+                isSuperAdmin: canCreateSuperAdmin && isSuperAdmin === true
+              }
+            });
+            break;
+          }
         }
-
-        case 'teacher': {
-          const { employeeId: teacherEmpId, department: teacherDept, designation, qualification, specialization } = roleSpecificData;
-          
-          // Check if employee ID already exists
-          const existingTeacher = await Teacher.findOne({ employeeId: teacherEmpId });
-          if (existingTeacher) {
-            throw new Error('Teacher with this employee ID already exists');
-          }
-          
-          roleRecord = await Teacher.create({
-            userId: user._id,
-            employeeId: teacherEmpId,
-            department: teacherDept,
-            designation: designation || 'Lecturer',
-            qualification,
-            specialization: specialization || []
-          });
-          break;
-        }
-
-        case 'ta': {
-          const { studentId } = roleSpecificData;
-          
-          // Verify student exists
-          const student = await Student.findById(studentId);
-          if (!student) {
-            throw new Error('Student not found for TA assignment');
-          }
-          
-          roleRecord = await TA.create({
-            userId: user._id,
-            studentId
-          });
-          break;
-        }
-
-        case 'admin': {
-          const { employeeId: adminEmpId, department: adminDept, designation: adminDesig, permissions, isSuperAdmin } = roleSpecificData;
-          
-          // Check if employee ID already exists
-          const existingAdmin = await Admin.findOne({ employeeId: adminEmpId });
-          if (existingAdmin) {
-            throw new Error('Admin with this employee ID already exists');
-          }
-          
-          // Only super admins can create other super admins
-          const canCreateSuperAdmin = req.user && req.user.role === 'admin';
-          let adminRecordCheck;
-          if (canCreateSuperAdmin) {
-            adminRecordCheck = await Admin.findOne({ userId: req.user._id });
-          }
-          
-          roleRecord = await Admin.create({
-            userId: user._id,
-            employeeId: adminEmpId,
-            department: adminDept,
-            designation: adminDesig || 'Administrator',
-            permissions: permissions || ['manage_users', 'manage_courses'],
-            isSuperAdmin: adminRecordCheck && adminRecordCheck.isSuperAdmin && isSuperAdmin === true ? true : false
-          });
-          break;
-        }
+      } catch (roleError) {
+        // Delete the user if role-specific record creation fails
+        await tx.user.delete({ where: { id: user.id } });
+        throw roleError;
       }
-    } catch (roleError) {
-      // If role-specific record creation fails, delete the user
-      await User.findByIdAndDelete(user._id);
-      return res.status(400).json({
-        success: false,
-        message: roleError.message
-      });
-    }
+
+      return { user, roleRecord };
+    });
 
     res.status(201).json({
       success: true,
       message: 'User created successfully',
       data: {
         user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          isActive: user.isActive
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          role: result.user.role,
+          isActive: result.user.isActive
         },
-        roleData: roleRecord
+        roleData: result.roleRecord
       }
     });
   } catch (error) {
+    console.error('Error creating user:', error);
     res.status(500).json({
       success: false,
       message: 'Error creating user',
@@ -415,7 +486,10 @@ export const updateUser = async (req, res) => {
     const { name, email, profilePicture, ...roleSpecificData } = req.body;
 
     // Find user
-    const user = await User.findById(id);
+    const user = await prisma.user.findUnique({
+      where: { id }
+    });
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -425,7 +499,12 @@ export const updateUser = async (req, res) => {
 
     // Check if email is being changed and if it already exists
     if (email && email.toLowerCase() !== user.email) {
-      const existingUser = await User.findOne({ email: email.toLowerCase() });
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email: email.toLowerCase(),
+          id: { not: id }
+        }
+      });
       if (existingUser) {
         return res.status(400).json({
           success: false,
@@ -434,69 +513,78 @@ export const updateUser = async (req, res) => {
       }
     }
 
-    // Update base user fields
-    if (name) user.name = name;
-    if (email) user.email = email.toLowerCase();
-    if (profilePicture !== undefined) user.profilePicture = profilePicture;
+    // Build update data
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email.toLowerCase();
+    if (profilePicture !== undefined) updateData.profilePicture = profilePicture;
 
-    await user.save();
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        profilePicture: true,
+        createdAt: true,
+        updatedAt: true,
+      }
+    });
 
     // Update role-specific data if provided
     let roleRecord;
     if (Object.keys(roleSpecificData).length > 0) {
       switch (user.role) {
         case 'student':
-          roleRecord = await Student.findOneAndUpdate(
-            { userId: user._id },
-            { $set: roleSpecificData },
-            { new: true, runValidators: true }
-          );
+          roleRecord = await prisma.student.update({
+            where: { userId: id },
+            data: roleSpecificData
+          });
           break;
 
         case 'teacher':
-          roleRecord = await Teacher.findOneAndUpdate(
-            { userId: user._id },
-            { $set: roleSpecificData },
-            { new: true, runValidators: true }
-          );
+          roleRecord = await prisma.teacher.update({
+            where: { userId: id },
+            data: roleSpecificData
+          });
           break;
 
         case 'ta':
-          roleRecord = await TA.findOneAndUpdate(
-            { userId: user._id },
-            { $set: roleSpecificData },
-            { new: true, runValidators: true }
-          );
+          roleRecord = await prisma.ta.update({
+            where: { userId: id },
+            data: roleSpecificData
+          });
           break;
 
         case 'admin':
-          roleRecord = await Admin.findOneAndUpdate(
-            { userId: user._id },
-            { $set: roleSpecificData },
-            { new: true, runValidators: true }
-          );
+          roleRecord = await prisma.admin.update({
+            where: { userId: id },
+            data: roleSpecificData
+          });
           break;
       }
     } else {
-      roleRecord = await getRoleSpecificData(user._id, user.role);
+      roleRecord = await getRoleSpecificData(id, user.role);
     }
 
     res.status(200).json({
       success: true,
       message: 'User updated successfully',
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          profilePicture: user.profilePicture,
-          isActive: user.isActive
-        },
+        user: updatedUser,
         roleData: roleRecord
       }
     });
   } catch (error) {
+    console.error('Error updating user:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
     res.status(500).json({
       success: false,
       message: 'Error updating user',
@@ -515,35 +603,34 @@ export const deactivateUser = async (req, res) => {
     const { id } = req.params;
 
     // Prevent admin from deactivating themselves
-    if (id === req.user._id.toString()) {
+    if (id === req.user.id) {
       return res.status(400).json({
         success: false,
         message: 'You cannot deactivate your own account'
       });
     }
 
-    const user = await User.findById(id);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    user.isActive = false;
-    await user.save();
+    const user = await prisma.user.update({
+      where: { id },
+      data: { isActive: false },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isActive: true
+      }
+    });
 
     res.status(200).json({
       success: true,
       message: 'User account deactivated successfully',
-      data: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        isActive: user.isActive
-      }
+      data: user
     });
   } catch (error) {
+    console.error('Error deactivating user:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
     res.status(500).json({
       success: false,
       message: 'Error deactivating user',
@@ -561,28 +648,27 @@ export const activateUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = await User.findById(id);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    user.isActive = true;
-    await user.save();
+    const user = await prisma.user.update({
+      where: { id },
+      data: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isActive: true
+      }
+    });
 
     res.status(200).json({
       success: true,
       message: 'User account activated successfully',
-      data: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        isActive: user.isActive
-      }
+      data: user
     });
   } catch (error) {
+    console.error('Error activating user:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
     res.status(500).json({
       success: false,
       message: 'Error activating user',
@@ -600,30 +686,31 @@ export const unlockAccount = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = await User.findById(id);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    user.accountLocked = false;
-    user.accountLockedUntil = null;
-    user.failedLoginAttempts = 0;
-    await user.save();
+    const user = await prisma.user.update({
+      where: { id },
+      data: {
+        accountLocked: false,
+        accountLockedUntil: null,
+        failedLoginAttempts: 0
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        accountLocked: true
+      }
+    });
 
     res.status(200).json({
       success: true,
       message: 'User account unlocked successfully',
-      data: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        accountLocked: user.accountLocked
-      }
+      data: user
     });
   } catch (error) {
+    console.error('Error unlocking account:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
     res.status(500).json({
       success: false,
       message: 'Error unlocking account',
@@ -633,7 +720,7 @@ export const unlockAccount = async (req, res) => {
 };
 
 /**
- * @desc    Delete user (soft delete - just deactivate)
+ * @desc    Delete user (hard delete)
  * @route   DELETE /api/users/:id
  * @access  Private/Admin
  */
@@ -642,14 +729,17 @@ export const deleteUser = async (req, res) => {
     const { id } = req.params;
 
     // Prevent admin from deleting themselves
-    if (id === req.user._id.toString()) {
+    if (id === req.user.id) {
       return res.status(400).json({
         success: false,
         message: 'You cannot delete your own account'
       });
     }
 
-    const user = await User.findById(id);
+    const user = await prisma.user.findUnique({
+      where: { id }
+    });
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -659,16 +749,11 @@ export const deleteUser = async (req, res) => {
 
     // Check if trying to delete an admin account
     if (user.role === 'admin') {
-      // Only super admins can delete admin accounts
-      if (!req.user || req.user.role !== 'admin') {
-        return res.status(403).json({
-          success: false,
-          message: 'Only Super Admins can delete admin accounts'
-        });
-      }
-
-      const adminRecord = await Admin.findOne({ userId: req.user._id });
-      if (!adminRecord || !adminRecord.isSuperAdmin) {
+      const adminRecord = await prisma.admin.findUnique({
+        where: { userId: req.user.id }
+      });
+      
+      if (!adminRecord?.isSuperAdmin) {
         return res.status(403).json({
           success: false,
           message: 'Only Super Admins can delete admin accounts'
@@ -676,8 +761,10 @@ export const deleteUser = async (req, res) => {
       }
 
       // Prevent deletion of super admin accounts
-      const targetAdminRecord = await Admin.findOne({ userId: user._id });
-      if (targetAdminRecord && targetAdminRecord.isSuperAdmin) {
+      const targetAdminRecord = await prisma.admin.findUnique({
+        where: { userId: id }
+      });
+      if (targetAdminRecord?.isSuperAdmin) {
         return res.status(403).json({
           success: false,
           message: 'Super Admin accounts cannot be deleted'
@@ -685,39 +772,41 @@ export const deleteUser = async (req, res) => {
       }
     }
 
-    // Hard delete - completely remove from database
-    // Special handling for students who are also TAs
-    if (user.role === 'student') {
-      const taRecord = await TA.findOne({ userId: id });
-      
-      // If student has a TA record, just remove the TA role
-      if (taRecord) {
-        await TA.deleteOne({ userId: id });
-        return res.status(200).json({
-          success: true,
-          message: 'TA role removed successfully. User remains as student.'
+    // Use transaction to ensure consistency
+    await prisma.$transaction(async (tx) => {
+      // Delete role-specific records
+      if (user.role === 'student') {
+        const taRecord = await tx.ta.findFirst({
+          where: { userId: id }
         });
+        
+        if (taRecord) {
+          await tx.ta.delete({ where: { id: taRecord.id } });
+          return;
+        }
+        
+        await tx.student.delete({ where: { userId: id } });
+      } else if (user.role === 'teacher') {
+        await tx.teacher.delete({ where: { userId: id } });
+      } else if (user.role === 'ta') {
+        await tx.ta.delete({ where: { userId: id } });
+      } else if (user.role === 'admin') {
+        await tx.admin.delete({ where: { userId: id } });
       }
-      
-      // Otherwise delete the complete student account
-      await Student.deleteOne({ userId: id });
-    } else if (user.role === 'teacher') {
-      await Teacher.deleteOne({ userId: id });
-    } else if (user.role === 'ta') {
-      // Pure TA (not a student) - delete completely
-      await TA.deleteOne({ userId: id });
-    } else if (user.role === 'admin') {
-      await Admin.deleteOne({ userId: id });
-    }
 
-    // Delete the user from User collection
-    await User.findByIdAndDelete(id);
+      // Delete the user
+      await tx.user.delete({ where: { id } });
+    });
 
     res.status(200).json({
       success: true,
       message: 'User permanently deleted successfully'
     });
   } catch (error) {
+    console.error('Error deleting user:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
     res.status(500).json({
       success: false,
       message: 'Error deleting user',
@@ -733,23 +822,22 @@ export const deleteUser = async (req, res) => {
  */
 export const getUserStats = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
-    const activeUsers = await User.countDocuments({ isActive: true });
-    const inactiveUsers = await User.countDocuments({ isActive: false });
-    const lockedAccounts = await User.countDocuments({ accountLocked: true });
-
-    const usersByRole = await User.aggregate([
-      {
-        $group: {
-          _id: '$role',
-          count: { $sum: 1 }
-        }
-      }
+    const [totalUsers, activeUsers, inactiveUsers, lockedAccounts] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { isActive: true } }),
+      prisma.user.count({ where: { isActive: false } }),
+      prisma.user.count({ where: { accountLocked: true } })
     ]);
 
-    const roleStats = {};
-    usersByRole.forEach(item => {
-      roleStats[item._id] = item.count;
+    // Get count by role
+    const roleStats = await prisma.user.groupBy({
+      by: ['role'],
+      _count: true
+    });
+
+    const byRole = {};
+    roleStats.forEach(stat => {
+      byRole[stat.role] = stat._count;
     });
 
     res.status(200).json({
@@ -759,10 +847,11 @@ export const getUserStats = async (req, res) => {
         active: activeUsers,
         inactive: inactiveUsers,
         locked: lockedAccounts,
-        byRole: roleStats
+        byRole
       }
     });
   } catch (error) {
+    console.error('Error fetching user statistics:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching user statistics',
@@ -772,21 +861,18 @@ export const getUserStats = async (req, res) => {
 };
 
 /**
- * @desc    Get user statistics by role (Admins, Teachers, Students, TAs)
+ * @desc    Get user statistics by role
  * @route   GET /api/users/stats/by-role
- * @access  Private/Admin (with manage_users permission)
+ * @access  Private/Admin
  */
 export const getUserStatsByRole = async (req, res) => {
   try {
-    // Count users by each role (only active users)
-    const [adminCount, teacherCount, studentCount] = await Promise.all([
-      User.countDocuments({ role: 'admin', isActive: true }),
-      User.countDocuments({ role: 'teacher', isActive: true }),
-      User.countDocuments({ role: 'student', isActive: true })
+    const [adminCount, teacherCount, studentCount, taCount] = await Promise.all([
+      prisma.user.count({ where: { role: 'admin', isActive: true } }),
+      prisma.user.count({ where: { role: 'teacher', isActive: true } }),
+      prisma.user.count({ where: { role: 'student', isActive: true } }),
+      prisma.ta.count()
     ]);
-
-    // Count TAs from TA collection (students who are also TAs)
-    const taCount = await TA.countDocuments();
 
     res.status(200).json({
       success: true,
@@ -799,6 +885,7 @@ export const getUserStatsByRole = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Error fetching user statistics by role:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching user statistics by role',
@@ -810,7 +897,7 @@ export const getUserStatsByRole = async (req, res) => {
 /**
  * @desc    Promote a student to TA role
  * @route   POST /api/users/promote-to-ta
- * @access  Private/Admin (with manage_users permission) or Super Admin
+ * @access  Private/Admin
  */
 export const promoteStudentToTA = async (req, res) => {
   try {
@@ -824,7 +911,9 @@ export const promoteStudentToTA = async (req, res) => {
     }
 
     // Find the student user
-    const studentUser = await User.findById(studentUserId);
+    const studentUser = await prisma.user.findUnique({
+      where: { id: studentUserId }
+    });
 
     if (!studentUser) {
       return res.status(404).json({
@@ -841,7 +930,9 @@ export const promoteStudentToTA = async (req, res) => {
     }
 
     // Find the student record
-    const studentRecord = await Student.findOne({ userId: studentUserId });
+    const studentRecord = await prisma.student.findUnique({
+      where: { userId: studentUserId }
+    });
 
     if (!studentRecord) {
       return res.status(404).json({
@@ -851,7 +942,9 @@ export const promoteStudentToTA = async (req, res) => {
     }
 
     // Check if already a TA
-    const existingTA = await TA.findOne({ userId: studentUserId });
+    const existingTA = await prisma.ta.findUnique({
+      where: { userId: studentUserId }
+    });
 
     if (existingTA) {
       return res.status(400).json({
@@ -860,12 +953,13 @@ export const promoteStudentToTA = async (req, res) => {
       });
     }
 
-    // Keep user role as 'student' - they will have both student and TA roles
     // Create TA record
     const assignedCourses = [];
     if (courseIds && Array.isArray(courseIds) && courseIds.length > 0) {
       // Verify courses exist
-      const courses = await Course.find({ _id: { $in: courseIds } });
+      const courses = await prisma.courseOffering.findMany({
+        where: { id: { in: courseIds } }
+      });
       
       if (courses.length !== courseIds.length) {
         return res.status(400).json({
@@ -875,16 +969,18 @@ export const promoteStudentToTA = async (req, res) => {
       }
 
       assignedCourses.push(...courseIds.map(courseId => ({
-        courseId,
+        courseOfferingId: courseId,
         responsibilities: ['Grading', 'Tutorial Sessions'],
         hoursPerWeek: 0
       })));
     }
 
-    const taRecord = await TA.create({
-      userId: studentUserId,
-      studentId: studentRecord._id,
-      assignedCourses
+    const taRecord = await prisma.ta.create({
+      data: {
+        userId: studentUserId,
+        studentId: studentRecord.id,
+        assignedCourses
+      }
     });
 
     res.status(200).json({
@@ -892,7 +988,7 @@ export const promoteStudentToTA = async (req, res) => {
       message: 'Student successfully promoted to TA',
       data: {
         user: {
-          id: studentUser._id,
+          id: studentUser.id,
           name: studentUser.name,
           email: studentUser.email,
           role: studentUser.role
@@ -901,6 +997,7 @@ export const promoteStudentToTA = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Error promoting student to TA:', error);
     res.status(500).json({
       success: false,
       message: 'Error promoting student to TA',
@@ -918,7 +1015,10 @@ export const removeStudentTARole = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = await User.findById(id);
+    const user = await prisma.user.findUnique({
+      where: { id }
+    });
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -934,7 +1034,10 @@ export const removeStudentTARole = async (req, res) => {
     }
 
     // Check if user has a TA record
-    const taRecord = await TA.findOne({ userId: id });
+    const taRecord = await prisma.ta.findUnique({
+      where: { userId: id }
+    });
+
     if (!taRecord) {
       return res.status(400).json({
         success: false,
@@ -943,14 +1046,14 @@ export const removeStudentTARole = async (req, res) => {
     }
 
     // Delete the TA record
-    await TA.deleteOne({ userId: id });
+    await prisma.ta.delete({ where: { id: taRecord.id } });
 
     res.status(200).json({
       success: true,
       message: 'TA role successfully removed. User remains as student.',
       data: {
         user: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
           role: user.role
@@ -958,6 +1061,10 @@ export const removeStudentTARole = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Error removing TA role:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ success: false, message: 'Not found' });
+    }
     res.status(500).json({
       success: false,
       message: 'Error removing TA role',
@@ -969,7 +1076,7 @@ export const removeStudentTARole = async (req, res) => {
 /**
  * @desc    Search for students by name, email, or student ID
  * @route   GET /api/users/search-students
- * @access  Private/Admin (with manage_users permission)
+ * @access  Private/Admin
  */
 export const searchStudents = async (req, res) => {
   try {
@@ -983,24 +1090,41 @@ export const searchStudents = async (req, res) => {
     }
 
     // Find users with student role matching the query
-    const students = await User.find({
-      role: 'student',
-      $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { email: { $regex: query, $options: 'i' } },
-        { username: { $regex: query, $options: 'i' } }
-      ]
-    }).select('-password').limit(20);
+    const students = await prisma.user.findMany({
+      where: {
+        role: 'student',
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { email: { contains: query, mode: 'insensitive' } },
+          { username: { contains: query, mode: 'insensitive' } }
+        ]
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        username: true
+      },
+      take: 20
+    });
 
     // Get student records with student IDs
-    const studentIds = students.map(s => s._id);
-    const studentRecords = await Student.find({ userId: { $in: studentIds } });
+    const studentIds = students.map(s => s.id);
+    const studentRecords = await prisma.student.findMany({
+      where: { userId: { in: studentIds } },
+      select: {
+        userId: true,
+        studentId: true,
+        department: true,
+        currentSemester: true
+      }
+    });
 
     // Combine user and student data
     const studentsWithDetails = students.map(user => {
-      const studentRecord = studentRecords.find(sr => sr.userId.toString() === user._id.toString());
+      const studentRecord = studentRecords.find(sr => sr.userId === user.id);
       return {
-        userId: user._id,
+        userId: user.id,
         name: user.name,
         email: user.email,
         username: user.username,
@@ -1016,6 +1140,7 @@ export const searchStudents = async (req, res) => {
       data: studentsWithDetails
     });
   } catch (error) {
+    console.error('Error searching students:', error);
     res.status(500).json({
       success: false,
       message: 'Error searching students',
@@ -1063,14 +1188,14 @@ export const downloadBulkUploadTemplate = async (req, res) => {
     
     // Set column widths
     ws['!cols'] = [
-      { wch: 20 }, // Full Name
-      { wch: 30 }, // Email
-      { wch: 15 }, // Student ID
-      { wch: 15 }, // Password
-      { wch: 25 }, // Department
-      { wch: 15 }, // Enrollment Year
-      { wch: 10 }, // Batch
-      { wch: 17 }  // Current Semester
+      { wch: 20 },
+      { wch: 30 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 25 },
+      { wch: 15 },
+      { wch: 10 },
+      { wch: 17 }
     ];
     
     // Add worksheet to workbook
@@ -1085,6 +1210,7 @@ export const downloadBulkUploadTemplate = async (req, res) => {
     
     res.send(excelBuffer);
   } catch (error) {
+    console.error('Error generating template:', error);
     res.status(500).json({
       success: false,
       message: 'Error generating template',
@@ -1131,7 +1257,7 @@ export const bulkUploadStudents = async (req, res) => {
     // Process each row
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
-      const rowNumber = i + 2; // Excel row number (accounting for header)
+      const rowNumber = i + 2;
 
       try {
         // Validate required fields
@@ -1159,11 +1285,13 @@ export const bulkUploadStudents = async (req, res) => {
         }
 
         // Check if user already exists
-        const existingUser = await User.findOne({
-          $or: [
-            { email: row['Email'] },
-            { username: row['Email'].split('@')[0] }
-          ]
+        const existingUser = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { email: row['Email'].toLowerCase() },
+              { username: row['Email'].split('@')[0].toLowerCase() }
+            ]
+          }
         });
 
         if (existingUser) {
@@ -1176,120 +1304,73 @@ export const bulkUploadStudents = async (req, res) => {
         }
 
         // Check if student ID already exists
-        const existingStudent = await Student.findOne({ studentId: row['Student ID'] });
+        const existingStudent = await prisma.student.findUnique({
+          where: { studentId: row['Student ID'] }
+        });
+
         if (existingStudent) {
           results.failed.push({
             row: rowNumber,
             data: row,
-            error: 'Student ID already exists'
+            error: 'Student with this ID already exists'
           });
           continue;
         }
 
-        // Validate enrollment year
-        const enrollmentYear = parseInt(row['Enrollment Year']);
-        if (isNaN(enrollmentYear) || enrollmentYear < 2000 || enrollmentYear > 2100) {
-          results.failed.push({
-            row: rowNumber,
-            data: row,
-            error: 'Invalid enrollment year (must be between 2000 and 2100)'
-          });
-          continue;
-        }
+        // Hash password
+        const hashedPassword = await bcrypt.hash(row['Password'], 10);
 
-        // Validate current semester
-        const currentSemester = parseInt(row['Current Semester']);
-        if (isNaN(currentSemester) || currentSemester < 1 || currentSemester > 8) {
-          results.failed.push({
-            row: rowNumber,
-            data: row,
-            error: 'Invalid current semester (must be between 1 and 8)'
-          });
-          continue;
-        }
-
-        // Generate username from email
-        const username = row['Email'].split('@')[0];
-
-        // Create user and student in a try-catch to handle rollback
-        let user;
-        try {
-          // Create user (password will be hashed by pre-save hook)
-          user = await User.create({
-            name: row['Full Name'],
-            email: row['Email'],
-            username: username,
-            password: row['Password'].toString(),
-            role: 'student',
-            isActive: true
-          });
-
-          // Create student record
-          await Student.create({
-            userId: user._id,
-            studentId: row['Student ID'],
-            enrollmentYear: enrollmentYear,
-            department: row['Department'],
-            batch: row['Batch'] || enrollmentYear.toString(),
-            currentSemester: currentSemester,
-            enrolledCourses: [],
-            completedCourses: []
-          });
-
-          results.successful.push({
-            row: rowNumber,
+        // Create user and student in transaction
+        const username = row['Email'].split('@')[0].toLowerCase();
+        
+        await prisma.$transaction(async (tx) => {
+          const newUser = await tx.user.create({
             data: {
               name: row['Full Name'],
-              email: row['Email'],
-              studentId: row['Student ID']
+              email: row['Email'].toLowerCase(),
+              username,
+              password: hashedPassword,
+              role: 'student'
             }
           });
-        } catch (createError) {
-          // If student creation failed but user was created, delete the user
-          if (user && user._id) {
-            await User.findByIdAndDelete(user._id);
-          }
-          throw createError;
-        }
 
+          await tx.student.create({
+            data: {
+              userId: newUser.id,
+              studentId: row['Student ID'],
+              enrollmentYear: parseInt(row['Enrollment Year']),
+              department: row['Department'],
+              batch: row['Batch'] || row['Enrollment Year'].toString(),
+              currentSemester: parseInt(row['Current Semester'])
+            }
+          });
+        });
+
+        results.successful.push({
+          row: rowNumber,
+          email: row['Email'],
+          message: 'Student created successfully'
+        });
       } catch (error) {
         results.failed.push({
           row: rowNumber,
           data: row,
-          error: error.message || 'Unknown error occurred'
+          error: error.message
         });
       }
     }
 
     res.status(200).json({
       success: true,
-      message: `Processed ${results.total} rows: ${results.successful.length} successful, ${results.failed.length} failed`,
-      results: results
+      message: `Bulk upload completed. ${results.successful.length} successful, ${results.failed.length} failed`,
+      data: results
     });
-
   } catch (error) {
+    console.error('Error bulk uploading students:', error);
     res.status(500).json({
       success: false,
-      message: 'Error processing bulk upload',
+      message: 'Error bulk uploading students',
       error: error.message
     });
   }
-};
-
-export default {
-  getAllUsers,
-  getUserById,
-  createUser,
-  updateUser,
-  deactivateUser,
-  activateUser,
-  unlockAccount,
-  deleteUser,
-  getUserStats,
-  getUserStatsByRole,
-  promoteStudentToTA,
-  removeStudentTARole,
-  searchStudents,
-  downloadBulkUploadTemplate,
-  bulkUploadStudents
 };

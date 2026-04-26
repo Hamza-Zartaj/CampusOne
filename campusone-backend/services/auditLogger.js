@@ -1,4 +1,4 @@
-import AuditLog from '../models/AuditLog.js';
+import prisma from '../prisma/client.js';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -11,7 +11,12 @@ class AuditLogger {
    */
   static async log(data) {
     try {
-      const logEntry = await AuditLog.create(data);
+      const logEntry = await prisma.auditLog.create({
+        data: {
+          ...data,
+          createdAt: new Date()
+        }
+      });
       return logEntry;
     } catch (error) {
       console.error('Audit log error:', error.message);
@@ -29,10 +34,14 @@ class AuditLogger {
       const logsWithBulkId = entries.map((entry, index) => ({
         ...entry,
         bulkOperationId,
-        bulkOperationIndex: index
+        bulkOperationIndex: index,
+        createdAt: new Date()
       }));
-      const logs = await AuditLog.insertMany(logsWithBulkId, { ordered: false });
-      return { bulkOperationId, count: logs.length };
+      const logs = await prisma.auditLog.createMany({
+        data: logsWithBulkId,
+        skipDuplicates: false
+      });
+      return { bulkOperationId, count: logs.count };
     } catch (error) {
       console.error('Bulk audit log error:', error.message);
       return null;
@@ -290,31 +299,31 @@ class AuditLogger {
       sortOrder = 'desc'
     } = options;
 
-    const query = {};
+    const where = {};
 
-    if (filters.action) query.action = filters.action;
-    if (filters.category) query.category = filters.category;
-    if (filters.performedBy) query.performedBy = filters.performedBy;
-    if (filters.targetModel) query.targetModel = filters.targetModel;
-    if (filters.targetId) query.targetId = filters.targetId;
-    if (filters.academicYear) query.academicYear = filters.academicYear;
-    if (filters.semesterNumber) query.semesterNumber = filters.semesterNumber;
-    if (filters.program) query.program = filters.program;
-    if (filters.bulkOperationId) query.bulkOperationId = filters.bulkOperationId;
+    if (filters.action) where.action = filters.action;
+    if (filters.category) where.category = filters.category;
+    if (filters.performedBy) where.performedBy = filters.performedBy;
+    if (filters.targetModel) where.targetModel = filters.targetModel;
+    if (filters.targetId) where.targetId = filters.targetId;
+    if (filters.academicYear) where.academicYear = filters.academicYear;
+    if (filters.semesterNumber) where.semesterNumber = filters.semesterNumber;
+    if (filters.program) where.program = filters.program;
+    if (filters.bulkOperationId) where.bulkOperationId = filters.bulkOperationId;
 
     if (filters.startDate || filters.endDate) {
-      query.createdAt = {};
-      if (filters.startDate) query.createdAt.$gte = new Date(filters.startDate);
-      if (filters.endDate) query.createdAt.$lte = new Date(filters.endDate);
+      where.createdAt = {};
+      if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
+      if (filters.endDate) where.createdAt.lte = new Date(filters.endDate);
     }
 
-    const total = await AuditLog.countDocuments(query);
-    const logs = await AuditLog.find(query)
-      .populate('performedBy', 'firstName lastName email role')
-      .populate('program', 'programCode programName')
-      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
+    const total = await prisma.auditLog.count({ where });
+    const logs = await prisma.auditLog.findMany({
+      where,
+      orderBy: { [sortBy]: sortOrder === 'desc' ? 'desc' : 'asc' },
+      skip: (page - 1) * limit,
+      take: limit
+    });
 
     return {
       logs,

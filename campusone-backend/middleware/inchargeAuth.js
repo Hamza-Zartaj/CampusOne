@@ -3,8 +3,7 @@
  * Provides scope-based authorization for semester incharges
  */
 
-import SemesterIncharge from '../models/SemesterIncharge.js';
-import Teacher from '../models/Teacher.js';
+import prisma from '../prisma/client.js';
 
 /**
  * Check if user is an active semester incharge
@@ -34,7 +33,9 @@ export const checkInchargeStatus = async (req, res, next) => {
     }
 
     // Find teacher profile
-    const teacher = await Teacher.findOne({ userId: req.user._id });
+    const teacher = await prisma.teacher.findFirst({
+      where: { userId: req.user.id }
+    });
     
     if (!teacher) {
       req.isIncharge = false;
@@ -43,10 +44,21 @@ export const checkInchargeStatus = async (req, res, next) => {
     }
 
     // Find all active incharge assignments for this teacher
-    const inchargeAssignments = await SemesterIncharge.find({
-      teacher: teacher._id,
-      status: 'active'
-    }).populate('program', 'programCode name');
+    const inchargeAssignments = await prisma.semesterIncharge.findMany({
+      where: {
+        teacherId: teacher.id,
+        status: 'active'
+      },
+      include: {
+        program: {
+          select: {
+            id: true,
+            programCode: true,
+            name: true
+          }
+        }
+      }
+    });
 
     if (inchargeAssignments.length === 0) {
       req.isIncharge = false;
@@ -55,10 +67,10 @@ export const checkInchargeStatus = async (req, res, next) => {
     }
 
     req.isIncharge = true;
-    req.teacherId = teacher._id;
+    req.teacherId = teacher.id;
     req.inchargeScope = inchargeAssignments.map(assignment => ({
-      inchargeId: assignment._id,
-      program: assignment.program._id,
+      inchargeId: assignment.id,
+      program: assignment.program.id,
       programCode: assignment.program.programCode,
       programName: assignment.program.name,
       department: assignment.department,

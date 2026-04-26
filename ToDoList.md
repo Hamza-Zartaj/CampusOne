@@ -1,11 +1,22 @@
 ﻿# CampusOne - Project To-Do List
 
-**Framework:** MERN Stack  
-**Updated:** February 8, 2026
+**Stack:** Node.js + Express + PostgreSQL (Supabase) + Prisma 7 + React + Vite  
+**Updated:** April 27, 2026
 
 ---
 
 ## HIGH PRIORITY - IMMEDIATE TASKS
+
+### ✅ Database Migration (DONE)
+- [x] Migrate all 14 controllers from Mongoose to Prisma
+- [x] Migrate `auditLogger.js` service to Prisma
+- [x] Migrate `inchargeAuth.js` middleware to Prisma
+- [x] Remove all Mongoose model files
+- [x] Uninstall Mongoose, install Prisma 7 + pg adapter
+- [x] Update `server.js` to use Prisma connection
+- [x] Update `createSuperAdmin.js` script to use Prisma
+- [x] Regenerate Prisma client
+- [x] Verify server starts and DB connects
 
 ### Student Portal UI (Backend APIs Ready)
 - [ ] My Courses page

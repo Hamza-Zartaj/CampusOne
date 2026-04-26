@@ -1,4 +1,4 @@
-import Teacher from '../models/Teacher.js';
+import prisma from '../prisma/client.js';
 
 /**
  * @desc    Get all teachers with user and designation info
@@ -14,31 +14,41 @@ export const getAllTeachers = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     // Get teachers with populated user info
-    const teachers = await Teacher.find()
-      .populate('userId', 'name email username isActive')
-      .select('_id userId employeeId designation')
-      .skip(skip)
-      .limit(limitNum)
-      .lean()
-      .sort({ employeeId: 1 });
+    const teachers = await prisma.teacher.findMany({
+      include: {
+        user: {
+          select: { name: true, email: true, username: true, isActive: true }
+        }
+      },
+      select: {
+        id: true,
+        userId: true,
+        user: true,
+        employeeId: true,
+        designation: true
+      },
+      skip,
+      take: limitNum,
+      orderBy: { employeeId: 'asc' }
+    });
 
     // Restructure response to include user info
     const teachersWithUserInfo = teachers
-      .filter(t => t.userId) // Only include teachers with valid users
+      .filter(t => t.user) // Only include teachers with valid users
       .map(t => ({
-        _id: t._id,
-        teacherId: t._id,
-        userId: t.userId._id,
-        name: t.userId.name,
-        email: t.userId.email,
-        username: t.userId.username,
+        _id: t.id,
+        teacherId: t.id,
+        userId: t.user.id,
+        name: t.user.name,
+        email: t.user.email,
+        username: t.user.username,
         employeeId: t.employeeId,
         designation: t.designation || 'Lecturer',
-        isActive: t.userId.isActive
+        isActive: t.user.isActive
       }));
 
     // Get total count
-    const total = await Teacher.countDocuments();
+    const total = await prisma.teacher.count();
 
     res.status(200).json({
       success: true,
@@ -69,11 +79,16 @@ export const getTeacherById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const teacher = await Teacher.findById(id)
-      .populate('userId', 'name email username isActive')
-      .lean();
+    const teacher = await prisma.teacher.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: { name: true, email: true, username: true, isActive: true }
+        }
+      }
+    });
 
-    if (!teacher || !teacher.userId) {
+    if (!teacher || !teacher.user) {
       return res.status(404).json({
         success: false,
         message: 'Teacher not found'
@@ -83,15 +98,15 @@ export const getTeacherById = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        _id: teacher._id,
-        teacherId: teacher._id,
-        userId: teacher.userId._id,
-        name: teacher.userId.name,
-        email: teacher.userId.email,
-        username: teacher.userId.username,
+        _id: teacher.id,
+        teacherId: teacher.id,
+        userId: teacher.user.id,
+        name: teacher.user.name,
+        email: teacher.user.email,
+        username: teacher.user.username,
         employeeId: teacher.employeeId,
         designation: teacher.designation || 'Lecturer',
-        isActive: teacher.userId.isActive
+        isActive: teacher.user.isActive
       }
     });
   } catch (error) {
@@ -113,11 +128,16 @@ export const getTeacherByUserId = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const teacher = await Teacher.findOne({ userId })
-      .populate('userId', 'name email username isActive')
-      .lean();
+    const teacher = await prisma.teacher.findUnique({
+      where: { userId },
+      include: {
+        user: {
+          select: { name: true, email: true, username: true, isActive: true }
+        }
+      }
+    });
 
-    if (!teacher || !teacher.userId) {
+    if (!teacher || !teacher.user) {
       return res.status(404).json({
         success: false,
         message: 'Teacher not found'
@@ -127,15 +147,15 @@ export const getTeacherByUserId = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        _id: teacher._id,
-        teacherId: teacher._id,
-        userId: teacher.userId._id,
-        name: teacher.userId.name,
-        email: teacher.userId.email,
-        username: teacher.userId.username,
+        _id: teacher.id,
+        teacherId: teacher.id,
+        userId: teacher.user.id,
+        name: teacher.user.name,
+        email: teacher.user.email,
+        username: teacher.user.username,
         employeeId: teacher.employeeId,
         designation: teacher.designation || 'Lecturer',
-        isActive: teacher.userId.isActive
+        isActive: teacher.user.isActive
       }
     });
   } catch (error) {
@@ -148,8 +168,209 @@ export const getTeacherByUserId = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get teacher profile with course assignments
+ * @route   GET /api/teachers/:id/profile
+ * @access  Private
+ */
+export const getTeacherProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const teacher = await prisma.teacher.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: { name: true, email: true, username: true, isActive: true, profilePicture: true }
+        },
+        courseOfferings: {
+          include: {
+            course: {
+              select: { id: true, courseCode: true, courseName: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!teacher || !teacher.user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        _id: teacher.id,
+        teacherId: teacher.id,
+        userId: teacher.user.id,
+        name: teacher.user.name,
+        email: teacher.user.email,
+        username: teacher.user.username,
+        profilePicture: teacher.user.profilePicture,
+        employeeId: teacher.employeeId,
+        designation: teacher.designation || 'Lecturer',
+        department: teacher.department,
+        qualification: teacher.qualification,
+        specialization: teacher.specialization,
+        officeRoom: teacher.officeRoom,
+        officeHours: teacher.officeHours,
+        phone: teacher.phone,
+        researchInterests: teacher.researchInterests,
+        isActive: teacher.user.isActive,
+        courseOfferings: teacher.courseOfferings
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching teacher profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching teacher profile',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Update teacher profile
+ * @route   PUT /api/teachers/:id
+ * @access  Private (Self or Admin)
+ */
+export const updateTeacherProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { designation, phone, officeRoom, officeHours, qualification, specialization, researchInterests } = req.body;
+
+    // Check authorization - only teacher themselves or admin can update
+    const teacher = await prisma.teacher.findUnique({
+      where: { id }
+    });
+
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    if (teacher.userId !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this teacher profile'
+      });
+    }
+
+    // Update teacher record
+    const updateData = {};
+    if (designation !== undefined) updateData.designation = designation;
+    if (phone !== undefined) updateData.phone = phone;
+    if (officeRoom !== undefined) updateData.officeRoom = officeRoom;
+    if (officeHours !== undefined) updateData.officeHours = officeHours;
+    if (qualification !== undefined) updateData.qualification = qualification;
+    if (specialization !== undefined) updateData.specialization = specialization;
+    if (researchInterests !== undefined) updateData.researchInterests = researchInterests;
+
+    const updated = await prisma.teacher.update({
+      where: { id },
+      data: updateData,
+      include: {
+        user: {
+          select: { name: true, email: true, username: true, isActive: true }
+        }
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Teacher profile updated successfully',
+      data: {
+        _id: updated.id,
+        teacherId: updated.id,
+        userId: updated.user.id,
+        name: updated.user.name,
+        email: updated.user.email,
+        username: updated.user.username,
+        employeeId: updated.employeeId,
+        designation: updated.designation,
+        department: updated.department,
+        qualification: updated.qualification,
+        specialization: updated.specialization,
+        officeRoom: updated.officeRoom,
+        officeHours: updated.officeHours,
+        phone: updated.phone,
+        researchInterests: updated.researchInterests,
+        isActive: updated.user.isActive
+      }
+    });
+  } catch (error) {
+    console.error('Error updating teacher profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating teacher profile',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Get teacher's current courses for this semester
+ * @route   GET /api/teachers/:id/current-courses
+ * @access  Private
+ */
+export const getTeacherCurrentCourses = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { academicYear, semesterNumber } = req.query;
+
+    const where = { teacherId: id };
+    if (academicYear) where.academicYear = academicYear;
+    if (semesterNumber) where.semesterNumber = parseInt(semesterNumber);
+
+    const offerings = await prisma.courseOffering.findMany({
+      where,
+      include: {
+        course: {
+          select: { id: true, courseCode: true, courseName: true, creditHours: true }
+        },
+        enrollments: {
+          select: { id: true }
+        }
+      }
+    });
+
+    const enrichedOfferings = offerings.map(off => ({
+      id: off.id,
+      course: off.course,
+      academicYear: off.academicYear,
+      semesterNumber: off.semesterNumber,
+      semesterName: off.semesterName,
+      section: off.section,
+      maxCapacity: off.maxCapacity,
+      currentEnrollment: off.enrollments.length,
+      schedule: off.schedule
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: enrichedOfferings
+    });
+  } catch (error) {
+    console.error('Error fetching teacher courses:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching teacher courses',
+      error: error.message
+    });
+  }
+};
+
 export default {
   getAllTeachers,
   getTeacherById,
-  getTeacherByUserId
+  getTeacherByUserId,
+  getTeacherProfile,
+  updateTeacherProfile,
+  getTeacherCurrentCourses
 };
