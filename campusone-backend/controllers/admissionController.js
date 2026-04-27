@@ -140,7 +140,7 @@ export const submitApplication = async (req, res) => {
       data: {
         _id: application.id,
         applicationNumber: application.applicationNumber,
-        status: application.status
+        status: application.applicationStatus
       }
     });
   } catch (error) {
@@ -162,12 +162,12 @@ export const getAllApplications = async (req, res) => {
 
     const where = {};
     if (status) {
-      where.status = status;
+      where.applicationStatus = status;
     }
 
     const applications = await prisma.admissionApplication.findMany({
       where,
-      orderBy: { submittedAt: 'desc' },
+      orderBy: { applicationDate: 'desc' },
       take: parseInt(limit),
       skip: (parseInt(page) - 1) * parseInt(limit)
     });
@@ -246,15 +246,11 @@ export const updateApplicationStatus = async (req, res) => {
       });
     }
 
-    const previousStatus = application.status;
-
     const updated = await prisma.admissionApplication.update({
       where: { id: req.params.id },
       data: {
-        status,
-        reviewedAt: new Date(),
-        reviewedBy: req.user.id,
-        reviewNotes: reviewNotes || application.reviewNotes
+        applicationStatus: status,
+        remarks: reviewNotes || application.remarks
       }
     });
 
@@ -309,11 +305,11 @@ export const updateApplicationStatus = async (req, res) => {
 export const getApplicationStatistics = async (req, res) => {
   try {
     const totalApplications = await prisma.admissionApplication.count();
-    const pendingApplications = await prisma.admissionApplication.count({ where: { status: 'Pending' } });
-    const underReviewApplications = await prisma.admissionApplication.count({ where: { status: 'Under Review' } });
-    const acceptedApplications = await prisma.admissionApplication.count({ where: { status: 'Accepted' } });
-    const rejectedApplications = await prisma.admissionApplication.count({ where: { status: 'Rejected' } });
-    const waitlistedApplications = await prisma.admissionApplication.count({ where: { status: 'Waitlisted' } });
+    const pendingApplications = await prisma.admissionApplication.count({ where: { applicationStatus: 'Pending' } });
+    const underReviewApplications = await prisma.admissionApplication.count({ where: { applicationStatus: 'Under Review' } });
+    const acceptedApplications = await prisma.admissionApplication.count({ where: { applicationStatus: 'Accepted' } });
+    const rejectedApplications = await prisma.admissionApplication.count({ where: { applicationStatus: 'Rejected' } });
+    const waitlistedApplications = await prisma.admissionApplication.count({ where: { applicationStatus: 'Waitlisted' } });
 
     res.status(200).json({
       success: true,

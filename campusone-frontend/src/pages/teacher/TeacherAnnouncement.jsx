@@ -9,7 +9,7 @@ import {
   BookOpen,
   Clock,
 } from 'lucide-react';
-import { announcementAPI, teacherToolsAPI } from '../../utils/api';
+import { announcementAPI } from '../../utils/api';
 
 // Dummy data for development/demo
 const dummyCourseOfferings = [
@@ -102,15 +102,8 @@ const TeacherAnnouncement = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-
-      // Get teacher's course offerings
-      const offeringRes = await teacherToolsAPI.getMyOfferings();
-      setCourseOfferings(offeringRes.data.data || []);
-
-      // Get announcements
       const announcRes = await announcementAPI.getMyAnnouncements();
       setAnnouncements(announcRes.data);
-
       setError('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load data');

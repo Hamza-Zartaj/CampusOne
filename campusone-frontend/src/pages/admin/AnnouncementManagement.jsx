@@ -9,11 +9,10 @@ import {
   Users,
   GraduationCap,
   Briefcase,
-  BookOpen,
   Clock,
   ArrowRight,
 } from 'lucide-react';
-import { announcementAPI, courseAPI } from '../../utils/api';
+import { announcementAPI } from '../../utils/api';
 
 const inputClass =
   'w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] transition-all focus:outline-none focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/10';
@@ -37,7 +36,6 @@ const PRIORITY_BADGES = {
 
 const AnnouncementManagement = () => {
   const [announcements, setAnnouncements] = useState([]);
-  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -47,13 +45,11 @@ const AnnouncementManagement = () => {
   const [content, setContent] = useState('');
   const [priority, setPriority] = useState('medium');
   const [audience, setAudience] = useState('all');
-  const [courseId, setCourseId] = useState('');
   const [sending, setSending] = useState(false);
 
   // Load data
   useEffect(() => {
     loadAnnouncements();
-    loadCourses();
   }, []);
 
   const loadAnnouncements = async () => {
@@ -67,15 +63,6 @@ const AnnouncementManagement = () => {
       console.error('Error loading announcements:', err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadCourses = async () => {
-    try {
-      const res = await courseAPI.getAllCourses();
-      setCourses(res.data.data || []);
-    } catch (err) {
-      console.error('Error loading courses:', err);
     }
   };
 
@@ -101,7 +88,6 @@ const AnnouncementManagement = () => {
         content: content.trim(),
         priority,
         targetAudience: audience,
-        ...(audience === 'specific_course' && { courseId }),
       };
 
       const res = await announcementAPI.sendAnnouncement(data);
@@ -111,7 +97,6 @@ const AnnouncementManagement = () => {
       setContent('');
       setPriority('medium');
       setAudience('all');
-      setCourseId('');
 
       // Reload announcements
       loadAnnouncements();
@@ -146,7 +131,6 @@ const AnnouncementManagement = () => {
       all: Users,
       teachers: Briefcase,
       students: GraduationCap,
-      specific_course: BookOpen,
     };
     return icons[audience] || Users;
   };
@@ -156,7 +140,6 @@ const AnnouncementManagement = () => {
       all: 'All Users',
       teachers: 'Teachers & Admins',
       students: 'All Students',
-      specific_course: 'Course Students',
     };
     return labels[audience] || audience;
   };
@@ -246,28 +229,8 @@ const AnnouncementManagement = () => {
                     <option value="all">All Users</option>
                     <option value="teachers">Teachers & Admins</option>
                     <option value="students">All Students</option>
-                    <option value="specific_course">Specific Course</option>
                   </select>
                 </div>
-
-                {audience === 'specific_course' && (
-                  <div>
-                    <label className={labelClass}>Course *</label>
-                    <select
-                      value={courseId}
-                      onChange={(e) => setCourseId(e.target.value)}
-                      className={inputClass}
-                      disabled={sending}
-                    >
-                      <option value="">Select a course</option>
-                      {courses.map((course) => (
-                        <option key={course._id} value={course._id}>
-                          {course.courseName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
 
                 <button type="submit" className={btnPrimaryClass} disabled={sending}>
                   {sending ? (

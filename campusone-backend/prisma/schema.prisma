@@ -82,7 +82,6 @@ model Student {
   dateOfBirth           DateTime?
 
   // Relationships
-  enrollments           Enrollment[]
   submissions           Submission[]
   quizAttempts          QuizAttempt[]
   attendanceRecords     AttendanceRecord[]
@@ -113,11 +112,6 @@ model Teacher {
   // Academic
   researchInterests     Json      @default("[]")
 
-  // Relationships
-  courseOfferings       CourseOffering[]
-  semesterIncharges     SemesterIncharge[]
-  headOfDepartments     Department[]
-
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -144,257 +138,13 @@ model Admin {
   @@index([isSuperAdmin])
 }
 
-// ============ ACADEMIC STRUCTURE ============
 
-model Department {
-  id                    String    @id @default(cuid())
-  departmentCode        String    @unique
-  name                  String
-  description           String?
-  headOfDepartmentId    String?
-  headOfDepartment      Teacher?  @relation(fields: [headOfDepartmentId], references: [id])
-
-  // Relationships
-  programs              Program[]
-  courses               Course[]
-
-  // Soft Delete
-  isDeleted             Boolean   @default(false)
-  deletedAt             DateTime?
-  deletedBy             String?
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@index([isDeleted])
-}
-
-model Program {
-  id                    String    @id @default(cuid())
-  programCode           String    @unique
-  name                  String
-  description           String?
-  departmentId          String
-  department            Department @relation(fields: [departmentId], references: [id])
-
-  type                  String
-  durationYears         Int
-  totalSemesters        Int
-  totalCredits          Int
-  eligibilityCriteria   String?
-
-  // Relationships
-  curriculumEntries     ProgramCurriculumEntry[]
-  courses               Course[]
-  offerings             CourseOffering[]
-  enrollments           Enrollment[]
-  semesterIncharges     SemesterIncharge[]
-
-  // Soft Delete
-  isDeleted             Boolean   @default(false)
-  deletedAt             DateTime?
-  deletedBy             String?
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@index([departmentId])
-  @@index([isDeleted])
-}
-
-model ProgramCurriculumEntry {
-  id                    String    @id @default(cuid())
-  programId             String
-  program               Program   @relation(fields: [programId], references: [id], onDelete: Cascade)
-  courseId              String
-  course                Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  semesterNumber        Int
-  isElective            Boolean   @default(false)
-
-  createdAt             DateTime  @default(now())
-
-  @@unique([programId, courseId, semesterNumber])
-  @@index([programId])
-  @@index([courseId])
-}
-
-model Course {
-  id                    String    @id @default(cuid())
-  courseCode            String    @unique
-  courseName            String
-  description           String?
-  departmentId          String
-  department            Department @relation(fields: [departmentId], references: [id])
-  programId             String?
-  program               Program?  @relation(fields: [programId], references: [id])
-
-  creditHours           Int
-  courseType            String
-  domain                String?
-
-  // Self-relation for prerequisites
-  prerequisites         CoursePrerequisite[] @relation("CoursePrerequisites")
-  requiredBy            CoursePrerequisite[] @relation("PrerequisiteFor")
-
-  // Relationships
-  curriculumEntries     ProgramCurriculumEntry[]
-  offerings             CourseOffering[]
-  assignments           Assignment[]
-  quizzes               Quiz[]
-  announcements         Announcement[]
-  qna                   QNA[]
-  attendanceRecords     AttendanceRecord[]
-
-  // Soft Delete
-  isDeleted             Boolean   @default(false)
-  deletedAt             DateTime?
-  deletedBy             String?
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@index([courseCode])
-  @@index([departmentId])
-  @@index([programId])
-  @@index([isDeleted])
-}
-
-model CoursePrerequisite {
-  id                    String    @id @default(cuid())
-  courseId              String
-  course                Course    @relation("CoursePrerequisites", fields: [courseId], references: [id], onDelete: Cascade)
-  prerequisiteId        String
-  prerequisite          Course    @relation("PrerequisiteFor", fields: [prerequisiteId], references: [id], onDelete: Cascade)
-
-  createdAt             DateTime  @default(now())
-
-  @@unique([courseId, prerequisiteId])
-  @@index([courseId])
-  @@index([prerequisiteId])
-}
-
-model CourseOffering {
-  id                    String    @id @default(cuid())
-  courseId              String
-  course                Course    @relation(fields: [courseId], references: [id])
-  programId             String
-  program               Program   @relation(fields: [programId], references: [id])
-
-  academicYear          String
-  semesterNumber        Int
-  semesterName          String
-  section               String
-
-  teacherId             String
-  teacher               Teacher   @relation(fields: [teacherId], references: [id])
-
-  maxCapacity           Int
-  currentEnrollment     Int       @default(0)
-  schedule              Json      @default("[]")
-  materials             Json      @default("[]")
-
-  // Relationships
-  enrollments           Enrollment[]
-  attendanceRecords     AttendanceRecord[]
-
-  // Soft Delete
-  isDeleted             Boolean   @default(false)
-  deletedAt             DateTime?
-  deletedBy             String?
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@unique([courseId, academicYear, semesterNumber, section])
-  @@index([courseId])
-  @@index([programId])
-  @@index([teacherId])
-}
-
-// ============ ENROLLMENT & GRADING ============
-
-model Enrollment {
-  id                    String    @id @default(cuid())
-  studentId             String
-  student               Student   @relation(fields: [studentId], references: [id])
-  courseOfferingId      String
-  courseOffering        CourseOffering @relation(fields: [courseOfferingId], references: [id])
-  programId             String
-  program               Program   @relation(fields: [programId], references: [id])
-
-  academicYear          String
-  semesterNumber        Int
-
-  status                String    @default("enrolled")
-  enrollmentType        String    @default("regular")
-
-  // Waitlist
-  waitlistPosition      Int?
-  waitlistAddedAt       DateTime?
-  promotedFromWaitlistAt DateTime?
-
-  // Grades
-  midtermMarks          Float?
-  finalMarks            Float?
-  assignmentMarks       Float?
-  quizMarks             Float?
-  labMarks              Float?
-  totalMarks            Float?
-  obtainedMarks         Float?
-  percentage            Float?
-  grade                 String?
-  gpa                   Float?
-  gradingStatus         String    @default("pending")
-
-  enrolledAt            DateTime  @default(now())
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@unique([studentId, courseOfferingId])
-  @@index([studentId])
-  @@index([courseOfferingId])
-  @@index([status])
-}
-
-model SemesterIncharge {
-  id                    String    @id @default(cuid())
-  teacherId             String
-  teacher               Teacher   @relation(fields: [teacherId], references: [id])
-  programId             String
-  program               Program   @relation(fields: [programId], references: [id])
-  departmentId          String?
-
-  academicYear          String
-  semesterNumber        Int
-  batch                 String
-
-  responsibilities      Json      @default("[]")
-  startDate             DateTime
-  endDate               DateTime?
-  status                String    @default("active")
-  remarks               String?
-  appointedBy           String?
-  appointedAt           DateTime  @default(now())
-
-  // Soft Delete
-  isDeleted             Boolean   @default(false)
-  deletedAt             DateTime?
-  deletedBy             String?
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@index([teacherId])
-  @@index([programId])
-  @@index([status])
-}
 
 // ============ ACADEMIC ACTIVITIES ============
 
 model Assignment {
   id                    String    @id @default(cuid())
   courseId              String
-  course                Course    @relation(fields: [courseId], references: [id])
 
   title                 String
   description           String?
@@ -446,9 +196,7 @@ model Submission {
 model AttendanceRecord {
   id                    String    @id @default(cuid())
   courseId              String
-  course                Course    @relation(fields: [courseId], references: [id])
   courseOfferingId      String
-  courseOffering        CourseOffering @relation(fields: [courseOfferingId], references: [id])
   studentId             String
   student               Student   @relation(fields: [studentId], references: [id])
   date                  DateTime
@@ -469,7 +217,6 @@ model AttendanceRecord {
 model Announcement {
   id                    String    @id @default(cuid())
   courseId              String?
-  course                Course?   @relation(fields: [courseId], references: [id])
 
   title                 String
   content               String
@@ -489,7 +236,6 @@ model Announcement {
 model Quiz {
   id                    String    @id @default(cuid())
   courseId              String
-  course                Course    @relation(fields: [courseId], references: [id])
 
   title                 String
   description           String?
@@ -548,7 +294,6 @@ model QuizAttempt {
 model QNA {
   id                    String    @id @default(cuid())
   courseId              String
-  course                Course    @relation(fields: [courseId], references: [id])
   askedBy               String
 
   question              String
@@ -680,7 +425,7 @@ model AdmissionApplication {
   preferredPrograms     Json      @default("[]")
 
   // Status
-  applicationStatus     String    @default("submitted")
+  applicationStatus     String    @default("Pending")
   applicationNumber     String    @unique
   applicationDate       DateTime  @default(now())
   documents             Json      @default("[]")
