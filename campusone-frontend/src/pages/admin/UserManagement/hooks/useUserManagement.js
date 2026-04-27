@@ -85,24 +85,9 @@ export const useUserManagement = () => {
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
     setCurrentUser(userData);
-    fetchAdminStatus(userData);
+    setIsSuperAdmin(userData.isSuperAdmin === true);
     fetchStats();
   }, []);
-
-  const fetchAdminStatus = async (userData) => {
-    try {
-      const userId = userData._id || userData.id;
-      if (userId) {
-        const response = await userAPI.getUserById(userId);
-        if (response.data.success && response.data.data.roleData) {
-          setIsSuperAdmin(response.data.data.roleData.isSuperAdmin || false);
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching admin status:', err);
-      setIsSuperAdmin(false);
-    }
-  };
 
   const fetchStats = async () => {
     try {
@@ -497,7 +482,6 @@ export const useUserManagement = () => {
     // States
     stats, loading, error, success, currentUser, isSuperAdmin,
     showCreateUserModal, setShowCreateUserModal,
-    showPromoteTAModal, setShowPromoteTAModal,
     showBulkUploadModal, setShowBulkUploadModal,
     showEditModal, setShowEditModal,
     showDeleteModal, setShowDeleteModal,
@@ -506,12 +490,6 @@ export const useUserManagement = () => {
     // Create User
     createUserForm, setCreateUserForm,
     handleCreateUserChange, handlePermissionChange, handleCreateUser,
-    
-    // Promote TA
-    studentSearch, setStudentSearch,
-    searchResults, setSearchResults,
-    selectedStudent, setSelectedStudent,
-    searching, handleStudentSearch, handlePromoteToTA,
     
     // Bulk Upload
     selectedFile, setSelectedFile,

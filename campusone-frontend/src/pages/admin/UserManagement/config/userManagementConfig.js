@@ -1,4 +1,4 @@
-import { Users, UserPlus, GraduationCap, BookOpen, Shield } from 'lucide-react';
+import { Users, BookOpen, Shield } from 'lucide-react';
 
 export const AVAILABLE_PERMISSIONS = [
   { id: 'manage_users', label: 'Manage Users' },
@@ -46,15 +46,7 @@ export const getRoleStats = (stats, isSuperAdmin) => {
       color: '#10b981',
       gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
       role: 'student'
-    },
-    {
-      icon: GraduationCap,
-      label: 'TAs',
-      value: stats.tas,
-      color: '#f59e0b',
-      gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-      role: 'ta'
-    }
+     }
   ];
 
   return allRoleStats.filter(stat => !stat.superAdminOnly || isSuperAdmin);

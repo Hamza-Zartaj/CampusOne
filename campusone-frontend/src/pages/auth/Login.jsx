@@ -40,8 +40,6 @@ export default function Login() {
       const response = await authAPI.login(formData.username, formData.password);
       const data = response.data;
 
-      console.log('Login response:', data);
-
       // Check if 2FA is required
       if (data.requires2FA) {
         setTwoFactorInfo({
@@ -91,12 +89,11 @@ export default function Login() {
           name: data.data.user.name,
           role: data.data.user.role,
           profilePicture: data.data.user.profilePicture,
+          isSuperAdmin: data.data.roleData?.isSuperAdmin || false,
           authenticated: true
         };
         
         localStorage.setItem('user', JSON.stringify(userData));
-
-        console.log('Stored user data:', userData);
 
         // Show success toast
         toast.success(`Welcome back, ${data.data.user.name}! Login successful.`, {
@@ -112,7 +109,6 @@ export default function Login() {
         setFormData({ username: '', password: '' });
         
         // Navigate to dashboard immediately
-        console.log('Navigating to dashboard...');
         navigate('/dashboard');
       }
     } catch (err) {
@@ -151,10 +147,12 @@ export default function Login() {
     // Store user data
     if (userData) {
       localStorage.setItem('user', JSON.stringify({
+        id: userData.user.id,
         email: userData.user.email,
         name: userData.user.name,
         role: userData.user.role,
-        userType: userData.user.role,
+        profilePicture: userData.user.profilePicture || null,
+        isSuperAdmin: userData.roleData?.isSuperAdmin || false,
         authenticated: true
       }));
 
@@ -345,40 +343,6 @@ export default function Login() {
         </p>
       </div>
 
-      <style jsx>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-10px); }
-          75% { transform: translateX(10px); }
-        }
-
-        .animate-fade-in {
-          animation: fade-in 0.6s ease-out;
-        }
-
-        .animate-shake {
-          animation: shake 0.4s ease-in-out;
-        }
-
-        .delay-700 {
-          animation-delay: 700ms;
-        }
-
-        .delay-1000 {
-          animation-delay: 1000ms;
-        }
-      `}</style>
       </div>
 
       {/* First Time Setup Modal */}
