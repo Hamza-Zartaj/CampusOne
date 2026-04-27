@@ -134,6 +134,23 @@ model Admin {
 
 
 
+// ============ ANNOUNCEMENTS ============
+
+model Announcement {
+  id              String    @id @default(cuid())
+  title           String
+  content         String
+  priority        String    @default("medium") // "low", "medium", "high"
+  targetAudience  String?   // "all", "teachers", "students"
+  createdBy       String
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([createdBy])
+  @@index([createdAt])
+}
+
 // ============ ADMINISTRATIVE & SYSTEM ============
 
 model AuditLog {

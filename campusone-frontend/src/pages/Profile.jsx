@@ -150,7 +150,7 @@ const Profile = () => {
           break;
       }
 
-      await userAPI.updateUser(user._id, updateData);
+      await userAPI.updateUser(user.id, updateData);
       
       toast.success('Profile updated successfully');
       setIsEditMode(false);
