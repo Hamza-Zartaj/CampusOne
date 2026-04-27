@@ -7,7 +7,7 @@ import { sendAnnouncementEmail } from '../services/emailService.js';
  */
 export const sendAnnouncement = async (req, res) => {
   try {
-    const { title, content, priority, targetAudience, courseId } = req.body;
+    const { title, content, priority, targetAudience } = req.body;
     const userId = req.user.id;
 
     // Validation
@@ -22,8 +22,7 @@ export const sendAnnouncement = async (req, res) => {
         content,
         priority: priority || 'medium',
         createdBy: userId,
-        targetAudience,
-        courseId: targetAudience === 'specific_course' ? courseId : null
+        targetAudience
       }
     });
 
@@ -54,24 +53,6 @@ export const sendAnnouncement = async (req, res) => {
         },
         select: { email: true, name: true }
       });
-    } else if (targetAudience === 'specific_course' && courseId) {
-      // Students enrolled in specific course
-      const enrollments = await prisma.enrollment.findMany({
-        where: { courseOfferingId: courseId },
-        include: {
-          student: {
-            include: {
-              user: {
-                select: { email: true, name: true }
-              }
-            }
-          }
-        }
-      });
-      recipients = enrollments.map(e => ({
-        email: e.student.user.email,
-        name: e.student.user.name
-      }));
     }
 
     // Send emails in background
@@ -102,68 +83,31 @@ export const sendAnnouncement = async (req, res) => {
 };
 
 /**
- * Send announcement to course students (Teacher)
+ * Send announcement to course students (Teacher) - deprecated, kept for route compatibility
  */
 export const sendCourseAnnouncement = async (req, res) => {
   try {
-    const { title, content, priority, courseId } = req.body;
+    const { title, content, priority } = req.body;
     const userId = req.user.id;
 
-    // Validation
-    if (!title || !content || !courseId) {
-      return res.status(400).json({ error: 'Title, content, and courseId are required' });
+    if (!title || !content) {
+      return res.status(400).json({ error: 'Title and content are required' });
     }
 
-    // Create announcement
     const announcement = await prisma.announcement.create({
       data: {
         title,
         content,
         priority: priority || 'medium',
         createdBy: userId,
-        targetAudience: 'specific_course',
-        courseId
+        targetAudience: 'students'
       }
     });
-
-    // Get students enrolled in this course offering
-    const enrollments = await prisma.enrollment.findMany({
-      where: { courseOfferingId: courseId },
-      include: {
-        student: {
-          include: {
-            user: {
-              select: { email: true, name: true }
-            }
-          }
-        }
-      }
-    });
-
-    const recipients = enrollments.map(e => ({
-      email: e.student.user.email,
-      name: e.student.user.name
-    }));
-
-    // Send emails in background
-    if (recipients.length > 0) {
-      const emailPromises = recipients.map(recipient =>
-        sendAnnouncementEmail({
-          email: recipient.email,
-          name: recipient.name,
-          title,
-          content,
-          priority
-        }).catch(err => console.error(`Failed to send email to ${recipient.email}:`, err))
-      );
-
-      Promise.all(emailPromises).catch(err => console.error('Error sending announcement emails:', err));
-    }
 
     res.status(201).json({
-      message: `Announcement sent to ${recipients.length} students`,
+      message: 'Announcement sent to all students',
       announcement,
-      recipientCount: recipients.length
+      recipientCount: 0
     });
   } catch (error) {
     console.error('Error sending course announcement:', error);
@@ -177,11 +121,6 @@ export const sendCourseAnnouncement = async (req, res) => {
 export const getAnnouncements = async (req, res) => {
   try {
     const announcements = await prisma.announcement.findMany({
-      include: {
-        course: {
-          select: { id: true, courseName: true }
-        }
-      },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -224,11 +163,6 @@ export const getMyAnnouncements = async (req, res) => {
           }
         ]
       },
-      include: {
-        course: {
-          select: { id: true, courseName: true }
-        }
-      },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -236,34 +170,7 @@ export const getMyAnnouncements = async (req, res) => {
 
     // If student, also include course-specific announcements
     if (userRole === 'student') {
-      const student = await prisma.student.findUnique({
-        where: { userId }
-      });
-
-      if (student) {
-        const enrollments = await prisma.enrollment.findMany({
-          where: { studentId: student.id },
-          select: { courseOfferingId: true }
-        });
-
-        const courseOfferingIds = enrollments.map(e => e.courseOfferingId);
-
-        if (courseOfferingIds.length > 0) {
-          const courseSpecificAnnouncements = await prisma.announcement.findMany({
-            where: {
-              targetAudience: 'specific_course',
-              courseId: { in: courseOfferingIds }
-            },
-            include: {
-              course: {
-                select: { id: true, courseName: true }
-              }
-            }
-          });
-
-          allAnnouncements = [...allAnnouncements, ...courseSpecificAnnouncements];
-        }
-      }
+      // Course model removed - no course-specific announcements
     }
 
     // Remove duplicates by id
@@ -303,12 +210,7 @@ export const getAnnouncementById = async (req, res) => {
     const { id } = req.params;
 
     const announcement = await prisma.announcement.findUnique({
-      where: { id },
-      include: {
-        course: {
-          select: { id: true, courseName: true }
-        }
-      }
+      where: { id }
     });
 
     if (!announcement) {
@@ -375,11 +277,6 @@ export const updateAnnouncement = async (req, res) => {
         ...(title && { title }),
         ...(content && { content }),
         ...(priority && { priority })
-      },
-      include: {
-        course: {
-          select: { id: true, courseName: true }
-        }
       }
     });
 

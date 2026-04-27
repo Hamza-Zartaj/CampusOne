@@ -12,16 +12,7 @@ const __dirname = path.dirname(__filename);
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import admissionRoutes from './routes/admissionRoutes.js';
-import departmentRoutes from './routes/departmentRoutes.js';
-import programRoutes from './routes/programRoutes.js';
-import courseRoutes from './routes/courseRoutes.js';
-import courseOfferingRoutes from './routes/courseOfferingRoutes.js';
-import semesterInchargeRoutes from './routes/semesterInchargeRoutes.js';
-import enrollmentRoutes from './routes/enrollmentRoutes.js';
-import teacherToolsRoutes from './routes/teacherToolsRoutes.js';
 import teacherRoutes from './routes/teacherRoutes.js';
-import studentPortalRoutes from './routes/studentPortalRoutes.js';
-import importRoutes from './routes/importRoutes.js';
 import announcementRoutes from './routes/announcementRoutes.js';
 
 // Load environment variables
@@ -78,15 +69,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/admissions', admissionRoutes);
-app.use('/api/departments', departmentRoutes);
-app.use('/api/programs', programRoutes);
-app.use('/api/courses', courseRoutes);
-app.use('/api/course-offerings', courseOfferingRoutes);
-app.use('/api/semester-incharges', semesterInchargeRoutes);
-app.use('/api/enrollments', enrollmentRoutes);
-app.use('/api/teacher-tools', teacherToolsRoutes);
-app.use('/api/student', studentPortalRoutes);
-app.use('/api/import', importRoutes);
 app.use('/api/announcements', announcementRoutes);
 
 // 404 Handler - Route not found

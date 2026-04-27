@@ -11,20 +11,11 @@ import { Toaster } from 'react-hot-toast';
 import UserManagement from './pages/admin/UserManagement';
 import AdmissionSettings from './pages/admin/Admissions/AdmissionSettings';
 import ApplicationsManagement from './pages/admin/Admissions/ApplicationsManagement';
-import CourseManagement from './pages/admin/CourseManagement';
-import ProgramCurriculum from './pages/admin/ProgramCurriculum';
-import SemesterView from './pages/admin/SemesterView';
-import CourseOfferingManagement from './pages/admin/CourseOfferingManagement';
-import BulkStudentEnrollment from './pages/admin/BulkStudentEnrollment';
-import DepartmentManagement from './pages/admin/DepartmentManagement';
-import ProgramManagement from './pages/admin/ProgramManagement';
 import AnnouncementManagement from './pages/admin/AnnouncementManagement';
 import Reports from './pages/admin/Reports';
 
 // Teacher Pages
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
-import MyOfferings from './pages/teacher/MyOfferings';
-import EnrolledStudents from './pages/teacher/EnrolledStudents';
 import TeacherAnnouncement from './pages/teacher/TeacherAnnouncement';
 import TeacherNotification from './pages/teacher/TeacherNotification';
 import TeacherAttendance from './pages/teacher/TeacherAttendance';
@@ -34,9 +25,6 @@ import TeacherQnA from './pages/teacher/TeacherQnA';
 
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
-import MyCourses from './pages/student/MyCourses';
-import Timetable from './pages/student/Timetable';
-import MyGrades from './pages/student/MyGrades';
 import StudentNotification from './pages/student/StudentNotification';
 import StudentAttendance from './pages/student/StudentAttendance';
 import StudentAssignments from './pages/student/StudentAssignments';
@@ -68,13 +56,6 @@ function App() {
 
           {/* Admin Routes */}
           <Route path="/admin/dashboard" element={<Dashboard />} />
-          <Route path="/admin/courses" element={<CourseManagement />} />
-          <Route path="/admin/curriculum" element={<ProgramCurriculum />} />
-          <Route path="/admin/semesters" element={<SemesterView />} />
-          <Route path="/admin/offerings" element={<CourseOfferingManagement />} />
-          <Route path="/admin/enroll-students" element={<BulkStudentEnrollment />} />
-          <Route path="/admin/departments" element={<DepartmentManagement />} />
-          <Route path="/admin/programs" element={<ProgramManagement />} />
           <Route path="/admin/users" element={<UserManagement />} />
           <Route path="/admin/admissions" element={<AdmissionSettings />} />
           <Route path="/admin/admissions/applications/:status" element={<ApplicationsManagement />} />
@@ -83,8 +64,6 @@ function App() {
 
           {/* Teacher Routes */}
           <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
-          <Route path="/teacher/offerings" element={<MyOfferings />} />
-          <Route path="/teacher/offerings/:courseCode/students" element={<EnrolledStudents />} />
           <Route path="/teacher/attendance" element={<TeacherAttendance />} />
           <Route path="/teacher/assignments" element={<TeacherAssignments />} />
           <Route path="/teacher/quizzes" element={<TeacherQuizzes />} />
@@ -94,9 +73,6 @@ function App() {
 
           {/* Student Routes */}
           <Route path="/student/dashboard" element={<StudentDashboard />} />
-          <Route path="/student/courses" element={<MyCourses />} />
-          <Route path="/student/timetable" element={<Timetable />} />
-          <Route path="/student/grades" element={<MyGrades />} />
           <Route path="/student/attendance" element={<StudentAttendance />} />
           <Route path="/student/assignments" element={<StudentAssignments />} />
           <Route path="/student/quizzes" element={<StudentQuizzes />} />

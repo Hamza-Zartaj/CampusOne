@@ -2,22 +2,13 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard,
-  BookOpen,
   Users,
-  Calendar,
   ClipboardList,
   MessageSquare,
   Bell,
   FileText,
-  GraduationCap,
   UserCheck,
-  BarChart,
-  UserPlus,
-  Layers,
-  Eye,
-  CalendarRange,
-  ClipboardCheck,
-  Building2
+  UserPlus
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen }) => {
@@ -36,18 +27,10 @@ const Sidebar = ({ isOpen }) => {
         { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { path: '/admin/users', icon: Users, label: 'Users' },
         { path: '/admin/admissions', icon: UserPlus, label: 'Admissions' },
-        { path: '/admin/courses', icon: BookOpen, label: 'Courses' },
-        { path: '/admin/departments', icon: Building2, label: 'Departments' },
-        { path: '/admin/programs', icon: GraduationCap, label: 'Programs' },
-        { path: '/admin/offerings', icon: CalendarRange, label: 'Offerings' },
-        { path: '/admin/enroll-students', icon: UserCheck, label: 'Enroll Students' },
-        { path: '/admin/curriculum', icon: Layers, label: 'Curriculum' },
-        { path: '/admin/semesters', icon: Eye, label: 'Semesters' },
         { path: '/admin/announcements', icon: Bell, label: 'Announcements' }
       ],
       teacher: [
         { path: '/teacher/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { path: '/teacher/offerings', icon: BookOpen, label: 'Courses' },
         { path: '/teacher/attendance', icon: UserCheck, label: 'Attendance' },
         { path: '/teacher/assignments', icon: ClipboardList, label: 'Assignments' },
         { path: '/teacher/quizzes', icon: FileText, label: 'Quizzes' },
@@ -57,23 +40,11 @@ const Sidebar = ({ isOpen }) => {
       ],
       student: [
         { path: '/student/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { path: '/student/courses', icon: BookOpen, label: 'My Courses' },
-        // { path: '/student/register', icon: ClipboardCheck, label: 'Registration' },
-        { path: '/student/timetable', icon: Calendar, label: 'Timetable' },
-        { path: '/student/grades', icon: GraduationCap, label: 'Grades' },
         { path: '/student/attendance', icon: UserCheck, label: 'Attendance' },
         { path: '/student/assignments', icon: ClipboardList, label: 'Assignments' },
         { path: '/student/quizzes', icon: FileText, label: 'Quizzes' },
         { path: '/student/qna', icon: MessageSquare, label: 'Q&A Forum' },
         { path: '/student/notification', icon: Bell, label: 'Notifications' }
-      ],
-      ta: [
-        { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { path: '/courses', icon: BookOpen, label: 'Courses' },
-        { path: '/attendance', icon: UserCheck, label: 'Attendance' },
-        { path: '/assignments', icon: ClipboardList, label: 'Assignments' },
-        { path: '/qna', icon: MessageSquare, label: 'Q&A Forum' },
-        { path: '/notifications', icon: Bell, label: 'Notifications' }
       ]
     };
 
