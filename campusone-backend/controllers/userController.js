@@ -121,7 +121,6 @@ export const getAllUsers = async (req, res) => {
           roleData: roleData || {}
         };
       }));
-    }
 
     // Calculate pagination info
     const totalPages = Math.ceil(totalCount / limitNum);

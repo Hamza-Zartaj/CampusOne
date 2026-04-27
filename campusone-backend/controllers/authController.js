@@ -1085,6 +1085,10 @@ export const setupEmail2FA = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error setting up email 2FA',
+      error: error.message
+    });
+  }
+};
 
 /**
  * @desc    Verify and enable Email OTP 2FA
@@ -1207,7 +1211,24 @@ export const sendLoginOTP = async (req, res) => {
       where: { id: userId },
       data: {
         emailOTP: otp,
-          emailOTPExpiry: expiresAt
+        emailOTPExpiry: expiresAt
+      }
+    });
+
+    await sendOTPEmail(user.email, user.name, otp);
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP sent to your email address'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error sending login OTP',
+      error: error.message
+    });
+  }
+};
 
 /**
  * @desc    Verify email OTP for login

@@ -20,6 +20,7 @@ model User {
   isActive              Boolean   @default(true)
   isFirstLogin          Boolean   @default(true)
   lastLogin             DateTime?
+  passwordChangedAt     DateTime?
 
   // Security
   accountLocked         Boolean   @default(false)
@@ -135,7 +136,7 @@ model Admin {
   officeRoom            String?
 
   isSuperAdmin          Boolean   @default(false)
-  permissions           Json      @default("[]")
+  permissions           String[]
 
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt

@@ -40,8 +40,6 @@ export default function Login() {
       const response = await authAPI.login(formData.username, formData.password);
       const data = response.data;
 
-      console.log('Login response:', data);
-
       // Check if 2FA is required
       if (data.requires2FA) {
         setTwoFactorInfo({
@@ -355,40 +353,6 @@ export default function Login() {
         </p>
       </div>
 
-      <style jsx>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-10px); }
-          75% { transform: translateX(10px); }
-        }
-
-        .animate-fade-in {
-          animation: fade-in 0.6s ease-out;
-        }
-
-        .animate-shake {
-          animation: shake 0.4s ease-in-out;
-        }
-
-        .delay-700 {
-          animation-delay: 700ms;
-        }
-
-        .delay-1000 {
-          animation-delay: 1000ms;
-        }
-      `}</style>
       </div>
 
       {/* First Time Setup Modal */}
