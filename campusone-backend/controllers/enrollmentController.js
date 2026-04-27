@@ -14,7 +14,7 @@ const GRADE_POINTS = {
 const checkPrerequisites = async (studentId, courseId) => {
   const course = await prisma.course.findUnique({
     where: { id: courseId },
-    include: { prerequisites: true }
+    include: { prerequisites: { include: { prerequisite: true } } }
   });
   
   if (!course?.prerequisites || course.prerequisites.length === 0) {
@@ -35,15 +35,14 @@ const checkPrerequisites = async (studentId, courseId) => {
     .map(e => e.courseOffering.courseId);
 
   const missing = course.prerequisites.filter(
-    prereq => !completedCourseIds.includes(prereq.id)
+    entry => !completedCourseIds.includes(entry.prerequisiteId)
   );
 
-  const missingDetails = await Promise.all(
-    missing.map(async (m) => {
-      const c = await prisma.course.findUnique({ where: { id: m.id } });
-      return { id: m.id, code: c.courseCode, name: c.courseName };
-    })
-  );
+  const missingDetails = missing.map(entry => ({
+    id: entry.prerequisite.id,
+    code: entry.prerequisite.courseCode,
+    name: entry.prerequisite.courseName
+  }));
 
   return {
     satisfied: missing.length === 0,
@@ -853,7 +852,7 @@ export const getEnrollment = async (req, res) => {
         student: { select: { id: true, studentId: true, user: { select: { id: true, name: true, email: true } } } },
         courseOffering: {
           include: {
-            course: { select: { id: true, courseCode: true, courseName: true, creditHours: true, prerequisites: true } },
+            course: { select: { id: true, courseCode: true, courseName: true, creditHours: true, prerequisites: { include: { prerequisite: { select: { id: true, courseCode: true, courseName: true } } } } } },
             teacher: { select: { id: true, user: { select: { id: true, name: true } } } }
           }
         },
@@ -1141,7 +1140,7 @@ export const checkPrerequisitesEndpoint = async (req, res) => {
 
     const course = await prisma.course.findUnique({
       where: { id: courseId },
-      include: { prerequisites: true }
+      include: { prerequisites: { include: { prerequisite: true } } }
     });
 
     if (!course) {

@@ -13,9 +13,7 @@ import {
   updateProgramCurriculum,
   updateSemesterCurriculum,
   addCourseToSemester,
-  removeCourseFromSemester,
-  addElectiveSlot,
-  removeElectiveSlot
+  removeCourseFromSemester
 } from '../controllers/programController.js';
 import { protect, authorize, authorizePermission } from '../middleware/auth.js';
 import {
@@ -148,23 +146,6 @@ router.delete(
   validateObjectId('id'),
   validateObjectId('courseId'),
   removeCourseFromSemester
-);
-
-// Add an elective slot to a semester
-router.post(
-  '/:id/curriculum/semester/:semesterNumber/elective',
-  authorizePermission('manage_academic'),
-  validateObjectId('id'),
-  sanitizeInput,
-  addElectiveSlot
-);
-
-// Remove an elective slot from a semester
-router.delete(
-  '/:id/curriculum/semester/:semesterNumber/elective/:slotIndex',
-  authorizePermission('manage_academic'),
-  validateObjectId('id'),
-  removeElectiveSlot
 );
 
 export default router;

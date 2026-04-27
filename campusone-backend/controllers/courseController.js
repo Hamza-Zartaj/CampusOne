@@ -63,7 +63,7 @@ export const getAllCourses = async (req, res) => {
       include: {
         department: { select: { id: true, departmentCode: true, name: true } },
         program: { select: { id: true, programCode: true, name: true } },
-        prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+        prerequisites: { include: { prerequisite: { select: { id: true, courseCode: true, courseName: true } } } }
       },
       orderBy: { courseCode: 'asc' },
       skip,
@@ -109,7 +109,7 @@ export const getCourseById = async (req, res) => {
       include: {
         department: { select: { id: true, departmentCode: true, name: true } },
         program: { select: { id: true, programCode: true, name: true } },
-        prerequisites: { select: { id: true, courseCode: true, courseName: true, creditHours: true } }
+        prerequisites: { include: { prerequisite: { select: { id: true, courseCode: true, courseName: true, creditHours: true } } } }
       }
     });
 
@@ -147,7 +147,7 @@ export const getCourseByCode = async (req, res) => {
       include: {
         department: { select: { id: true, departmentCode: true, name: true } },
         program: { select: { id: true, programCode: true, name: true } },
-        prerequisites: { select: { id: true, courseCode: true, courseName: true, creditHours: true } }
+        prerequisites: { include: { prerequisite: { select: { id: true, courseCode: true, courseName: true, creditHours: true } } } }
       }
     });
 
@@ -197,7 +197,7 @@ export const getPrereqTree = async (req, res) => {
           courseName: true,
           creditHours: true,
           courseType: true,
-          prerequisites: { select: { id: true } }
+          prerequisites: { include: { prerequisite: { select: { id: true } } } }
         }
       });
 
@@ -217,8 +217,8 @@ export const getPrereqTree = async (req, res) => {
 
       // Recursively get prerequisites
       if (course.prerequisites && course.prerequisites.length > 0) {
-        for (const prereq of course.prerequisites) {
-          const prereqTree2 = await buildPrereqTree(prereq.id, depth + 1, maxDepth);
+        for (const prereqEntry of course.prerequisites) {
+          const prereqTree2 = await buildPrereqTree(prereqEntry.prerequisite.id, depth + 1, maxDepth);
           if (prereqTree2) {
             prereqTree.prerequisites.push(prereqTree2);
           }
@@ -299,7 +299,7 @@ export const getCoursesByDepartment = async (req, res) => {
       include: {
         department: { select: { id: true, departmentCode: true, name: true } },
         program: { select: { id: true, programCode: true, name: true } },
-        prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+        prerequisites: { include: { prerequisite: { select: { id: true, courseCode: true, courseName: true } } } }
       },
       orderBy: { courseCode: 'asc' }
     });
@@ -343,7 +343,7 @@ export const getCoursesByProgram = async (req, res) => {
       include: {
         department: { select: { id: true, departmentCode: true, name: true } },
         program: { select: { id: true, programCode: true, name: true } },
-        prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+        prerequisites: { include: { prerequisite: { select: { id: true, courseCode: true, courseName: true } } } }
       },
       orderBy: { courseCode: 'asc' }
     });
@@ -413,17 +413,22 @@ export const createCourse = async (req, res) => {
         departmentId,
         programId: programId || null,
         creditHours: parseInt(creditHours),
-        courseType,
-        prerequisites: prerequisites && prerequisites.length > 0 
-          ? { connect: prerequisites.map(id => ({ id })) }
-          : undefined
+        courseType
       },
       include: {
         department: { select: { id: true, departmentCode: true, name: true } },
         program: { select: { id: true, programCode: true, name: true } },
-        prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+        prerequisites: { include: { prerequisite: { select: { id: true, courseCode: true, courseName: true } } } }
       }
     });
+
+    // Create prerequisite entries
+    if (prerequisites && prerequisites.length > 0) {
+      await prisma.coursePrerequisite.createMany({
+        data: prerequisites.map(prereqId => ({ courseId: course.id, prerequisiteId: prereqId })),
+        skipDuplicates: true
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -522,11 +527,6 @@ export const updateCourse = async (req, res) => {
     if (programId !== undefined) updateData.programId = programId || null;
     if (creditHours) updateData.creditHours = parseInt(creditHours);
     if (courseType) updateData.courseType = courseType;
-    if (prerequisites !== undefined) {
-      updateData.prerequisites = {
-        set: prerequisites.map(id => ({ id }))
-      };
-    }
     if (isActive !== undefined) updateData.isActive = isActive;
 
     const updatedCourse = await prisma.course.update({
@@ -535,9 +535,20 @@ export const updateCourse = async (req, res) => {
       include: {
         department: { select: { id: true, departmentCode: true, name: true } },
         program: { select: { id: true, programCode: true, name: true } },
-        prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+        prerequisites: { include: { prerequisite: { select: { id: true, courseCode: true, courseName: true } } } }
       }
     });
+
+    // Update prerequisites if provided
+    if (prerequisites !== undefined) {
+      await prisma.coursePrerequisite.deleteMany({ where: { courseId: id } });
+      if (prerequisites.length > 0) {
+        await prisma.coursePrerequisite.createMany({
+          data: prerequisites.map(prereqId => ({ courseId: id, prerequisiteId: prereqId })),
+          skipDuplicates: true
+        });
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -578,19 +589,16 @@ export const deleteCourse = async (req, res) => {
     }
 
     // Check if this course is a prerequisite for other courses
-    const dependentCourses = await prisma.course.findMany({
-      where: {
-        prerequisites: {
-          some: { id }
-        }
-      }
+    const dependentCourses = await prisma.coursePrerequisite.findMany({
+      where: { prerequisiteId: id },
+      include: { course: { select: { id: true, courseCode: true, courseName: true } } }
     });
 
     if (dependentCourses.length > 0) {
       return res.status(400).json({
         success: false,
-        message: `Cannot delete course. It is a prerequisite for: ${dependentCourses.map(c => c.courseCode).join(', ')}`,
-        dependentCourses: dependentCourses.map(c => ({ id: c.id, courseCode: c.courseCode, courseName: c.courseName }))
+        message: `Cannot delete course. It is a prerequisite for: ${dependentCourses.map(d => d.course.courseCode).join(', ')}`,
+        dependentCourses: dependentCourses.map(d => ({ id: d.course.id, courseCode: d.course.courseCode, courseName: d.course.courseName }))
       });
     }
 
@@ -651,7 +659,7 @@ export const restoreCourse = async (req, res) => {
       include: {
         department: { select: { id: true, departmentCode: true, name: true } },
         program: { select: { id: true, programCode: true, name: true } },
-        prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+        prerequisites: { include: { prerequisite: { select: { id: true, courseCode: true, courseName: true } } } }
       }
     });
 
@@ -724,3 +732,4 @@ export const permanentDeleteCourse = async (req, res) => {
     });
   }
 };
+

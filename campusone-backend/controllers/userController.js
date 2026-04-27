@@ -18,19 +18,6 @@ const getRoleSpecificData = async (userId, role) => {
           }
         }
       });
-      
-      // Also check if student is a TA
-      const taData = await prisma.ta.findUnique({
-        where: { userId },
-        include: {
-          student: true,
-          teacher: true
-        }
-      });
-      
-      if (roleData && taData) {
-        roleData.taInfo = taData;
-      }
       break;
 
     case 'teacher':
@@ -40,16 +27,6 @@ const getRoleSpecificData = async (userId, role) => {
           courseOfferings: {
             include: { course: true }
           }
-        }
-      });
-      break;
-
-    case 'ta':
-      roleData = await prisma.ta.findUnique({
-        where: { userId },
-        include: {
-          student: true,
-          teacher: true
         }
       });
       break;
@@ -77,21 +54,15 @@ export const getAllUsers = async (req, res) => {
     const where = {};
 
     // Filter by role - special handling for TA
-    let isTAQuery = false;
     if (role) {
-      const validRoles = ['student', 'teacher', 'ta', 'admin'];
+      const validRoles = ['student', 'teacher', 'admin'];
       if (!validRoles.includes(role)) {
         return res.status(400).json({
           success: false,
           message: `Invalid role. Must be one of: ${validRoles.join(', ')}`
         });
       }
-      
-      if (role === 'ta') {
-        isTAQuery = true;
-      } else {
-        where.role = role;
-      }
+      where.role = role;
     }
 
     // Filter by active status
@@ -120,58 +91,7 @@ export const getAllUsers = async (req, res) => {
     let data = [];
     let totalCount = 0;
 
-    if (isTAQuery) {
-      // Fetch TAs and their associated users
-      const taRecords = await prisma.ta.findMany({
-        include: {
-          student: true,
-          teacher: true,
-          user: true
-        }
-      });
-      
-      // Filter based on search and active status
-      let filteredTAs = taRecords.filter(ta => {
-        const user = ta.user;
-        if (!user) return false;
-        
-        // Check active status
-        if (where.isActive !== undefined && user.isActive !== where.isActive) {
-          return false;
-        }
-        
-        // Check search
-        if (where.OR) {
-          const searchMatches = where.OR.some(condition => {
-            if (condition.name) {
-              const searchRegex = new RegExp(search, 'i');
-              if (searchRegex.test(user.name)) return true;
-            }
-            if (condition.email) {
-              const searchRegex = new RegExp(search, 'i');
-              if (searchRegex.test(user.email)) return true;
-            }
-            return false;
-          });
-          return searchMatches;
-        }
-        
-        return true;
-      });
-      
-      totalCount = filteredTAs.length;
-      
-      // Apply pagination
-      filteredTAs = filteredTAs.slice(skip, skip + limitNum);
-      
-      // Format data to match user response structure
-      data = filteredTAs.map(ta => ({
-        ...ta.user,
-        roleData: ta
-      }));
-    } else {
-      // Original logic for non-TA queries
-      // Get total count
+    // Get total count
       totalCount = await prisma.user.count({ where });
 
       // Get users
@@ -389,26 +309,6 @@ export const createUser = async (req, res) => {
             break;
           }
 
-          case 'ta': {
-            const { studentId } = roleSpecificData;
-            
-            // Verify student exists
-            const student = await tx.student.findUnique({
-              where: { id: studentId }
-            });
-            if (!student) {
-              throw new Error('Student not found for TA assignment');
-            }
-            
-            roleRecord = await tx.ta.create({
-              data: {
-                userId: user.id,
-                studentId
-              }
-            });
-            break;
-          }
-
           case 'admin': {
             const { employeeId: adminEmpId, department: adminDept, designation: adminDesig, permissions, isSuperAdmin } = roleSpecificData;
             
@@ -549,13 +449,6 @@ export const updateUser = async (req, res) => {
 
         case 'teacher':
           roleRecord = await prisma.teacher.update({
-            where: { userId: id },
-            data: roleSpecificData
-          });
-          break;
-
-        case 'ta':
-          roleRecord = await prisma.ta.update({
             where: { userId: id },
             data: roleSpecificData
           });
@@ -776,20 +669,9 @@ export const deleteUser = async (req, res) => {
     await prisma.$transaction(async (tx) => {
       // Delete role-specific records
       if (user.role === 'student') {
-        const taRecord = await tx.ta.findFirst({
-          where: { userId: id }
-        });
-        
-        if (taRecord) {
-          await tx.ta.delete({ where: { id: taRecord.id } });
-          return;
-        }
-        
         await tx.student.delete({ where: { userId: id } });
       } else if (user.role === 'teacher') {
         await tx.teacher.delete({ where: { userId: id } });
-      } else if (user.role === 'ta') {
-        await tx.ta.delete({ where: { userId: id } });
       } else if (user.role === 'admin') {
         await tx.admin.delete({ where: { userId: id } });
       }
@@ -867,11 +749,10 @@ export const getUserStats = async (req, res) => {
  */
 export const getUserStatsByRole = async (req, res) => {
   try {
-    const [adminCount, teacherCount, studentCount, taCount] = await Promise.all([
+    const [adminCount, teacherCount, studentCount] = await Promise.all([
       prisma.user.count({ where: { role: 'admin', isActive: true } }),
       prisma.user.count({ where: { role: 'teacher', isActive: true } }),
-      prisma.user.count({ where: { role: 'student', isActive: true } }),
-      prisma.ta.count()
+      prisma.user.count({ where: { role: 'student', isActive: true } })
     ]);
 
     res.status(200).json({
@@ -880,8 +761,7 @@ export const getUserStatsByRole = async (req, res) => {
         admins: adminCount,
         teachers: teacherCount,
         students: studentCount,
-        tas: taCount,
-        total: adminCount + teacherCount + studentCount + taCount
+        total: adminCount + teacherCount + studentCount
       }
     });
   } catch (error) {
@@ -889,185 +769,6 @@ export const getUserStatsByRole = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching user statistics by role',
-      error: error.message
-    });
-  }
-};
-
-/**
- * @desc    Promote a student to TA role
- * @route   POST /api/users/promote-to-ta
- * @access  Private/Admin
- */
-export const promoteStudentToTA = async (req, res) => {
-  try {
-    const { studentUserId, courseIds } = req.body;
-
-    if (!studentUserId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide student user ID'
-      });
-    }
-
-    // Find the student user
-    const studentUser = await prisma.user.findUnique({
-      where: { id: studentUserId }
-    });
-
-    if (!studentUser) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student user not found'
-      });
-    }
-
-    if (studentUser.role !== 'student') {
-      return res.status(400).json({
-        success: false,
-        message: 'User is not a student. Only students can be promoted to TA.'
-      });
-    }
-
-    // Find the student record
-    const studentRecord = await prisma.student.findUnique({
-      where: { userId: studentUserId }
-    });
-
-    if (!studentRecord) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student record not found'
-      });
-    }
-
-    // Check if already a TA
-    const existingTA = await prisma.ta.findUnique({
-      where: { userId: studentUserId }
-    });
-
-    if (existingTA) {
-      return res.status(400).json({
-        success: false,
-        message: 'Student is already a TA'
-      });
-    }
-
-    // Create TA record
-    const assignedCourses = [];
-    if (courseIds && Array.isArray(courseIds) && courseIds.length > 0) {
-      // Verify courses exist
-      const courses = await prisma.courseOffering.findMany({
-        where: { id: { in: courseIds } }
-      });
-      
-      if (courses.length !== courseIds.length) {
-        return res.status(400).json({
-          success: false,
-          message: 'One or more course IDs are invalid'
-        });
-      }
-
-      assignedCourses.push(...courseIds.map(courseId => ({
-        courseOfferingId: courseId,
-        responsibilities: ['Grading', 'Tutorial Sessions'],
-        hoursPerWeek: 0
-      })));
-    }
-
-    const taRecord = await prisma.ta.create({
-      data: {
-        userId: studentUserId,
-        studentId: studentRecord.id,
-        assignedCourses
-      }
-    });
-
-    res.status(200).json({
-      success: true,
-      message: 'Student successfully promoted to TA',
-      data: {
-        user: {
-          id: studentUser.id,
-          name: studentUser.name,
-          email: studentUser.email,
-          role: studentUser.role
-        },
-        taRecord
-      }
-    });
-  } catch (error) {
-    console.error('Error promoting student to TA:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error promoting student to TA',
-      error: error.message
-    });
-  }
-};
-
-/**
- * @desc    Remove TA role from a student (keep student status)
- * @route   PUT /api/users/:id/remove-ta-role
- * @access  Private/Admin
- */
-export const removeStudentTARole = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const user = await prisma.user.findUnique({
-      where: { id }
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    if (user.role !== 'student') {
-      return res.status(400).json({
-        success: false,
-        message: 'This function only works for students. User is not a student.'
-      });
-    }
-
-    // Check if user has a TA record
-    const taRecord = await prisma.ta.findUnique({
-      where: { userId: id }
-    });
-
-    if (!taRecord) {
-      return res.status(400).json({
-        success: false,
-        message: 'User is not a TA'
-      });
-    }
-
-    // Delete the TA record
-    await prisma.ta.delete({ where: { id: taRecord.id } });
-
-    res.status(200).json({
-      success: true,
-      message: 'TA role successfully removed. User remains as student.',
-      data: {
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error removing TA role:', error);
-    if (error.code === 'P2025') {
-      return res.status(404).json({ success: false, message: 'Not found' });
-    }
-    res.status(500).json({
-      success: false,
-      message: 'Error removing TA role',
       error: error.message
     });
   }

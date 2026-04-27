@@ -20,7 +20,7 @@ const getStudentFromUser = async (userId) => {
 const checkPrerequisites = async (studentId, courseId) => {
   const course = await prisma.course.findUnique({
     where: { id: courseId },
-    include: { prerequisites: true }
+    include: { prerequisites: { include: { prerequisite: true } } }
   });
   
   if (!course?.prerequisites || course.prerequisites.length === 0) {
@@ -41,15 +41,14 @@ const checkPrerequisites = async (studentId, courseId) => {
     .map(e => e.courseOffering.courseId);
 
   const missing = course.prerequisites.filter(
-    prereq => !completedCourseIds.includes(prereq.id)
+    entry => !completedCourseIds.includes(entry.prerequisiteId)
   );
 
-  const missingDetails = await Promise.all(
-    missing.map(async (m) => {
-      const c = await prisma.course.findUnique({ where: { id: m.id } });
-      return { id: m.id, code: c?.courseCode || '', name: c?.courseName || '' };
-    })
-  );
+  const missingDetails = missing.map(entry => ({
+    id: entry.prerequisite.id,
+    code: entry.prerequisite.courseCode,
+    name: entry.prerequisite.courseName
+  }));
 
   return {
     satisfied: missing.length === 0,
@@ -304,7 +303,7 @@ export const getAvailableOfferings = async (req, res) => {
     const offerings = await prisma.courseOffering.findMany({
       where,
       include: {
-        course: { select: { id: true, courseCode: true, courseName: true, creditHours: true, courseType: true, prerequisites: true, description: true } },
+        course: { select: { id: true, courseCode: true, courseName: true, creditHours: true, courseType: true, prerequisites: { include: { prerequisite: { select: { id: true, courseCode: true, courseName: true } } } }, description: true } },
         program: { select: { id: true, programCode: true, name: true } },
         teacher: { select: { id: true, user: { select: { id: true, name: true } } } }
       },
@@ -1145,7 +1144,7 @@ export const checkMyPrerequisites = async (req, res) => {
 
     const course = await prisma.course.findUnique({
       where: { id: courseId },
-      include: { prerequisites: true }
+      include: { prerequisites: { include: { prerequisite: true } } }
     });
 
     if (!course) {

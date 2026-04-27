@@ -6,7 +6,6 @@ import {
   createCourseOffering,
   updateCourseOffering,
   assignInstructor,
-  assignTAs,
   updateSchedule,
   updateCapacity,
   bulkCreateOfferings,
@@ -101,14 +100,6 @@ router.put(
   authorizePermission('manage_academic'),
   validateObjectId('id'),
   assignInstructor
-);
-
-// Assign TAs to course offering
-router.put(
-  '/:id/tas',
-  authorizePermission('manage_academic'),
-  validateObjectId('id'),
-  assignTAs
 );
 
 // Update schedule for course offering

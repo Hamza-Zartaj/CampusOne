@@ -56,13 +56,6 @@ export const getAllCourseOfferings = async (req, res) => {
             designation: true,
             userId: { select: { id: true, name: true, email: true } }
           }
-        },
-        tas: {
-          select: {
-            id: true,
-            studentId: true,
-            userId: { select: { id: true, name: true, email: true } }
-          }
         }
       },
       orderBy: [
@@ -130,13 +123,6 @@ export const getOfferingsByProgramSemester = async (req, res) => {
             designation: true,
             userId: { select: { id: true, name: true, email: true } }
           }
-        },
-        tas: {
-          select: {
-            id: true,
-            studentId: true,
-            userId: { select: { id: true, name: true, email: true } }
-          }
         }
       },
       orderBy: { 'course.courseCode': 'asc' }
@@ -177,7 +163,7 @@ export const getCourseOfferingById = async (req, res) => {
             courseType: true,
             domain: true,
             description: true,
-            prerequisites: { select: { id: true, courseCode: true, courseName: true } }
+            prerequisites: { include: { prerequisite: { select: { id: true, courseCode: true, courseName: true } } } }
           }
         },
         program: { select: { id: true, programCode: true, name: true, departmentId: true } },
@@ -188,13 +174,6 @@ export const getCourseOfferingById = async (req, res) => {
             designation: true,
             officeRoom: true,
             officeHours: true,
-            userId: { select: { id: true, name: true, email: true } }
-          }
-        },
-        tas: {
-          select: {
-            id: true,
-            studentId: true,
             userId: { select: { id: true, name: true, email: true } }
           }
         }
@@ -236,11 +215,8 @@ export const createCourseOffering = async (req, res) => {
       semesterName,
       section,
       teacherId,
-      tas,
       maxCapacity,
       schedule,
-      enrollmentStatus,
-      status,
       startDate,
       endDate
     } = req.body;
@@ -273,19 +249,6 @@ export const createCourseOffering = async (req, res) => {
       });
     }
 
-    // Validate TAs if provided
-    if (tas && tas.length > 0) {
-      const taCount = await prisma.ta.count({
-        where: { id: { in: tas } }
-      });
-      if (taCount !== tas.length) {
-        return res.status(400).json({
-          success: false,
-          message: 'One or more TAs not found'
-        });
-      }
-    }
-
     // Check for duplicate offering
     const existingOffering = await prisma.courseOffering.findFirst({
       where: {
@@ -313,11 +276,8 @@ export const createCourseOffering = async (req, res) => {
         semesterName,
         section: section || 'A',
         teacherId,
-        tas: tas && tas.length > 0 ? { connect: tas.map(id => ({ id })) } : undefined,
         maxCapacity: maxCapacity || 60,
         schedule: schedule || [],
-        enrollmentStatus: enrollmentStatus || 'open',
-        status: status || 'scheduled',
         startDate,
         endDate
       },
@@ -329,13 +289,6 @@ export const createCourseOffering = async (req, res) => {
             id: true,
             employeeId: true,
             designation: true,
-            userId: { select: { id: true, name: true, email: true } }
-          }
-        },
-        tas: {
-          select: {
-            id: true,
-            studentId: true,
             userId: { select: { id: true, name: true, email: true } }
           }
         }
@@ -378,7 +331,6 @@ export const updateCourseOffering = async (req, res) => {
       semesterName,
       section,
       teacherId,
-      tas,
       maxCapacity,
       schedule,
       enrollmentStatus,
@@ -432,20 +384,6 @@ export const updateCourseOffering = async (req, res) => {
       updates.teacherId = teacherId;
     }
 
-    // Validate TAs if being changed
-    if (tas) {
-      const taCount = await prisma.ta.count({
-        where: { id: { in: tas } }
-      });
-      if (taCount !== tas.length) {
-        return res.status(400).json({
-          success: false,
-          message: 'One or more TAs not found'
-        });
-      }
-      updates.tas = { set: tas.map(id => ({ id })) };
-    }
-
     // Check for duplicate if key fields change
     if (courseId || programId || academicYear || semesterNumber || section) {
       const checkCourse = courseId || offering.courseId;
@@ -497,13 +435,6 @@ export const updateCourseOffering = async (req, res) => {
             id: true,
             employeeId: true,
             designation: true,
-            userId: { select: { id: true, name: true, email: true } }
-          }
-        },
-        tas: {
-          select: {
-            id: true,
-            studentId: true,
             userId: { select: { id: true, name: true, email: true } }
           }
         }
@@ -584,70 +515,6 @@ export const assignInstructor = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error assigning instructor',
-      error: error.message
-    });
-  }
-};
-
-/**
- * @desc    Assign TAs to course offering
- * @route   PUT /api/course-offerings/:id/tas
- * @access  Private/Admin
- */
-export const assignTAs = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { taIds } = req.body;
-
-    const offering = await prisma.courseOffering.findUnique({ where: { id } });
-
-    if (!offering) {
-      return res.status(404).json({
-        success: false,
-        message: 'Course offering not found'
-      });
-    }
-
-    if (taIds && taIds.length > 0) {
-      const taCount = await prisma.ta.count({
-        where: { id: { in: taIds } }
-      });
-      if (taCount !== taIds.length) {
-        return res.status(400).json({
-          success: false,
-          message: 'One or more TAs not found'
-        });
-      }
-    }
-
-    const updatedOffering = await prisma.courseOffering.update({
-      where: { id },
-      data: {
-        tas: { set: (taIds || []).map(id => ({ id })) }
-      },
-      include: {
-        tas: {
-          select: {
-            id: true,
-            studentId: true,
-            userId: { select: { id: true, name: true, email: true } }
-          }
-        }
-      }
-    });
-
-    res.status(200).json({
-      success: true,
-      message: 'TAs assigned successfully',
-      data: {
-        offeringId: updatedOffering.id,
-        tas: updatedOffering.tas
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error assigning TAs',
       error: error.message
     });
   }
@@ -1048,7 +915,6 @@ export default {
   createCourseOffering,
   updateCourseOffering,
   assignInstructor,
-  assignTAs,
   updateSchedule,
   updateCapacity,
   bulkCreateOfferings,
@@ -1057,3 +923,4 @@ export default {
   getOfferingsByTeacher,
   getOfferingsByCourse
 };
+
