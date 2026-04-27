@@ -102,6 +102,7 @@ const createSuperAdmin = async () => {
           username: employeeId.toLowerCase(),
           password: hashedPassword,
           role: 'admin',
+          isFirstLogin: true,
           isFirstLogin: true
         }
       });

@@ -18,6 +18,8 @@ model User {
   profilePicture        String?
   role                  String    // "student", "teacher", "admin", "ta"
   isActive              Boolean   @default(true)
+  isFirstLogin          Boolean   @default(true)
+  lastLogin             DateTime?
   
   // Security
   accountLocked         Boolean   @default(false)
