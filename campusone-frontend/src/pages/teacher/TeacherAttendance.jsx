@@ -108,7 +108,7 @@ const TeacherAttendance = () => {
   });
 
   return (
-    <div className="max-w-[1400px] mx-auto">
+    <div className="max-w-350 mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 max-sm:flex-col max-sm:items-start max-sm:gap-3">
         <div>

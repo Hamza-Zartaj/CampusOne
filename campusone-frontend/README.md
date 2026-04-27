@@ -1,16 +1,91 @@
-# React + Vite
+﻿# CampusOne Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite frontend for the CampusOne campus management system.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React 19** with React Router DOM 7
+- **Vite 7** — build tool and dev server
+- **Tailwind CSS v4** — utility-first styling
+- **Axios** — HTTP requests to backend API
+- **react-hot-toast** — toast notifications
+- **lucide-react** — icon library
 
-## React Compiler
+## Pages
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Public
+- `/` — Landing page
+- `/login` — Login (with 2FA support)
+- `/apply` — Admission application (7-step form)
 
-## Expanding the ESLint configuration
+### Admin (protected)
+- `/admin/users` — User management (CRUD, bulk upload)
+- `/admin/admissions` — Admission settings
+- `/admin/admissions/applications/:status` — Application review
+- `/admin/announcements` — Broadcast announcements
+- `/admin/reports` — Reports & analytics (mock data)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Teacher (protected)
+- `/teacher/dashboard` — Quick links
+- `/teacher/attendance` — Attendance management
+- `/teacher/assignments` — Assignment management
+- `/teacher/quizzes` — Quiz management
+- `/teacher/qna` — Q&A forum
+- `/teacher/announcements` — Course announcements
+- `/teacher/notification` — Notifications
+
+### Student (protected)
+- `/student/dashboard` — Quick links
+- `/student/attendance` — View attendance
+- `/student/assignments` — View & submit assignments
+- `/student/quizzes` — Take quizzes
+- `/student/qna` — Q&A forum
+- `/student/notification` — Notifications
+
+### Shared (protected)
+- `/dashboard` — Role-based dashboard redirect
+- `/profile` — View and edit profile
+
+## Project Structure
+
+```
+src/
+├── App.jsx             # All routes
+├── main.jsx
+├── index.css
+├── components/
+│   ├── DashboardLayout.jsx
+│   ├── Sidebar.jsx
+│   └── Header.jsx
+├── pages/
+│   ├── Landing.jsx
+│   ├── Dashboard.jsx
+│   ├── Profile.jsx
+│   ├── auth/           # Login, 2FA, password reset
+│   ├── admin/          # User mgmt, admissions, announcements, reports
+│   ├── teacher/        # Teacher portal pages
+│   ├── student/        # Student portal pages
+│   └── AdmissionApplication/  # Public multi-step form
+├── utils/
+│   └── api.js          # Axios API service layer
+└── styles/
+    └── variables.css
+```
+
+## Getting Started
+
+```bash
+npm install
+npm run dev
+# Runs on http://localhost:5173
+```
+
+Requires the backend running on `http://localhost:5000`.
+
+## API Service Layer (`src/utils/api.js`)
+
+Pre-configured API modules:
+- `authAPI` — Login, 2FA, password reset, first-time setup
+- `userAPI` — User CRUD, bulk upload, teacher listing
+- `teacherAPI` — Teacher lookup
+- `admissionAPI` — Application form, admin review, settings
