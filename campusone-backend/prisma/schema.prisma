@@ -45,7 +45,6 @@ model User {
   updatedAt             DateTime  @updatedAt
 
   @@index([role])
-  @@index([email])
 }
 
 model TrustedDevice {
@@ -79,8 +78,6 @@ model Student {
   address               String?
   emergencyContact      String?
   dateOfBirth           DateTime?
-
-  // Relationships
 
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -153,8 +150,6 @@ model AuditLog {
   previousValue         Json?
   newValue              Json?
 
-  academicYear          String?
-  semester              Int?
   description           String?
   remarks               String?
 
@@ -191,9 +186,9 @@ model AdmissionApplication {
 
   // Personal Info
   fullName              String
-  email                 String
-  phone                 String
-  cnic                  String
+  email                 String    @unique
+  phone                 String    @unique
+  cnic                  String    @unique
   dateOfBirth           DateTime?
   gender                String
   cnicFront             String?
@@ -219,8 +214,6 @@ model AdmissionApplication {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  @@index([email])
-  @@index([cnic])
   @@index([applicationStatus])
   @@index([userId])
 }
