@@ -12,14 +12,15 @@ import {
 // @access  Public
 export const getAdmissionSettings = async (req, res) => {
   try {
-    let settings = await prisma.admissionSettings.findFirst();
+    const settings = await prisma.admissionSettings.findFirst();
     if (!settings) {
-      settings = await prisma.admissionSettings.create({
+      return res.status(200).json({
+        success: true,
         data: {
-          isOpen: true,
-          instructions: 'Please fill all required fields',
-          requiresDocuments: true,
-          requiredDocuments: ['cnic_front', 'cnic_back', 'transcript']
+          isOpen: false,
+          instructions: '',
+          requiresDocuments: false,
+          requiredDocuments: []
         }
       });
     }

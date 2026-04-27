@@ -38,9 +38,13 @@ export const protect = async (req, res, next) => {
           name: true,
           role: true,
           isActive: true,
+          password: true,
           accountLocked: true,
           accountLockedUntil: true,
-          failedLoginAttempts: true
+          failedLoginAttempts: true,
+          twoFactorSecret: true,
+          twoFactorEnabled: true,
+          twoFactorMethod: true
         }
       });
 
@@ -378,8 +382,7 @@ export const authorizePermission = (...requiredPermissions) => {
       }
 
       // Import Admin model dynamically to avoid circular dependencies
-      const Admin = (await import('../models/Admin.js')).default;
-      const adminRecord = await Admin.findOne({ userId: req.user._id });
+      const adminRecord = await prisma.admin.findUnique({ where: { userId: req.user.id } });
 
       if (!adminRecord) {
         return res.status(403).json({
@@ -397,7 +400,7 @@ export const authorizePermission = (...requiredPermissions) => {
 
       // Check if admin has all required permissions
       const hasPermissions = requiredPermissions.every(permission =>
-        adminRecord.permissions.includes(permission)
+        (adminRecord.permissions || []).includes(permission)
       );
 
       if (!hasPermissions) {
