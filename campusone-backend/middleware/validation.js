@@ -215,10 +215,11 @@ export const validateObjectId = (paramName = 'id') => {
       });
     }
 
-    // Check if it's a valid MongoDB ObjectId (24 hex characters)
+    // Accept MongoDB ObjectId (24 hex chars) or Prisma CUID/CUID2
     const objectIdRegex = /^[0-9a-fA-F]{24}$/;
-    
-    if (!objectIdRegex.test(id)) {
+    const cuidRegex = /^c[a-z0-9]{24,}$/i;
+
+    if (!objectIdRegex.test(id) && !cuidRegex.test(id)) {
       return res.status(400).json({
         success: false,
         message: `Invalid ${paramName} format`
