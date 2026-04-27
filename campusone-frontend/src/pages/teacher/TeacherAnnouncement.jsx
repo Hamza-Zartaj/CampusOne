@@ -169,8 +169,9 @@ const TeacherAnnouncement = () => {
   };
 
   // Filter announcements created by current teacher
+  const currentUserId = JSON.parse(localStorage.getItem('user') || '{}').id;
   const myAnnouncements = announcements.filter(
-    (ann) => ann.targetAudience === 'specific_course'
+    (ann) => ann.createdBy === currentUserId || (ann.createdBy && ann.createdBy.id === currentUserId)
   );
 
   return (
@@ -315,7 +316,7 @@ const TeacherAnnouncement = () => {
               ) : (
                 <div className="divide-y divide-gray-200 max-h-[800px] overflow-y-auto">
                   {myAnnouncements.map((announcement) => (
-                    <div key={announcement._id} className="p-4 hover:bg-gray-50 transition-colors">
+                    <div key={announcement.id} className="p-4 hover:bg-gray-50 transition-colors">
                       <div className="flex justify-between items-start gap-4">
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-slate-900 truncate pr-2">
@@ -352,7 +353,7 @@ const TeacherAnnouncement = () => {
                           </div>
                         </div>
                         <button
-                          onClick={() => handleDelete(announcement._id)}
+                          onClick={() => handleDelete(announcement.id)}
                           className="p-2 hover:bg-red-50 rounded-lg text-red-600 transition-colors flex-shrink-0"
                           title="Delete announcement"
                         >

@@ -39,7 +39,6 @@ model User {
   student               Student?
   teacher               Teacher?
   admin                 Admin?
-  notifications         Notification[]
 
   // Audit
   createdAt             DateTime  @default(now())
@@ -82,9 +81,6 @@ model Student {
   dateOfBirth           DateTime?
 
   // Relationships
-  submissions           Submission[]
-  quizAttempts          QuizAttempt[]
-  attendanceRecords     AttendanceRecord[]
 
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -140,208 +136,8 @@ model Admin {
 
 
 
-// ============ ACADEMIC ACTIVITIES ============
-
-model Assignment {
-  id                    String    @id @default(cuid())
-  courseId              String
-
-  title                 String
-  description           String?
-  dueDate               DateTime
-  totalMarks            Int       @default(100)
-  lateSubmissionAllowed Boolean   @default(true)
-  fileUrl               String?
-  createdBy             String
-
-  // Relationships
-  submissions           Submission[]
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@index([courseId])
-  @@index([dueDate])
-}
-
-model Submission {
-  id                    String    @id @default(cuid())
-  assignmentId          String
-  assignment            Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  studentId             String
-  student               Student   @relation(fields: [studentId], references: [id])
-
-  fileUrl               String
-  submittedAt           DateTime  @default(now())
-  isLate                Boolean   @default(false)
-  marksObtained         Int?
-  feedback              String?
-
-  // Plagiarism
-  similarityScore       Float?
-  similarityStatus      String?
-
-  // Grading
-  gradedBy              String?
-  gradedAt              DateTime?
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@unique([assignmentId, studentId])
-  @@index([studentId])
-  @@index([assignmentId])
-}
-
-model AttendanceRecord {
-  id                    String    @id @default(cuid())
-  courseId              String
-  courseOfferingId      String
-  studentId             String
-  student               Student   @relation(fields: [studentId], references: [id])
-  date                  DateTime
-  status                String    // "present", "absent", "late", "excused"
-  markedBy              String
-  remarks               String?
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@unique([courseOfferingId, studentId, date])
-  @@index([courseId])
-  @@index([studentId])
-  @@index([courseOfferingId])
-  @@index([date])
-}
-
-model Announcement {
-  id                    String    @id @default(cuid())
-  courseId              String?
-
-  title                 String
-  content               String
-  priority              String    @default("medium")
-  targetAudience        String    @default("all")
-  createdBy             String
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@index([courseId])
-  @@index([createdAt])
-}
-
-// ============ ADVANCED LEARNING ============
-
-model Quiz {
-  id                    String    @id @default(cuid())
-  courseId              String
-
-  title                 String
-  description           String?
-  difficulty            String    @default("medium")
-  duration              Int
-  startTime             DateTime?
-  endTime               DateTime?
-  totalMarks            Int
-  passingMarks          Int
-
-  questions             Json
-
-  // Proctoring
-  allowTabSwitch        Boolean   @default(true)
-  requireCamera         Boolean   @default(false)
-  requireScreenShare    Boolean   @default(false)
-  showCorrectAnswers    Boolean   @default(true)
-
-  // Relationships
-  attempts              QuizAttempt[]
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@index([courseId])
-}
-
-model QuizAttempt {
-  id                    String    @id @default(cuid())
-  quizId                String
-  quiz                  Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  studentId             String
-  student               Student   @relation(fields: [studentId], references: [id])
-
-  answers               Json
-  startedAt             DateTime  @default(now())
-  submittedAt           DateTime?
-  totalMarksObtained    Float?
-
-  status                String    @default("in-progress")
-  terminationReason     String?
-  tabSwitchCount        Int       @default(0)
-
-  // Proctoring
-  cameraEnabled         Boolean   @default(false)
-  screenShareEnabled    Boolean   @default(false)
-  violations            Json      @default("[]")
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@index([quizId])
-  @@index([studentId])
-}
-
-model QNA {
-  id                    String    @id @default(cuid())
-  courseId              String
-  askedBy               String
-
-  question              String
-  description           String?
-  tags                  Json      @default("[]")
-  attachments           Json      @default("[]")
-
-  answers               Json
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@index([courseId])
-}
 
 // ============ ADMINISTRATIVE & SYSTEM ============
-
-model Notification {
-  id                    String    @id @default(cuid())
-  userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  type                  String
-  title                 String
-  message               String
-  isRead                Boolean   @default(false)
-  relatedId             String?
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@index([userId])
-  @@index([isRead])
-  @@index([createdAt])
-}
-
-model Summary {
-  id                    String    @id @default(cuid())
-  courseId              String
-  originalFileUrl       String
-  summaryText           String
-  generatedBy           String
-
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@index([courseId])
-}
 
 model AuditLog {
   id                    String    @id @default(cuid())
@@ -391,49 +187,40 @@ model AdmissionSettings {
 
 model AdmissionApplication {
   id                    String    @id @default(cuid())
+  applicationNumber     String    @unique
 
   // Personal Info
   fullName              String
   email                 String
   phone                 String
   cnic                  String
-  dateOfBirth           DateTime
+  dateOfBirth           DateTime?
   gender                String
   cnicFront             String?
   cnicBack              String?
 
-  // Guardian Info
-  guardianRelation      String?
-  guardianName          String?
-  guardianPhone         String?
-  guardianCnic          String?
-  guardianCnicUpload    String?
-
-  // Address
-  street                String?
-  city                  String
-  state                 String?
-  country               String
-  zipCode               String?
-  nationality           String?
-
-  // Education
-  previousEducation     Json      @default("[]")
-  results               Json      @default("[]")
-
   // Program Selection
-  preferredPrograms     Json      @default("[]")
+  program               String
 
-  // Status
-  applicationStatus     String    @default("Pending")
-  applicationNumber     String    @unique
-  applicationDate       DateTime  @default(now())
+  // Nested JSON objects (address, guardian, education)
+  address               Json      @default("{}")
+  guardian              Json      @default("{}")
+  educationRecords      Json      @default("[]")
+
+  // Documents & Status
   documents             Json      @default("[]")
+  applicationStatus     String    @default("Pending")
+  applicationDate       DateTime  @default(now())
   remarks               String?
+
+  // Linked user (if submitted while logged in)
+  userId                String?
 
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
   @@index([email])
+  @@index([cnic])
   @@index([applicationStatus])
+  @@index([userId])
 }
