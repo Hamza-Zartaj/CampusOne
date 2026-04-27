@@ -11,8 +11,6 @@ import {
   deleteUser,
   getUserStats,
   getUserStatsByRole,
-  promoteStudentToTA,
-  removeStudentTARole,
   searchStudents,
   downloadBulkUploadTemplate,
   bulkUploadStudents
@@ -83,14 +81,6 @@ router.get('/', authorizePermission('manage_users'), validatePagination, getAllU
 // Get single user by ID
 router.get('/:id', authorizePermission('manage_users'), validateObjectId('id'), getUserById);
 
-// Promote student to TA
-// Requires manage_users permission or Super Admin
-router.post(
-  '/promote-to-ta',
-  authorizePermission('manage_users'),
-  promoteStudentToTA
-);
-
 // Create new user
 // Super Admin can create anyone (including admins)
 // Regular admins with manage_users can create teachers and students only
@@ -122,9 +112,6 @@ router.put('/:id/activate', authorizePermission('manage_users'), validateObjectI
 
 // Unlock user account
 router.put('/:id/unlock', authorizePermission('manage_users'), validateObjectId('id'), unlockAccount);
-
-// Remove TA role from student (keep student status)
-router.put('/:id/remove-ta-role', authorizePermission('manage_users'), validateObjectId('id'), removeStudentTARole);
 
 // Delete user (soft delete)
 router.delete('/:id', authorizePermission('manage_users'), validateObjectId('id'), deleteUser);

@@ -45,7 +45,7 @@ export const getAllDepartments = async (req, res) => {
       include: {
         headOfDepartment: {
           include: {
-            userId: {
+            user: {
               select: {
                 id: true,
                 name: true,
@@ -63,17 +63,17 @@ export const getAllDepartments = async (req, res) => {
 
     // Transform HOD to flatten user info for easier frontend access
     const transformedDepartments = departments.map(dept => {
-      if (dept.headOfDepartment && dept.headOfDepartment.userId) {
+      if (dept.headOfDepartment && dept.headOfDepartment.user) {
         return {
           ...dept,
           headOfDepartment: {
             id: dept.headOfDepartment.id,
-            userId: dept.headOfDepartment.userId.id,
+            userId: dept.headOfDepartment.user.id,
             employeeId: dept.headOfDepartment.employeeId,
             designation: dept.headOfDepartment.designation,
-            name: dept.headOfDepartment.userId.name,
-            email: dept.headOfDepartment.userId.email,
-            username: dept.headOfDepartment.userId.username
+            name: dept.headOfDepartment.user.name,
+            email: dept.headOfDepartment.user.email,
+            username: dept.headOfDepartment.user.username
           }
         };
       }
@@ -120,7 +120,7 @@ export const getDepartmentById = async (req, res) => {
       include: {
         headOfDepartment: {
           include: {
-            userId: {
+            user: {
               select: {
                 id: true,
                 name: true,
@@ -142,17 +142,17 @@ export const getDepartmentById = async (req, res) => {
 
     // Transform HOD to flatten user info
     let deptData = department;
-    if (deptData.headOfDepartment && deptData.headOfDepartment.userId) {
+    if (deptData.headOfDepartment && deptData.headOfDepartment.user) {
       deptData = {
         ...deptData,
         headOfDepartment: {
           id: deptData.headOfDepartment.id,
-          userId: deptData.headOfDepartment.userId.id,
+          userId: deptData.headOfDepartment.user.id,
           employeeId: deptData.headOfDepartment.employeeId,
           designation: deptData.headOfDepartment.designation,
-          name: deptData.headOfDepartment.userId.name,
-          email: deptData.headOfDepartment.userId.email,
-          username: deptData.headOfDepartment.userId.username
+          name: deptData.headOfDepartment.user.name,
+          email: deptData.headOfDepartment.user.email,
+          username: deptData.headOfDepartment.user.username
         }
       };
     }

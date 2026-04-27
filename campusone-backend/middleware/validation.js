@@ -93,7 +93,7 @@ export const validateRegistration = (req, res, next) => {
   }
 
   // Validate role
-  const validRoles = ['student', 'teacher', 'ta', 'admin'];
+  const validRoles = ['student', 'teacher', 'admin'];
   if (!role) {
     errors.push('Role is required');
   } else if (!validRoles.includes(role)) {
@@ -110,9 +110,6 @@ export const validateRegistration = (req, res, next) => {
     const { employeeId, department } = req.body;
     if (!employeeId) errors.push('Employee ID is required for teachers');
     if (!department) errors.push('Department is required for teachers');
-  } else if (role === 'ta') {
-    const { studentId } = req.body;
-    if (!studentId) errors.push('Student ID is required for TAs (TA must be a student)');
   } else if (role === 'admin') {
     const { employeeId, department } = req.body;
     if (!employeeId) errors.push('Employee ID is required for admins');

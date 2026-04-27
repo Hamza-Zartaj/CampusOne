@@ -12,36 +12,21 @@ import {
 // @access  Public
 export const getAdmissionSettings = async (req, res) => {
   try {
-    // For now, return a default settings object
-    // In production, this would be stored in database
-    const settings = {
-      isOpen: true,
-      startDate: new Date(),
-      endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days from now
-      instructions: 'Please fill all required fields',
-      requiresDocuments: true,
-      requiredDocuments: ['cnic_front', 'cnic_back', 'transcript'],
-      applicationFormFields: []
-    };
-
-    res.status(200).json({
-      success: true,
-      data: {
-        isOpen: settings.isOpen,
-        startDate: settings.startDate,
-        endDate: settings.endDate,
-        instructions: settings.instructions,
-        requiresDocuments: settings.requiresDocuments,
-        requiredDocuments: settings.requiredDocuments,
-        applicationFormFields: settings.applicationFormFields
-      }
-    });
+    let settings = await prisma.admissionSettings.findFirst();
+    if (!settings) {
+      settings = await prisma.admissionSettings.create({
+        data: {
+          isOpen: true,
+          instructions: 'Please fill all required fields',
+          requiresDocuments: true,
+          requiredDocuments: ['cnic_front', 'cnic_back', 'transcript']
+        }
+      });
+    }
+    res.status(200).json({ success: true, data: settings });
   } catch (error) {
     console.error('Error fetching admission settings:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching admission settings'
-    });
+    res.status(500).json({ success: false, message: 'Error fetching admission settings' });
   }
 };
 
@@ -50,29 +35,26 @@ export const getAdmissionSettings = async (req, res) => {
 // @access  Private/Admin
 export const updateAdmissionSettings = async (req, res) => {
   try {
-    // In production, this would save to database
-    // For now, just return success
-    const settings = {
-      isOpen: req.body.isOpen !== undefined ? req.body.isOpen : true,
-      startDate: req.body.startDate,
-      endDate: req.body.endDate,
-      instructions: req.body.instructions,
-      requiresDocuments: req.body.requiresDocuments,
-      requiredDocuments: req.body.requiredDocuments,
-      applicationFormFields: req.body.applicationFormFields
-    };
+    const existing = await prisma.admissionSettings.findFirst();
+    const data = {};
+    if (req.body.isOpen !== undefined) data.isOpen = req.body.isOpen;
+    if (req.body.startDate !== undefined) data.startDate = req.body.startDate ? new Date(req.body.startDate) : null;
+    if (req.body.endDate !== undefined) data.endDate = req.body.endDate ? new Date(req.body.endDate) : null;
+    if (req.body.instructions !== undefined) data.instructions = req.body.instructions;
+    if (req.body.requiresDocuments !== undefined) data.requiresDocuments = req.body.requiresDocuments;
+    if (req.body.requiredDocuments !== undefined) data.requiredDocuments = req.body.requiredDocuments;
 
-    res.status(200).json({
-      success: true,
-      message: 'Admission settings updated successfully',
-      data: settings
-    });
+    let settings;
+    if (existing) {
+      settings = await prisma.admissionSettings.update({ where: { id: existing.id }, data });
+    } else {
+      settings = await prisma.admissionSettings.create({ data });
+    }
+
+    res.status(200).json({ success: true, message: 'Admission settings updated successfully', data: settings });
   } catch (error) {
     console.error('Error updating admission settings:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error updating admission settings'
-    });
+    res.status(500).json({ success: false, message: 'Error updating admission settings' });
   }
 };
 

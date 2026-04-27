@@ -41,15 +41,6 @@ const getRoleSpecificData = async (userId, role) => {
         }
       });
       break;
-    case 'ta':
-      roleData = await prisma.ta.findUnique({
-        where: { userId },
-        include: {
-          student: true,
-          teacher: true
-        }
-      });
-      break;
     case 'admin':
       roleData = await prisma.admin.findUnique({
         where: { userId }
@@ -98,7 +89,7 @@ export const register = async (req, res) => {
     }
 
     // Validate role
-    const validRoles = ['student', 'teacher', 'ta', 'admin'];
+    const validRoles = ['student', 'teacher', 'admin'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
@@ -138,24 +129,6 @@ export const register = async (req, res) => {
           });
         }
         username = roleSpecificData.studentId.toLowerCase();
-        break;
-      case 'ta':
-        if (!roleSpecificData.studentId) {
-          return res.status(400).json({
-            success: false,
-            message: 'Please provide studentId for TA (TA must be a student)'
-          });
-        }
-        const studentRecord = await prisma.student.findUnique({
-          where: { id: roleSpecificData.studentId }
-        });
-        if (!studentRecord) {
-          return res.status(400).json({
-            success: false,
-            message: 'Student record not found for TA'
-          });
-        }
-        username = studentRecord.studentId.toLowerCase();
         break;
     }
 
@@ -223,21 +196,7 @@ export const register = async (req, res) => {
             break;
           }
 
-          case 'ta': {
-            const { studentId } = roleSpecificData;
-            if (!studentId) {
-              throw new Error('Please provide studentId for TA (TA must be a student)');
-            }
-            roleRecord = await tx.ta.create({
-              data: {
-                userId: user.id,
-                studentId
-              }
-            });
-            break;
-          }
-
-          case 'admin': {
+    case 'admin': {
             const { employeeId: adminEmpId, department: adminDept, designation: adminDesig, isSuperAdmin } = roleSpecificData;
             if (!adminEmpId || !adminDept) {
               throw new Error('Please provide employeeId and department for admin');
@@ -399,7 +358,9 @@ export const login = async (req, res) => {
       }
     });
 
-    const trustedDevice = user.trustedDevices?.find(d => d.deviceId === deviceId);
+    const trustedDevice = await prisma.trustedDevice.findUnique({
+      where: { userId_deviceId: { userId: user.id, deviceId } }
+    });
     const isTrusted = !!trustedDevice;
 
     // Check if 2FA is enabled and device is not trusted
@@ -411,11 +372,8 @@ export const login = async (req, res) => {
         await prisma.user.update({
           where: { id: user.id },
           data: {
-            emailOTP: {
-              code: otp,
-              expiresAt,
-              attempts: 0
-            }
+            emailOTP: otp,
+            emailOTPExpiry: expiresAt
           }
         });
 
@@ -442,17 +400,14 @@ export const login = async (req, res) => {
 
     // Add device to trusted devices if requested
     if (rememberDevice && !isTrusted) {
-      const devices = user.trustedDevices || [];
-      devices.push({
-        deviceId,
-        deviceName: deviceFingerprint.deviceName,
-        ipAddress: deviceFingerprint.ipAddress,
-        lastUsed: new Date()
-      });
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { trustedDevices: devices }
+      await prisma.trustedDevice.create({
+        data: {
+          userId: user.id,
+          deviceId,
+          deviceName: deviceFingerprint.deviceName || null,
+          userAgent: deviceFingerprint.userAgent || null,
+          ipAddress: deviceFingerprint.ipAddress || null
+        }
       });
     }
 
@@ -568,20 +523,31 @@ export const verify2FAToken = async (req, res) => {
     const deviceId = generateDeviceId(deviceFingerprint);
 
     // Add device to trusted devices if requested
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        lastLogin: new Date(),
-        trustedDevices: rememberDevice
-          ? Array.from(new Set([...(user.trustedDevices || []).map(d => JSON.stringify(d)), JSON.stringify({
-              deviceId,
-              deviceName: deviceFingerprint.deviceName,
-              ipAddress: deviceFingerprint.ipAddress,
-              lastUsed: new Date()
-            })]))
-              .map(d => JSON.parse(d))
-          : user.trustedDevices
+    if (rememberDevice) {
+      const existing = await prisma.trustedDevice.findUnique({
+        where: { userId_deviceId: { userId: user.id, deviceId } }
+      });
+      if (!existing) {
+        await prisma.trustedDevice.create({
+          data: {
+            userId: user.id,
+            deviceId,
+            deviceName: deviceFingerprint.deviceName || null,
+            userAgent: deviceFingerprint.userAgent || null,
+            ipAddress: deviceFingerprint.ipAddress || null
+          }
+        });
+      } else {
+        await prisma.trustedDevice.update({
+          where: { userId_deviceId: { userId: user.id, deviceId } },
+          data: { lastUsed: new Date() }
+        });
       }
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() }
     });
 
     // Generate token
@@ -755,15 +721,17 @@ export const disable2FA = async (req, res) => {
       });
     }
 
-    // Disable 2FA
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        twoFactorEnabled: false,
-        twoFactorSecret: null,
-        trustedDevices: []
-      }
-    });
+    // Disable 2FA and clear trusted devices
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: {
+          twoFactorEnabled: false,
+          twoFactorSecret: null
+        }
+      }),
+      prisma.trustedDevice.deleteMany({ where: { userId: user.id } })
+    ]);
 
     res.status(200).json({
       success: true,
@@ -785,12 +753,15 @@ export const disable2FA = async (req, res) => {
  */
 export const getTrustedDevices = async (req, res) => {
   try {
-    const user = req.user;
+    const devices = await prisma.trustedDevice.findMany({
+      where: { userId: req.user.id },
+      orderBy: { lastUsed: 'desc' }
+    });
 
     res.status(200).json({
       success: true,
       data: {
-        trustedDevices: user.trustedDevices || []
+        trustedDevices: devices
       }
     });
   } catch (error) {
@@ -810,13 +781,17 @@ export const getTrustedDevices = async (req, res) => {
 export const removeTrustedDevice = async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const user = req.user;
 
-    const filteredDevices = (user.trustedDevices || []).filter(d => d.deviceId !== deviceId);
+    const device = await prisma.trustedDevice.findUnique({
+      where: { userId_deviceId: { userId: req.user.id, deviceId } }
+    });
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { trustedDevices: filteredDevices }
+    if (!device) {
+      return res.status(404).json({ success: false, message: 'Device not found' });
+    }
+
+    await prisma.trustedDevice.delete({
+      where: { userId_deviceId: { userId: req.user.id, deviceId } }
     });
 
     res.status(200).json({
@@ -879,7 +854,6 @@ export const getMe = async (req, res) => {
         lastLogin: user.lastLogin,
         createdAt: user.createdAt,
         passwordChangedAt: user.passwordChangedAt,
-        trustedDevices: user.trustedDevices,
         roleData
       }
     });
@@ -970,11 +944,8 @@ export const completeFirstTimeSetup = async (req, res) => {
         await prisma.user.update({
           where: { id: userId },
           data: {
-            emailOTP: {
-              code: otp,
-              expiresAt,
-              attempts: 0
-            }
+            emailOTP: otp,
+            emailOTPExpiry: expiresAt
           }
         });
 
@@ -1088,11 +1059,8 @@ export const setupEmail2FA = async (req, res) => {
     await prisma.user.update({
       where: { id: userId },
       data: {
-        emailOTP: {
-          code: otp,
-          expiresAt,
-          attempts: 0
-        }
+        emailOTP: otp,
+        emailOTPExpiry: expiresAt
       }
     });
 
@@ -1117,10 +1085,6 @@ export const setupEmail2FA = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error setting up email 2FA',
-      error: error.message
-    });
-  }
-};
 
 /**
  * @desc    Verify and enable Email OTP 2FA
@@ -1150,64 +1114,28 @@ export const enableEmail2FA = async (req, res) => {
       });
     }
 
-    if (!user.emailOTP || !user.emailOTP.code) {
+    if (!user.emailOTP) {
       return res.status(400).json({
         success: false,
         message: 'No OTP found. Please request a new one.'
       });
     }
 
-    if ((user.emailOTP.attempts || 0) >= 5) {
+    if (new Date() > user.emailOTPExpiry) {
       await prisma.user.update({
         where: { id: userId },
-        data: {
-          emailOTP: {
-            code: null,
-            expiresAt: null,
-            attempts: 0
-          }
-        }
+        data: { emailOTP: null, emailOTPExpiry: null }
       });
-      
-      return res.status(429).json({
-        success: false,
-        message: 'Too many failed attempts. Please request a new OTP.'
-      });
-    }
-
-    if (new Date() > user.emailOTP.expiresAt) {
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          emailOTP: {
-            code: null,
-            expiresAt: null,
-            attempts: 0
-          }
-        }
-      });
-
       return res.status(400).json({
         success: false,
         message: 'OTP has expired. Please request a new one.'
       });
     }
 
-    if (user.emailOTP.code !== otp) {
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          emailOTP: {
-            ...user.emailOTP,
-            attempts: (user.emailOTP.attempts || 0) + 1
-          }
-        }
-      });
-
+    if (user.emailOTP !== otp) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid OTP code',
-        attemptsRemaining: 5 - ((user.emailOTP.attempts || 0) + 1)
+        message: 'Invalid OTP code'
       });
     }
 
@@ -1217,11 +1145,8 @@ export const enableEmail2FA = async (req, res) => {
       data: {
         twoFactorEnabled: true,
         twoFactorMethod: 'email',
-        emailOTP: {
-          code: null,
-          expiresAt: null,
-          attempts: 0
-        },
+        emailOTP: null,
+        emailOTPExpiry: null,
         isFirstLogin: false
       }
     });
@@ -1281,39 +1206,8 @@ export const sendLoginOTP = async (req, res) => {
     await prisma.user.update({
       where: { id: userId },
       data: {
-        emailOTP: {
-          code: otp,
-          expiresAt,
-          attempts: 0
-        }
-      }
-    });
-
-    const emailResult = await sendOTPEmail(user.email, user.name, otp);
-    
-    if (!emailResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to send OTP email. Please try again.'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'OTP sent to your email address',
-      data: {
-        email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'),
-        expiresIn: 600
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error sending login OTP',
-      error: error.message
-    });
-  }
-};
+        emailOTP: otp,
+          emailOTPExpiry: expiresAt
 
 /**
  * @desc    Verify email OTP for login
@@ -1342,64 +1236,28 @@ export const verifyEmailOTP = async (req, res) => {
       });
     }
 
-    if (!user.emailOTP || !user.emailOTP.code) {
+    if (!user.emailOTP) {
       return res.status(400).json({
         success: false,
         message: 'No OTP found. Please request a new one.'
       });
     }
 
-    if ((user.emailOTP.attempts || 0) >= 5) {
+    if (new Date() > user.emailOTPExpiry) {
       await prisma.user.update({
         where: { id: userId },
-        data: {
-          emailOTP: {
-            code: null,
-            expiresAt: null,
-            attempts: 0
-          }
-        }
+        data: { emailOTP: null, emailOTPExpiry: null }
       });
-      
-      return res.status(429).json({
-        success: false,
-        message: 'Too many failed attempts. Please request a new OTP.'
-      });
-    }
-
-    if (new Date() > user.emailOTP.expiresAt) {
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          emailOTP: {
-            code: null,
-            expiresAt: null,
-            attempts: 0
-          }
-        }
-      });
-
       return res.status(400).json({
         success: false,
         message: 'OTP has expired. Please request a new one.'
       });
     }
 
-    if (user.emailOTP.code !== otp) {
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          emailOTP: {
-            ...user.emailOTP,
-            attempts: (user.emailOTP.attempts || 0) + 1
-          }
-        }
-      });
-
+    if (user.emailOTP !== otp) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid OTP code',
-        attemptsRemaining: 5 - ((user.emailOTP.attempts || 0) + 1)
+        message: 'Invalid OTP code'
       });
     }
 
@@ -1411,31 +1269,28 @@ export const verifyEmailOTP = async (req, res) => {
     };
 
     const deviceId = generateDeviceId(deviceFingerprint);
-    const devices = user.trustedDevices || [];
-
-    if (rememberDevice) {
-      const trustedDevice = devices.find(d => d.deviceId === deviceId);
-      if (!trustedDevice) {
-        devices.push({
-          deviceId,
-          deviceName: deviceFingerprint.deviceName,
-          ipAddress: deviceFingerprint.ipAddress,
-          lastUsed: new Date()
-        });
-      }
-    }
 
     await prisma.user.update({
       where: { id: userId },
-      data: {
-        emailOTP: {
-          code: null,
-          expiresAt: null,
-          attempts: 0
-        },
-        trustedDevices: devices
-      }
+      data: { emailOTP: null, emailOTPExpiry: null }
     });
+
+    if (rememberDevice) {
+      const existing = await prisma.trustedDevice.findUnique({
+        where: { userId_deviceId: { userId: user.id, deviceId } }
+      });
+      if (!existing) {
+        await prisma.trustedDevice.create({
+          data: {
+            userId: user.id,
+            deviceId,
+            deviceName: deviceFingerprint.deviceName || null,
+            userAgent: deviceFingerprint.userAgent || null,
+            ipAddress: deviceFingerprint.ipAddress || null
+          }
+        });
+      }
+    }
 
     // Generate token
     const token = generateToken(user.id);
@@ -1507,13 +1362,7 @@ export const forgotPassword = async (req, res) => {
 
     await prisma.user.update({
       where: { id: user.id },
-      data: {
-        emailOTP: {
-          code: otp,
-          expiresAt,
-          attempts: 0
-        }
-      }
+      data: { emailOTP: otp, emailOTPExpiry: expiresAt }
     });
 
     if (user.twoFactorMethod === 'email') {
@@ -1578,64 +1427,28 @@ export const verifyResetCode = async (req, res) => {
 
     // Verify based on method
     if (user.twoFactorMethod === 'email') {
-      if (!user.emailOTP || !user.emailOTP.code) {
+      if (!user.emailOTP) {
         return res.status(400).json({
           success: false,
           message: 'No verification code found. Please request a new one.'
         });
       }
 
-      if ((user.emailOTP.attempts || 0) >= 5) {
+      if (new Date() > user.emailOTPExpiry) {
         await prisma.user.update({
           where: { id: userId },
-          data: {
-            emailOTP: {
-              code: null,
-              expiresAt: null,
-              attempts: 0
-            }
-          }
+          data: { emailOTP: null, emailOTPExpiry: null }
         });
-        
-        return res.status(429).json({
-          success: false,
-          message: 'Too many failed attempts. Please request a new code.'
-        });
-      }
-
-      if (new Date() > user.emailOTP.expiresAt) {
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            emailOTP: {
-              code: null,
-              expiresAt: null,
-              attempts: 0
-            }
-          }
-        });
-
         return res.status(400).json({
           success: false,
           message: 'Verification code has expired. Please request a new one.'
         });
       }
 
-      if (user.emailOTP.code !== code) {
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            emailOTP: {
-              ...user.emailOTP,
-              attempts: (user.emailOTP.attempts || 0) + 1
-            }
-          }
-        });
-
+      if (user.emailOTP !== code) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid verification code',
-          attemptsRemaining: 5 - ((user.emailOTP.attempts || 0) + 1)
+          message: 'Invalid verification code'
         });
       }
 
@@ -1675,13 +1488,7 @@ export const verifyResetCode = async (req, res) => {
     if (user.twoFactorMethod === 'email') {
       await prisma.user.update({
         where: { id: userId },
-        data: {
-          emailOTP: {
-            code: null,
-            expiresAt: null,
-            attempts: 0
-          }
-        }
+        data: { emailOTP: null, emailOTPExpiry: null }
       });
     }
 

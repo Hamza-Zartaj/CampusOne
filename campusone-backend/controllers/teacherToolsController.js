@@ -70,8 +70,7 @@ export const getMyOfferings = async (req, res) => {
       where,
       include: {
         course: { select: { id: true, courseCode: true, courseName: true, creditHours: true, courseType: true } },
-        program: { select: { id: true, programCode: true, name: true } },
-        tas: { select: { id: true, studentId: true, user: { select: { id: true, name: true, email: true } } } }
+        program: { select: { id: true, programCode: true, name: true } }
       },
       orderBy: [{ academicYear: 'desc' }, { semesterNumber: 'asc' }]
     });
