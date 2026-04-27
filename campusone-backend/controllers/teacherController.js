@@ -15,17 +15,14 @@ export const getAllTeachers = async (req, res) => {
 
     // Get teachers with populated user info
     const teachers = await prisma.teacher.findMany({
-      include: {
-        user: {
-          select: { name: true, email: true, username: true, isActive: true }
-        }
-      },
       select: {
         id: true,
         userId: true,
-        user: true,
         employeeId: true,
-        designation: true
+        designation: true,
+        user: {
+          select: { name: true, email: true, username: true, isActive: true }
+        }
       },
       skip,
       take: limitNum,
@@ -38,7 +35,7 @@ export const getAllTeachers = async (req, res) => {
       .map(t => ({
         _id: t.id,
         teacherId: t.id,
-        userId: t.user.id,
+        userId: t.userId,
         name: t.user.name,
         email: t.user.email,
         username: t.user.username,

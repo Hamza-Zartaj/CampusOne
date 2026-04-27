@@ -11,23 +11,13 @@ const getRoleSpecificData = async (userId, role) => {
   switch (role) {
     case 'student':
       roleData = await prisma.student.findUnique({
-        where: { userId },
-        include: {
-          enrollments: {
-            include: { courseOffering: { include: { course: true } } }
-          }
-        }
+        where: { userId }
       });
       break;
 
     case 'teacher':
       roleData = await prisma.teacher.findUnique({
-        where: { userId },
-        include: {
-          courseOfferings: {
-            include: { course: true }
-          }
-        }
+        where: { userId }
       });
       break;
 

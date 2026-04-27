@@ -116,8 +116,8 @@ export const submitApplication = async (req, res) => {
         guardian: req.body.guardian || {},
         educationRecords: req.body.educationRecords || [],
         documents: [],
-        status: 'Pending',
-        submittedAt: new Date(),
+        applicationStatus: 'Pending',
+        applicationDate: new Date(),
         userId: req.user ? req.user.id : null
       }
     });
