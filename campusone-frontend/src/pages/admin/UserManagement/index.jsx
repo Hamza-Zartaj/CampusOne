@@ -6,7 +6,6 @@ import PageHeader from './components/PageHeader';
 import StatsGrid from './components/StatsGrid';
 import UserTable from './components/UserTable';
 import CreateUserModal from './components/modals/CreateUserModal';
-import PromoteToTAModal from './components/modals/PromoteToTAModal';
 import BulkUploadModal from './components/modals/BulkUploadModal';
 import EditUserModal from './components/modals/EditUserModal';
 import DeleteConfirmationModal from './components/modals/DeleteConfirmationModal';
@@ -22,8 +21,6 @@ const UserManagement = () => {
     isSuperAdmin,
     showCreateUserModal,
     setShowCreateUserModal,
-    showPromoteTAModal,
-    setShowPromoteTAModal,
     showBulkUploadModal,
     setShowBulkUploadModal,
     showEditModal,
@@ -38,16 +35,6 @@ const UserManagement = () => {
     handleCreateUserChange,
     handlePermissionChange,
     handleCreateUser,
-
-    // Promote TA
-    studentSearch,
-    setStudentSearch,
-    searchResults,
-    selectedStudent,
-    setSelectedStudent,
-    searching,
-    handleStudentSearch,
-    handlePromoteToTA,
 
     // Bulk Upload
     selectedFile,
@@ -112,10 +99,6 @@ const UserManagement = () => {
           setShowBulkUploadModal(true);
           setError('');
         }}
-        onPromoteTA={() => {
-          setShowPromoteTAModal(true);
-          setError('');
-        }}
       />
 
       {/* Success Alert */}
@@ -178,26 +161,6 @@ const UserManagement = () => {
         error={error}
         onErrorClose={() => setError('')}
         isSuperAdmin={isSuperAdmin}
-      />
-
-      {/* Promote to TA Modal */}
-      <PromoteToTAModal
-        show={showPromoteTAModal}
-        onClose={() => {
-          setShowPromoteTAModal(false);
-          setSelectedStudent(null);
-          setStudentSearch('');
-          setError('');
-        }}
-        studentSearch={studentSearch}
-        onSearchChange={handleStudentSearch}
-        searchResults={searchResults}
-        selectedStudent={selectedStudent}
-        onSelectStudent={setSelectedStudent}
-        searching={searching}
-        onPromote={handlePromoteToTA}
-        error={error}
-        onErrorClose={() => setError('')}
       />
 
       {/* Bulk Upload Modal */}

@@ -89,12 +89,11 @@ export default function Login() {
           name: data.data.user.name,
           role: data.data.user.role,
           profilePicture: data.data.user.profilePicture,
+          isSuperAdmin: data.data.roleData?.isSuperAdmin || false,
           authenticated: true
         };
         
         localStorage.setItem('user', JSON.stringify(userData));
-
-        console.log('Stored user data:', userData);
 
         // Show success toast
         toast.success(`Welcome back, ${data.data.user.name}! Login successful.`, {
@@ -149,10 +148,12 @@ export default function Login() {
     // Store user data
     if (userData) {
       localStorage.setItem('user', JSON.stringify({
+        id: userData.user.id,
         email: userData.user.email,
         name: userData.user.name,
         role: userData.user.role,
-        userType: userData.user.role,
+        profilePicture: userData.user.profilePicture || null,
+        isSuperAdmin: userData.roleData?.isSuperAdmin || false,
         authenticated: true
       }));
 
