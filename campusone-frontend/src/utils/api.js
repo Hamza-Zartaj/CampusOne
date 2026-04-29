@@ -243,4 +243,90 @@ export const announcementAPI = {
     api.delete(`/announcements/${id}`)
 };
 
+// Department API
+export const departmentAPI = {
+  getAll: (params = {}) => api.get('/departments', { params }),
+  getById: (id) => api.get(`/departments/${id}`),
+  create: (data) => api.post('/departments', data),
+  update: (id, data) => api.put(`/departments/${id}`, data),
+  delete: (id) => api.delete(`/departments/${id}`),
+  restore: (id) => api.put(`/departments/${id}/restore`),
+};
+
+// Program API
+export const programAPI = {
+  getAll: (params = {}) => api.get('/programs', { params }),
+  getById: (id) => api.get(`/programs/${id}`),
+  getCurriculum: (id, params = {}) => api.get(`/programs/${id}/curriculum`, { params }),
+  create: (data) => api.post('/programs', data),
+  update: (id, data) => api.put(`/programs/${id}`, data),
+  delete: (id) => api.delete(`/programs/${id}`),
+};
+
+// Curriculum API
+export const curriculumAPI = {
+  getByProgram: (programId) => api.get('/curricula', { params: { programId } }),
+  getById: (id) => api.get(`/curricula/${id}`),
+  create: (data) => api.post('/curricula', data),
+  update: (id, data) => api.put(`/curricula/${id}`, data),
+  clone: (id, data) => api.post(`/curricula/${id}/clone`, data),
+  addCourse: (id, data) => api.post(`/curricula/${id}/courses`, data),
+  updateCourse: (id, courseId, data) => api.put(`/curricula/${id}/courses/${courseId}`, data),
+  removeCourse: (id, courseId) => api.delete(`/curricula/${id}/courses/${courseId}`),
+};
+
+// Term API
+export const termAPI = {
+  getAll: (params = {}) => api.get('/terms', { params }),
+  getActive: () => api.get('/terms/active'),
+  getById: (id) => api.get(`/terms/${id}`),
+  create: (data) => api.post('/terms', data),
+  update: (id, data) => api.put(`/terms/${id}`, data),
+  activate: (id) => api.put(`/terms/${id}/activate`),
+};
+
+// Course API
+export const courseAPI = {
+  getAll: (params = {}) => api.get('/courses', { params }),
+  getById: (id) => api.get(`/courses/${id}`),
+  create: (data) => api.post('/courses', data),
+  update: (id, data) => api.put(`/courses/${id}`, data),
+  delete: (id) => api.delete(`/courses/${id}`),
+  addPrerequisite: (id, prerequisiteId) => api.post(`/courses/${id}/prerequisites`, { prerequisiteId }),
+  removePrerequisite: (id, prereqId) => api.delete(`/courses/${id}/prerequisites/${prereqId}`),
+};
+
+// Course Offering API
+export const offeringAPI = {
+  getAll: (params = {}) => api.get('/offerings', { params }),
+  getMy: (params = {}) => api.get('/offerings/my', { params }),
+  getById: (id) => api.get(`/offerings/${id}`),
+  getStudents: (id) => api.get(`/offerings/${id}/students`),
+  create: (data) => api.post('/offerings', data),
+  update: (id, data) => api.put(`/offerings/${id}`, data),
+  delete: (id) => api.delete(`/offerings/${id}`),
+};
+
+// Enrollment API
+export const enrollmentAPI = {
+  getAll: (params = {}) => api.get('/enrollments', { params }),
+  getById: (id) => api.get(`/enrollments/${id}`),
+  enroll: (data) => api.post('/enrollments', data),
+  drop: (id) => api.delete(`/enrollments/${id}`),
+  updateGrade: (id, data) => api.put(`/enrollments/${id}/grade`, data),
+  bulkGrade: (data) => api.post('/enrollments/bulk-grade', data),
+  getTranscript: (studentId) => api.get(`/enrollments/students/${studentId}/transcript`),
+  getCGPA: (studentId) => api.get(`/enrollments/students/${studentId}/cgpa`),
+  getCurrent: (studentId) => api.get(`/enrollments/students/${studentId}/current`),
+};
+
+// Semester Incharge API
+export const semesterInchargeAPI = {
+  getAll: (params = {}) => api.get('/semester-incharges', { params }),
+  getMy: () => api.get('/semester-incharges/my'),
+  assign: (data) => api.post('/semester-incharges', data),
+  relieve: (id) => api.put(`/semester-incharges/${id}/relieve`),
+  delete: (id) => api.delete(`/semester-incharges/${id}`),
+};
+
 export default api;

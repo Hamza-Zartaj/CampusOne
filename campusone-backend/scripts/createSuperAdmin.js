@@ -69,7 +69,6 @@ const createSuperAdmin = async () => {
 
     // Generate default email from employee ID
     const email = `${employeeId.toLowerCase()}@campusone.edu`;
-    const department = 'Administration';
 
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
@@ -111,7 +110,6 @@ const createSuperAdmin = async () => {
         data: {
           userId: user.id,
           employeeId,
-          department,
           designation: 'Super Administrator',
           isSuperAdmin: true,
           permissions: [
@@ -132,7 +130,6 @@ const createSuperAdmin = async () => {
     console.log(`Username: ${user.username}`);
     console.log(`Employee ID: ${admin.employeeId}`);
     console.log(`Email: ${user.email} (temporary - can be updated later)`);
-    console.log(`Department: ${admin.department}`);
     console.log(`Role: Super Administrator`);
     console.log('================================\n');
     console.log('⚠️  Please save these credentials securely!');

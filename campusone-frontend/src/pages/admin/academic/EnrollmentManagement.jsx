@@ -1,0 +1,216 @@
+import React, { useState, useEffect } from 'react';
+import { ClipboardList, Plus, Trash2, Search } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { enrollmentAPI, offeringAPI, termAPI, userAPI } from '../../../utils/api';
+
+const inputClass = 'w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10';
+const labelClass = 'block text-sm font-medium text-slate-700 mb-1.5';
+const btnPrimary = 'inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50';
+const btnSecondary = 'inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-medium border border-gray-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors';
+
+const STATUS_COLORS = { ENROLLED: 'bg-green-50 text-green-700', DROPPED: 'bg-red-50 text-red-600', COMPLETED: 'bg-blue-50 text-blue-700', FAILED: 'bg-red-100 text-red-800', WITHDRAWN: 'bg-gray-100 text-gray-600', INCOMPLETE: 'bg-yellow-50 text-yellow-700' };
+
+const EnrollmentManagement = () => {
+  const [enrollments, setEnrollments] = useState([]);
+  const [offerings, setOfferings] = useState([]);
+  const [terms, setTerms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ studentSearch: '', studentId: '', offeringId: '' });
+  const [studentResults, setStudentResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [filterOffering, setFilterOffering] = useState('');
+  const [filterTerm, setFilterTerm] = useState('');
+
+  useEffect(() => { loadMeta(); }, []);
+  useEffect(() => { if (filterOffering) loadEnrollments(); }, [filterOffering]);
+
+  const loadMeta = async () => {
+    try {
+      const [termRes] = await Promise.all([termAPI.getAll()]);
+      setTerms(termRes.data.data || []);
+      const active = (termRes.data.data || []).find((t) => t.isActive);
+      if (active) { setFilterTerm(active.id); loadOfferingsByTerm(active.id); }
+    } catch {
+      toast.error('Failed to load metadata');
+    }
+  };
+
+  const loadOfferingsByTerm = async (termId) => {
+    try {
+      const res = await offeringAPI.getAll({ termId });
+      setOfferings(res.data.data || []);
+    } catch {}
+  };
+
+  const loadEnrollments = async () => {
+    try {
+      setLoading(true);
+      const res = await enrollmentAPI.getAll({ offeringId: filterOffering });
+      setEnrollments(res.data.data || []);
+    } catch {
+      toast.error('Failed to load enrollments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTermChange = (termId) => {
+    setFilterTerm(termId);
+    setFilterOffering('');
+    setEnrollments([]);
+    if (termId) loadOfferingsByTerm(termId);
+  };
+
+  const searchStudents = async (q) => {
+    setForm((f) => ({ ...f, studentSearch: q, studentId: '' }));
+    if (!q.trim()) { setStudentResults([]); return; }
+    try {
+      setSearching(true);
+      const res = await userAPI.searchStudents(q);
+      setStudentResults(res.data.data || res.data.students || []);
+    } catch {} finally {
+      setSearching(false);
+    }
+  };
+
+  const handleEnroll = async (e) => {
+    e.preventDefault();
+    if (!form.studentId || !form.offeringId) return toast.error('Select a student and offering');
+    try {
+      setSaving(true);
+      await enrollmentAPI.enroll({ studentId: form.studentId, offeringId: form.offeringId });
+      toast.success('Student enrolled');
+      setShowForm(false);
+      setForm({ studentSearch: '', studentId: '', offeringId: filterOffering });
+      setStudentResults([]);
+      if (filterOffering) loadEnrollments();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to enroll');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDrop = async (enrollment) => {
+    if (!confirm(`Drop ${enrollment.student?.user?.name} from this course?`)) return;
+    try {
+      await enrollmentAPI.drop(enrollment.id);
+      toast.success('Enrollment dropped');
+      loadEnrollments();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed');
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <ClipboardList size={24} className="text-blue-600" />
+          <div>
+            <h1 className="text-xl font-semibold text-slate-800">Enrollment Management</h1>
+            <p className="text-sm text-slate-500">Enroll and drop students from course offerings</p>
+          </div>
+        </div>
+        <button onClick={() => { setShowForm(true); setForm({ studentSearch: '', studentId: '', offeringId: filterOffering }); }} className={btnPrimary}><Plus size={16} />Enroll Student</button>
+      </div>
+
+      <div className="flex gap-3 mb-5">
+        <select className="py-2 px-3 border border-gray-200 rounded-lg text-sm" value={filterTerm} onChange={(e) => handleTermChange(e.target.value)}>
+          <option value="">Select Term</option>
+          {terms.map((t) => <option key={t.id} value={t.id}>{t.code} {t.isActive ? '(active)' : ''}</option>)}
+        </select>
+        <select className="py-2 px-3 border border-gray-200 rounded-lg text-sm flex-1" value={filterOffering} onChange={(e) => setFilterOffering(e.target.value)} disabled={!filterTerm}>
+          <option value="">Select Offering</option>
+          {offerings.map((o) => <option key={o.id} value={o.id}>{o.course?.code} – {o.course?.title} (Sec {o.section})</option>)}
+        </select>
+      </div>
+
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="font-semibold text-slate-800">Enroll Student</h2>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+            </div>
+            <form onSubmit={handleEnroll} className="p-6 space-y-4">
+              <div>
+                <label className={labelClass}>Search Student *</label>
+                <div className="relative">
+                  <input className={inputClass} value={form.studentSearch} onChange={(e) => searchStudents(e.target.value)} placeholder="Name or student ID…" />
+                  {searching && <span className="absolute right-3 top-2.5 text-slate-400 text-xs">…</span>}
+                </div>
+                {studentResults.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg mt-1 max-h-40 overflow-y-auto bg-white shadow-sm">
+                    {studentResults.map((s) => (
+                      <button key={s.id} type="button" onClick={() => { setForm((f) => ({ ...f, studentId: s.studentId || s.id, studentSearch: s.user?.name || s.name })); setStudentResults([]); }}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-50 text-sm">
+                        <span className="font-medium">{s.user?.name || s.name}</span>
+                        <span className="text-slate-400 ml-2 text-xs">{s.studentId}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className={labelClass}>Offering *</label>
+                <select className={inputClass} value={form.offeringId} onChange={(e) => setForm((f) => ({ ...f, offeringId: e.target.value }))} required>
+                  <option value="">Select offering…</option>
+                  {offerings.map((o) => <option key={o.id} value={o.id}>{o.course?.code} – {o.course?.title} (Sec {o.section})</option>)}
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowForm(false)} className={btnSecondary}>Cancel</button>
+                <button type="submit" disabled={saving || !form.studentId} className={btnPrimary}>{saving ? 'Enrolling…' : 'Enroll'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {!filterOffering ? (
+        <div className="text-center py-12 text-slate-400">Select a term and offering to view enrollments.</div>
+      ) : loading ? (
+        <div className="text-center py-12 text-slate-400">Loading…</div>
+      ) : enrollments.length === 0 ? (
+        <div className="text-center py-12 text-slate-400">No enrollments for this offering.</div>
+      ) : (
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50 border-b text-sm text-slate-600">{enrollments.length} enrollment{enrollments.length !== 1 ? 's' : ''}</div>
+          <table className="w-full text-sm">
+            <thead className="border-b">
+              <tr>
+                <th className="text-left py-3 px-4 font-medium text-slate-600">Student</th>
+                <th className="text-left py-3 px-4 font-medium text-slate-600">Student ID</th>
+                <th className="text-center py-3 px-4 font-medium text-slate-600">Status</th>
+                <th className="text-center py-3 px-4 font-medium text-slate-600">Grade</th>
+                <th className="py-3 px-4"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {enrollments.map((e) => (
+                <tr key={e.id} className="hover:bg-slate-50">
+                  <td className="py-3 px-4 font-medium text-slate-800">{e.student?.user?.name}</td>
+                  <td className="py-3 px-4 font-mono text-xs text-slate-600">{e.student?.studentId}</td>
+                  <td className="py-3 px-4 text-center">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[e.status] || 'bg-slate-100 text-slate-600'}`}>{e.status}</span>
+                  </td>
+                  <td className="py-3 px-4 text-center text-slate-600 font-medium">{e.gradeLetter || '—'}</td>
+                  <td className="py-3 px-4 text-right">
+                    {e.status === 'ENROLLED' && (
+                      <button onClick={() => handleDrop(e)} className="p-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50"><Trash2 size={13} /></button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default EnrollmentManagement;

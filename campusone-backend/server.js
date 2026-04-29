@@ -14,6 +14,14 @@ import userRoutes from './routes/userRoutes.js';
 import admissionRoutes from './routes/admissionRoutes.js';
 import teacherRoutes from './routes/teacherRoutes.js';
 import announcementRoutes from './routes/announcementRoutes.js';
+import departmentRoutes from './routes/departmentRoutes.js';
+import programRoutes from './routes/programRoutes.js';
+import curriculumRoutes from './routes/curriculumRoutes.js';
+import termRoutes from './routes/termRoutes.js';
+import courseRoutes from './routes/courseRoutes.js';
+import courseOfferingRoutes from './routes/courseOfferingRoutes.js';
+import enrollmentRoutes from './routes/enrollmentRoutes.js';
+import semesterInchargeRoutes from './routes/semesterInchargeRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -70,6 +78,14 @@ app.use('/api/users', userRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/admissions', admissionRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/departments', departmentRoutes);
+app.use('/api/programs', programRoutes);
+app.use('/api/curricula', curriculumRoutes);
+app.use('/api/terms', termRoutes);
+app.use('/api/courses', courseRoutes);
+app.use('/api/offerings', courseOfferingRoutes);
+app.use('/api/enrollments', enrollmentRoutes);
+app.use('/api/semester-incharges', semesterInchargeRoutes);
 
 // 404 Handler - Route not found
 app.use((req, res, next) => {

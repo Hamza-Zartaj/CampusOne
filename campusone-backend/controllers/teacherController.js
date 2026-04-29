@@ -180,12 +180,15 @@ export const getTeacherProfile = async (req, res) => {
         user: {
           select: { name: true, email: true, username: true, isActive: true, profilePicture: true }
         },
-        courseOfferings: {
+        offerings: {
+          where: { isActive: true },
           include: {
-            course: {
-              select: { id: true, courseCode: true, courseName: true }
-            }
-          }
+            course: { select: { id: true, code: true, title: true, creditHours: true } },
+            term: { select: { code: true, academicYear: true, isActive: true } },
+            _count: { select: { enrollments: { where: { status: 'ENROLLED' } } } }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10
         }
       }
     });
@@ -217,7 +220,7 @@ export const getTeacherProfile = async (req, res) => {
         phone: teacher.phone,
         researchInterests: teacher.researchInterests,
         isActive: teacher.user.isActive,
-        courseOfferings: teacher.courseOfferings
+        courseOfferings: teacher.offerings
       }
     });
   } catch (error) {
