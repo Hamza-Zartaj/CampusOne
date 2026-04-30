@@ -1,4 +1,5 @@
 import prisma from '../prisma/client.js';
+import { auditLog } from '../utils/auditLogger.js';
 
 // GET /api/departments
 export const getAllDepartments = async (req, res) => {
@@ -51,6 +52,13 @@ export const createDepartment = async (req, res) => {
     const dept = await prisma.department.create({
       data: { code: code.toUpperCase(), name, description, hodTeacherId: hodTeacherId || null },
     });
+    auditLog({
+      action: 'CREATE_DEPARTMENT', category: 'ACADEMIC',
+      performedBy: req.user.id, performedByRole: req.user.role,
+      targetModel: 'Department', targetId: dept.id,
+      description: `Created department ${dept.code} — ${dept.name}`,
+      newValue: { code: dept.code, name: dept.name },
+    });
     res.status(201).json({ success: true, data: dept });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -64,6 +72,12 @@ export const updateDepartment = async (req, res) => {
     const dept = await prisma.department.update({
       where: { id: req.params.id },
       data: { name, description, hodTeacherId: hodTeacherId ?? undefined },
+    });
+    auditLog({
+      action: 'UPDATE_DEPARTMENT', category: 'ACADEMIC',
+      performedBy: req.user.id, performedByRole: req.user.role,
+      targetModel: 'Department', targetId: dept.id,
+      description: `Updated department ${dept.code} — ${dept.name}`,
     });
     res.json({ success: true, data: dept });
   } catch (err) {
@@ -79,6 +93,12 @@ export const deleteDepartment = async (req, res) => {
       where: { id: req.params.id },
       data: { isActive: false, deletedAt: new Date() },
     });
+    auditLog({
+      action: 'DELETE_DEPARTMENT', category: 'ACADEMIC',
+      performedBy: req.user.id, performedByRole: req.user.role,
+      targetModel: 'Department', targetId: req.params.id,
+      description: `Soft-deleted department ID ${req.params.id}`,
+    });
     res.json({ success: true, message: 'Department deactivated' });
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ success: false, message: 'Department not found' });
@@ -92,6 +112,12 @@ export const restoreDepartment = async (req, res) => {
     await prisma.department.update({
       where: { id: req.params.id },
       data: { isActive: true, deletedAt: null },
+    });
+    auditLog({
+      action: 'RESTORE_DEPARTMENT', category: 'ACADEMIC',
+      performedBy: req.user.id, performedByRole: req.user.role,
+      targetModel: 'Department', targetId: req.params.id,
+      description: `Restored department ID ${req.params.id}`,
     });
     res.json({ success: true, message: 'Department restored' });
   } catch (err) {
