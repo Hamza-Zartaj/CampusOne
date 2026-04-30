@@ -345,4 +345,13 @@ export const assignmentAPI = {
   getMySubmission: (id) => api.get(`/assignments/${id}/my-submission`),
 };
 
+// Attendance API
+export const attendanceAPI = {
+  mark: (data) => api.post('/attendance', data),
+  getSessions: (offeringId) => api.get(`/attendance/offering/${offeringId}/sessions`),
+  getSessionDetail: (offeringId, date) => api.get(`/attendance/offering/${offeringId}/sessions/${date}`),
+  getStudentSummary: (offeringId) => api.get(`/attendance/offering/${offeringId}/students`),
+  getMy: () => api.get('/attendance/my'),
+};
+
 export default api;
