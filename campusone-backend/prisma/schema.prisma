@@ -80,6 +80,7 @@ model Student {
   department            Department @relation(fields: [departmentId], references: [id])
 
   enrollments           Enrollment[]
+  submissions           Submission[]
 
   // Personal Info
   phone                 String?
@@ -442,6 +443,7 @@ model CourseOffering {
   term         Term     @relation(fields: [termId], references: [id])
   teacher      Teacher  @relation(fields: [teacherId], references: [id])
   enrollments  Enrollment[]
+  assignments  Assignment[]
 
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
@@ -495,4 +497,67 @@ model SemesterIncharge {
 
   @@unique([programId, batch, semesterNumber, academicYear])
   @@index([teacherId, status])
+}
+
+// ============ ASSIGNMENT MANAGEMENT ============
+
+enum AssignmentStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  LATE
+  GRADED
+}
+
+model Assignment {
+  id            String           @id @default(cuid())
+  offeringId    String
+  title         String
+  description   String?
+  totalMarks    Float            @default(100)
+  dueDate       DateTime
+  allowLate     Boolean          @default(false)
+  attachmentUrl String?
+  status        AssignmentStatus @default(PUBLISHED)
+
+  offering      CourseOffering   @relation(fields: [offeringId], references: [id])
+  submissions   Submission[]
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([offeringId])
+  @@index([dueDate])
+  @@index([status])
+}
+
+model Submission {
+  id             String           @id @default(cuid())
+  assignmentId   String
+  studentId      String
+
+  submissionText String?
+  attachmentUrl  String?
+  isLate         Boolean          @default(false)
+
+  obtainedMarks  Float?
+  feedback       String?
+  gradedAt       DateTime?
+  gradedBy       String?
+
+  status         SubmissionStatus @default(SUBMITTED)
+
+  assignment     Assignment       @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student        Student          @relation(fields: [studentId], references: [id])
+
+  submittedAt    DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([assignmentId, studentId])
+  @@index([assignmentId])
+  @@index([studentId])
 }
