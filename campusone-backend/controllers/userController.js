@@ -1,6 +1,7 @@
 import prisma from '../prisma/client.js';
 import xlsx from 'xlsx';
 import bcrypt from 'bcryptjs';
+import { auditLog } from '../utils/auditLogger.js';
 
 /**
  * Get role-specific data based on user role
@@ -340,6 +341,17 @@ export const createUser = async (req, res) => {
       return { user, roleRecord };
     });
 
+    auditLog({
+      action: 'CREATE_USER',
+      category: 'USER_MANAGEMENT',
+      performedBy: req.user.id,
+      performedByRole: req.user.role,
+      targetModel: 'User',
+      targetId: result.user.id,
+      description: `Created ${role} account for ${result.user.name} (${result.user.email})`,
+      newValue: { name: result.user.name, email: result.user.email, role },
+    });
+
     res.status(201).json({
       success: true,
       message: 'User created successfully',
@@ -454,6 +466,16 @@ export const updateUser = async (req, res) => {
       roleRecord = await getRoleSpecificData(id, user.role);
     }
 
+    auditLog({
+      action: 'UPDATE_USER',
+      category: 'USER_MANAGEMENT',
+      performedBy: req.user.id,
+      performedByRole: req.user.role,
+      targetModel: 'User',
+      targetId: id,
+      description: `Updated ${user.role} account for ${updatedUser.name} (${updatedUser.email})`,
+    });
+
     res.status(200).json({
       success: true,
       message: 'User updated successfully',
@@ -503,6 +525,16 @@ export const deactivateUser = async (req, res) => {
       }
     });
 
+    auditLog({
+      action: 'DEACTIVATE_USER',
+      category: 'USER_MANAGEMENT',
+      performedBy: req.user.id,
+      performedByRole: req.user.role,
+      targetModel: 'User',
+      targetId: id,
+      description: `Deactivated account for ${user.name} (${user.email})`,
+    });
+
     res.status(200).json({
       success: true,
       message: 'User account deactivated successfully',
@@ -539,6 +571,16 @@ export const activateUser = async (req, res) => {
         email: true,
         isActive: true
       }
+    });
+
+    auditLog({
+      action: 'ACTIVATE_USER',
+      category: 'USER_MANAGEMENT',
+      performedBy: req.user.id,
+      performedByRole: req.user.role,
+      targetModel: 'User',
+      targetId: id,
+      description: `Activated account for ${user.name} (${user.email})`,
     });
 
     res.status(200).json({
@@ -581,6 +623,16 @@ export const unlockAccount = async (req, res) => {
         email: true,
         accountLocked: true
       }
+    });
+
+    auditLog({
+      action: 'UNLOCK_ACCOUNT',
+      category: 'USER_MANAGEMENT',
+      performedBy: req.user.id,
+      performedByRole: req.user.role,
+      targetModel: 'User',
+      targetId: id,
+      description: `Unlocked account for ${user.name} (${user.email})`,
     });
 
     res.status(200).json({
@@ -667,6 +719,17 @@ export const deleteUser = async (req, res) => {
 
       // Delete the user
       await tx.user.delete({ where: { id } });
+    });
+
+    auditLog({
+      action: 'DELETE_USER',
+      category: 'USER_MANAGEMENT',
+      performedBy: req.user.id,
+      performedByRole: req.user.role,
+      targetModel: 'User',
+      targetId: id,
+      description: `Permanently deleted ${user.role} account for ${user.name} (${user.email})`,
+      previousValue: { name: user.name, email: user.email, role: user.role },
     });
 
     res.status(200).json({
@@ -1049,6 +1112,17 @@ export const bulkUploadStudents = async (req, res) => {
         });
       }
     }
+
+    auditLog({
+      action: 'BULK_UPLOAD_STUDENTS',
+      category: 'USER_MANAGEMENT',
+      performedBy: req.user.id,
+      performedByRole: req.user.role,
+      targetModel: 'Student',
+      targetId: 'bulk',
+      description: `Bulk uploaded students: ${results.successful.length} created, ${results.failed.length} failed out of ${results.total} rows`,
+      newValue: { total: results.total, successful: results.successful.length, failed: results.failed.length },
+    });
 
     res.status(200).json({
       success: true,

@@ -1,5 +1,6 @@
 import prisma from '../prisma/client.js';
 import { sendAnnouncementEmail } from '../services/emailService.js';
+import { auditLog } from '../utils/auditLogger.js';
 
 /**
  * Send announcement (Admin)
@@ -70,6 +71,14 @@ export const sendAnnouncement = async (req, res) => {
       // Don't wait for all emails to send, run in background
       Promise.all(emailPromises).catch(err => console.error('Error sending announcement emails:', err));
     }
+
+    auditLog({
+      action: 'SEND_ANNOUNCEMENT', category: 'ANNOUNCEMENT',
+      performedBy: req.user.id, performedByRole: req.user.role,
+      targetModel: 'Announcement', targetId: announcement.id,
+      description: `Sent announcement "${title}" to ${targetAudience} (${recipients.length} recipients)`,
+      newValue: { title, priority, targetAudience, recipientCount: recipients.length },
+    });
 
     res.status(201).json({
       message: `Announcement sent to ${recipients.length} recipients`,
@@ -324,6 +333,14 @@ export const deleteAnnouncement = async (req, res) => {
 
     await prisma.announcement.delete({
       where: { id }
+    });
+
+    auditLog({
+      action: 'DELETE_ANNOUNCEMENT', category: 'ANNOUNCEMENT',
+      performedBy: req.user.id, performedByRole: req.user.role,
+      targetModel: 'Announcement', targetId: id,
+      description: `Deleted announcement "${announcement.title}"`,
+      previousValue: { title: announcement.title, priority: announcement.priority, targetAudience: announcement.targetAudience },
     });
 
     res.status(200).json({

@@ -19,6 +19,7 @@ import {
   CalendarDays,
   ScrollText,
   PenLine,
+  ShieldCheck,
 } from 'lucide-react';
 
 const NAV_LABEL_CLASS = 'text-[10px] font-semibold uppercase tracking-wider text-slate-400 px-6 pt-4 pb-1 select-none';
@@ -39,6 +40,8 @@ const Sidebar = ({ isOpen }) => {
     { path: '/admin/academic/terms', icon: Calendar, label: 'Terms' },
     { path: '/admin/academic/offerings', icon: Layers, label: 'Offerings' },
     { path: '/admin/academic/enrollments', icon: ClipboardList, label: 'Enrollments' },
+    { label: null, group: 'System' },
+    { path: '/admin/audit-logs', icon: ShieldCheck, label: 'Audit Logs' },
   ];
 
   const teacherItems = [

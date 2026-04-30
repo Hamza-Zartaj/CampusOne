@@ -345,6 +345,12 @@ export const assignmentAPI = {
   getMySubmission: (id) => api.get(`/assignments/${id}/my-submission`),
 };
 
+// Audit Log API
+export const auditLogAPI = {
+  getLogs: (params = {}) => api.get('/audit-logs', { params }),
+  getCategories: () => api.get('/audit-logs/categories'),
+};
+
 // Attendance API
 export const attendanceAPI = {
   mark: (data) => api.post('/attendance', data),

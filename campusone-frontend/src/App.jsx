@@ -13,6 +13,7 @@ import AdmissionSettings from './pages/admin/Admissions/AdmissionSettings';
 import ApplicationsManagement from './pages/admin/Admissions/ApplicationsManagement';
 import AnnouncementManagement from './pages/admin/AnnouncementManagement';
 import Reports from './pages/admin/Reports';
+import AuditLogs from './pages/admin/AuditLogs';
 
 // Admin Academic Pages
 import DepartmentManagement from './pages/admin/academic/DepartmentManagement';
@@ -86,6 +87,7 @@ function App() {
           <Route path="/admin/academic/terms" element={<TermManagement />} />
           <Route path="/admin/academic/offerings" element={<CourseOfferingManagement />} />
           <Route path="/admin/academic/enrollments" element={<EnrollmentManagement />} />
+          <Route path="/admin/audit-logs" element={<AuditLogs />} />
 
           {/* Teacher Routes */}
           <Route path="/teacher/dashboard" element={<TeacherDashboard />} />

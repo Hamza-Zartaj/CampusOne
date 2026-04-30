@@ -1,5 +1,6 @@
 import prisma from '../prisma/client.js';
 import { deleteFile, getFileUrl } from '../middleware/uploadMiddleware.js';
+import { auditLog } from '../utils/auditLogger.js';
 import {
   sendAdmissionApplicationConfirmationEmail,
   sendApplicationUnderReviewEmail,
@@ -52,6 +53,13 @@ export const updateAdmissionSettings = async (req, res) => {
       settings = await prisma.admissionSettings.create({ data });
     }
 
+    auditLog({
+      action: 'UPDATE_ADMISSION_SETTINGS', category: 'ADMISSION',
+      performedBy: req.user.id, performedByRole: req.user.role,
+      targetModel: 'AdmissionSettings', targetId: settings.id,
+      description: `Updated admission settings — admissions ${data.isOpen !== undefined ? (data.isOpen ? 'opened' : 'closed') : 'updated'}`,
+      newValue: data,
+    });
     res.status(200).json({ success: true, message: 'Admission settings updated successfully', data: settings });
   } catch (error) {
     console.error('Error updating admission settings:', error);
@@ -252,6 +260,15 @@ export const updateApplicationStatus = async (req, res) => {
         applicationStatus: status,
         remarks: reviewNotes || application.remarks
       }
+    });
+
+    auditLog({
+      action: 'UPDATE_APPLICATION_STATUS', category: 'ADMISSION',
+      performedBy: req.user.id, performedByRole: req.user.role,
+      targetModel: 'AdmissionApplication', targetId: application.id,
+      description: `Changed application ${application.applicationNumber} (${application.fullName}) status from "${application.applicationStatus}" to "${status}"`,
+      previousValue: { status: application.applicationStatus },
+      newValue: { status },
     });
 
     // Send response immediately to user

@@ -1,4 +1,5 @@
 import prisma from '../prisma/client.js';
+import { auditLog } from '../utils/auditLogger.js';
 
 // GET /api/programs
 export const getAllPrograms = async (req, res) => {
@@ -102,6 +103,13 @@ export const createProgram = async (req, res) => {
       data: { programCode: programCode.toUpperCase(), name, type, totalSemesters: +totalSemesters, totalCredits: +totalCredits, departmentId },
       include: { department: { select: { code: true, name: true } } },
     });
+    auditLog({
+      action: 'CREATE_PROGRAM', category: 'ACADEMIC',
+      performedBy: req.user.id, performedByRole: req.user.role,
+      targetModel: 'Program', targetId: program.id,
+      description: `Created program ${program.programCode} — ${program.name}`,
+      newValue: { programCode: program.programCode, name: program.name, type: program.type },
+    });
     res.status(201).json({ success: true, data: program });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -123,6 +131,12 @@ export const updateProgram = async (req, res) => {
         isActive,
       },
     });
+    auditLog({
+      action: 'UPDATE_PROGRAM', category: 'ACADEMIC',
+      performedBy: req.user.id, performedByRole: req.user.role,
+      targetModel: 'Program', targetId: program.id,
+      description: `Updated program ${program.programCode}`,
+    });
     res.json({ success: true, data: program });
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ success: false, message: 'Program not found' });
@@ -134,6 +148,12 @@ export const updateProgram = async (req, res) => {
 export const deleteProgram = async (req, res) => {
   try {
     await prisma.program.update({ where: { id: req.params.id }, data: { isActive: false } });
+    auditLog({
+      action: 'DELETE_PROGRAM', category: 'ACADEMIC',
+      performedBy: req.user.id, performedByRole: req.user.role,
+      targetModel: 'Program', targetId: req.params.id,
+      description: `Deactivated program ID ${req.params.id}`,
+    });
     res.json({ success: true, message: 'Program deactivated' });
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ success: false, message: 'Program not found' });
