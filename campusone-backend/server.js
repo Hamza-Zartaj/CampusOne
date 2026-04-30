@@ -22,6 +22,7 @@ import courseRoutes from './routes/courseRoutes.js';
 import courseOfferingRoutes from './routes/courseOfferingRoutes.js';
 import enrollmentRoutes from './routes/enrollmentRoutes.js';
 import semesterInchargeRoutes from './routes/semesterInchargeRoutes.js';
+import assignmentRoutes from './routes/assignmentRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -86,6 +87,7 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/offerings', courseOfferingRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/semester-incharges', semesterInchargeRoutes);
+app.use('/api/assignments', assignmentRoutes);
 
 // 404 Handler - Route not found
 app.use((req, res, next) => {

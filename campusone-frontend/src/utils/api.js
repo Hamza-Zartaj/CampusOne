@@ -329,4 +329,20 @@ export const semesterInchargeAPI = {
   delete: (id) => api.delete(`/semester-incharges/${id}`),
 };
 
+// Assignment API
+export const assignmentAPI = {
+  // Teacher
+  getAll: (params = {}) => api.get('/assignments', { params }),
+  getById: (id) => api.get(`/assignments/${id}`),
+  create: (formData) => api.post('/assignments', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  update: (id, formData) => api.put(`/assignments/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  delete: (id) => api.delete(`/assignments/${id}`),
+  getSubmissions: (id) => api.get(`/assignments/${id}/submissions`),
+  gradeSubmission: (submissionId, data) => api.put(`/assignments/submissions/${submissionId}/grade`, data),
+  // Student
+  getMy: () => api.get('/assignments/my'),
+  submit: (id, formData) => api.post(`/assignments/${id}/submit`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  getMySubmission: (id) => api.get(`/assignments/${id}/my-submission`),
+};
+
 export default api;
