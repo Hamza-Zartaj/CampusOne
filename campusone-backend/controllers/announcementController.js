@@ -56,20 +56,20 @@ export const sendAnnouncement = async (req, res) => {
       });
     }
 
-    // Send emails in background
+    // Send emails in background, throttled to stay under Resend's 2 req/s limit
     if (recipients.length > 0) {
-      const emailPromises = recipients.map(recipient =>
-        sendAnnouncementEmail({
-          email: recipient.email,
-          name: recipient.name,
-          title,
-          content,
-          priority
-        }).catch(err => console.error(`Failed to send email to ${recipient.email}:`, err))
-      );
-
-      // Don't wait for all emails to send, run in background
-      Promise.all(emailPromises).catch(err => console.error('Error sending announcement emails:', err));
+      (async () => {
+        for (const recipient of recipients) {
+          await sendAnnouncementEmail({
+            email: recipient.email,
+            name: recipient.name,
+            title,
+            content,
+            priority
+          }).catch(err => console.error(`Failed to send email to ${recipient.email}:`, err));
+          await new Promise(resolve => setTimeout(resolve, 550));
+        }
+      })();
     }
 
     auditLog({

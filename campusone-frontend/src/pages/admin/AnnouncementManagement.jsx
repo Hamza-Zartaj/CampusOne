@@ -29,9 +29,9 @@ const PRIORITY_COLORS = {
 };
 
 const PRIORITY_BADGES = {
-  low: { bg: 'bg-green-100', text: 'text-green-700' },
-  medium: { bg: 'bg-blue-100', text: 'text-blue-700' },
-  high: { bg: 'bg-red-100', text: 'text-red-700' },
+  low: 'bg-green-100 text-green-700',
+  medium: 'bg-blue-100 text-blue-700',
+  high: 'bg-red-100 text-red-700',
 };
 
 const AnnouncementManagement = () => {
@@ -274,7 +274,7 @@ const AnnouncementManagement = () => {
                     const AudienceIcon = getAudienceIcon(announcement.targetAudience);
                     return (
                       <div
-                        key={announcement._id}
+                        key={announcement.id}
                         className={`p-4 hover:bg-gray-50 transition-colors border-l-4 ${
                           PRIORITY_COLORS[announcement.priority]
                         }`}
@@ -312,7 +312,7 @@ const AnnouncementManagement = () => {
                             </div>
                           </div>
                           <button
-                            onClick={() => handleDelete(announcement._id)}
+                            onClick={() => handleDelete(announcement.id)}
                             className="p-2 hover:bg-red-50 rounded-lg text-red-600 transition-colors flex-shrink-0"
                             title="Delete announcement"
                           >
