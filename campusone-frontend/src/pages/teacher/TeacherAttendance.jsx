@@ -1,110 +1,136 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  ClipboardList,
-  Calendar,
-  Search,
-  Filter,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Users,
-  ChevronDown,
-  ChevronUp,
-  Download,
-  AlertCircle,
+  ClipboardList, Calendar, Search, CheckCircle, XCircle,
+  Clock, Users, Download, AlertCircle,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { attendanceAPI, offeringAPI } from '../../utils/api';
 
-const offerings = [
-  { id: 1, code: 'CS101', name: 'Intro to Programming', section: 'A', students: 45 },
-  { id: 2, code: 'CS201', name: 'Data Structures', section: 'A', students: 38 },
-  { id: 3, code: 'CS301', name: 'Algorithms', section: 'B', students: 32 },
-];
+const TODAY = new Date().toISOString().slice(0, 10);
 
-const attendanceRecords = {
-  1: [
-    { date: '2026-02-16', present: 40, absent: 3, late: 2, total: 45 },
-    { date: '2026-02-13', present: 42, absent: 2, late: 1, total: 45 },
-    { date: '2026-02-11', present: 38, absent: 5, late: 2, total: 45 },
-    { date: '2026-02-09', present: 43, absent: 1, late: 1, total: 45 },
-    { date: '2026-02-06', present: 41, absent: 3, late: 1, total: 45 },
-    { date: '2026-02-04', present: 44, absent: 0, late: 1, total: 45 },
-    { date: '2026-02-02', present: 39, absent: 4, late: 2, total: 45 },
-  ],
-  2: [
-    { date: '2026-02-16', present: 34, absent: 2, late: 2, total: 38 },
-    { date: '2026-02-13', present: 36, absent: 1, late: 1, total: 38 },
-    { date: '2026-02-11', present: 33, absent: 4, late: 1, total: 38 },
-    { date: '2026-02-09', present: 37, absent: 0, late: 1, total: 38 },
-    { date: '2026-02-06', present: 35, absent: 2, late: 1, total: 38 },
-  ],
-  3: [
-    { date: '2026-02-16', present: 28, absent: 3, late: 1, total: 32 },
-    { date: '2026-02-13', present: 30, absent: 1, late: 1, total: 32 },
-    { date: '2026-02-11', present: 29, absent: 2, late: 1, total: 32 },
-    { date: '2026-02-09', present: 31, absent: 0, late: 1, total: 32 },
-  ],
+const STATUS_CYCLE = { PRESENT: 'ABSENT', ABSENT: 'LATE', LATE: 'PRESENT' };
+
+const StatusBadge = ({ status }) => {
+  const cfg = {
+    PRESENT: 'bg-green-50 text-green-700 border-green-200',
+    ABSENT:  'bg-red-50 text-red-700 border-red-200',
+    LATE:    'bg-amber-50 text-amber-700 border-amber-200',
+  };
+  const Icon = status === 'PRESENT' ? CheckCircle : status === 'ABSENT' ? XCircle : Clock;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg[status]}`}>
+      <Icon size={14} />
+      {status.charAt(0) + status.slice(1).toLowerCase()}
+    </span>
+  );
 };
 
-const studentList = [
-  { id: 1, name: 'Ahmed Hassan', rollNo: 'BSCS-2024-001', totalClasses: 7, attended: 7, status: 'present' },
-  { id: 2, name: 'Sara Ali', rollNo: 'BSCS-2024-002', totalClasses: 7, attended: 6, status: 'present' },
-  { id: 3, name: 'Usman Khan', rollNo: 'BSCS-2024-003', totalClasses: 7, attended: 5, status: 'absent' },
-  { id: 4, name: 'Fatima Zahra', rollNo: 'BSCS-2024-004', totalClasses: 7, attended: 7, status: 'present' },
-  { id: 5, name: 'Ali Raza', rollNo: 'BSCS-2024-005', totalClasses: 7, attended: 4, status: 'late' },
-  { id: 6, name: 'Ayesha Siddiqui', rollNo: 'BSCS-2024-006', totalClasses: 7, attended: 6, status: 'present' },
-  { id: 7, name: 'Bilal Ahmad', rollNo: 'BSCS-2024-007', totalClasses: 7, attended: 3, status: 'absent' },
-  { id: 8, name: 'Hira Malik', rollNo: 'BSCS-2024-008', totalClasses: 7, attended: 7, status: 'present' },
-];
-
 const TeacherAttendance = () => {
-  const [selectedOffering, setSelectedOffering] = useState(offerings[0]);
-  const [view, setView] = useState('summary'); // 'summary' | 'mark' | 'students'
-  const [markDate] = useState('2026-02-16');
-  const [studentStatuses, setStudentStatuses] = useState(
-    studentList.reduce((acc, s) => ({ ...acc, [s.id]: s.status }), {})
-  );
-  const [searchQuery, setSearchQuery] = useState('');
+  const [offerings, setOfferings]           = useState([]);
+  const [selected, setSelected]             = useState(null);
+  const [view, setView]                     = useState('summary');
+  const [sessions, setSessions]             = useState([]);
+  const [studentSummary, setStudentSummary] = useState([]);
+  const [statuses, setStatuses]             = useState({});
+  const [markDate, setMarkDate]             = useState(TODAY);
+  const [saving, setSaving]                 = useState(false);
+  const [loading, setLoading]               = useState(false);
+  const [search, setSearch]                 = useState('');
 
-  const records = attendanceRecords[selectedOffering.id] || [];
-  const totalClasses = records.length;
-  const avgAttendance = records.length > 0
-    ? Math.round(records.reduce((sum, r) => sum + (r.present / r.total) * 100, 0) / records.length)
+  // Load teacher's offerings once
+  useEffect(() => {
+    offeringAPI.getMy()
+      .then(r => {
+        const list = r.data.data || [];
+        setOfferings(list);
+        if (list.length) setSelected(list[0]);
+      })
+      .catch(() => toast.error('Failed to load offerings'));
+  }, []);
+
+  // Load sessions + student summary when offering changes
+  useEffect(() => {
+    if (!selected) return;
+    setLoading(true);
+    Promise.all([
+      attendanceAPI.getSessions(selected.id),
+      attendanceAPI.getStudentSummary(selected.id),
+    ])
+      .then(([sessR, studR]) => {
+        setSessions(sessR.data.data || []);
+        setStudentSummary(studR.data.data || []);
+      })
+      .catch(() => toast.error('Failed to load attendance data'))
+      .finally(() => setLoading(false));
+  }, [selected?.id]);
+
+  // Load existing session detail when switching to mark view or date changes
+  const loadMarkSession = useCallback(async () => {
+    if (!selected || !studentSummary.length) return;
+    try {
+      const r = await attendanceAPI.getSessionDetail(selected.id, markDate);
+      const existing = r.data.data || [];
+      const map = {};
+      studentSummary.forEach(({ student }) => { map[student.id] = 'PRESENT'; });
+      existing.forEach(rec => { map[rec.studentId] = rec.status; });
+      setStatuses(map);
+    } catch {
+      // No records for this date yet — default everyone to PRESENT
+      const map = {};
+      studentSummary.forEach(({ student }) => { map[student.id] = 'PRESENT'; });
+      setStatuses(map);
+    }
+  }, [selected, markDate, studentSummary]);
+
+  useEffect(() => {
+    if (view === 'mark') loadMarkSession();
+  }, [view, markDate, loadMarkSession]);
+
+  const toggleStatus = (studentId) =>
+    setStatuses(prev => ({ ...prev, [studentId]: STATUS_CYCLE[prev[studentId]] || 'PRESENT' }));
+
+  const saveAttendance = async () => {
+    if (!selected || !Object.keys(statuses).length) return;
+    setSaving(true);
+    try {
+      const records = Object.entries(statuses).map(([studentId, status]) => ({ studentId, status }));
+      await attendanceAPI.mark({ offeringId: selected.id, date: markDate, records });
+      toast.success('Attendance saved');
+      // Refresh summary data
+      const [sessR, studR] = await Promise.all([
+        attendanceAPI.getSessions(selected.id),
+        attendanceAPI.getStudentSummary(selected.id),
+      ]);
+      setSessions(sessR.data.data || []);
+      setStudentSummary(studR.data.data || []);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save attendance');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Derived stats
+  const totalSessions = sessions.length;
+  const totalStudents = studentSummary.length;
+  const avgAttendance = sessions.length
+    ? Math.round(sessions.reduce((s, r) => s + (r.total ? r.present / r.total * 100 : 0), 0) / sessions.length)
     : 0;
+  const atRiskCount = studentSummary.filter(s => s.isAtRisk).length;
 
   const stats = [
-    { icon: Calendar, label: 'Total Classes', value: totalClasses, color: '#3b82f6' },
-    { icon: Users, label: 'Students', value: selectedOffering.students, color: '#06b6d4' },
-    { icon: CheckCircle, label: 'Avg Attendance', value: `${avgAttendance}%`, color: '#10b981' },
-    { icon: AlertCircle, label: 'Low Attendance', value: studentList.filter(s => (s.attended / s.totalClasses) * 100 < 75).length, color: '#ef4444' },
+    { icon: Calendar,     label: 'Total Sessions', value: totalSessions,        color: '#3b82f6' },
+    { icon: Users,        label: 'Students',        value: totalStudents,        color: '#06b6d4' },
+    { icon: CheckCircle,  label: 'Avg Attendance',  value: `${avgAttendance}%`,  color: '#10b981' },
+    { icon: AlertCircle,  label: 'Low Attendance',  value: atRiskCount,          color: '#ef4444' },
   ];
 
-  const toggleStatus = (studentId) => {
-    setStudentStatuses(prev => {
-      const current = prev[studentId];
-      const next = current === 'present' ? 'absent' : current === 'absent' ? 'late' : 'present';
-      return { ...prev, [studentId]: next };
-    });
-  };
+  const offeringLabel = o => `${o.course?.code ?? ''} - ${o.section}`;
 
-  const statusIcon = (status) => {
-    if (status === 'present') return <CheckCircle size={18} className="text-green-600" />;
-    if (status === 'absent') return <XCircle size={18} className="text-red-500" />;
-    return <Clock size={18} className="text-amber-500" />;
-  };
-
-  const statusBadge = (status) => {
-    const styles = {
-      present: 'bg-green-50 text-green-700 border-green-200',
-      absent: 'bg-red-50 text-red-700 border-red-200',
-      late: 'bg-amber-50 text-amber-700 border-amber-200',
-    };
-    return `inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${styles[status]}`;
-  };
-
-  const filteredStudents = studentList.filter(s => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return s.name.toLowerCase().includes(q) || s.rollNo.toLowerCase().includes(q);
+  const filteredStudents = studentSummary.filter(({ student }) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return student.user.name.toLowerCase().includes(q) || student.studentId.toLowerCase().includes(q);
   });
 
   return (
@@ -115,29 +141,30 @@ const TeacherAttendance = () => {
           <h1 className="text-[28px] font-bold text-slate-800 m-0 max-md:text-2xl">Attendance Management</h1>
           <p className="text-sm text-slate-500 m-0 mt-1">Track and manage class attendance</p>
         </div>
-        <button className="inline-flex items-center gap-2 py-2.5 px-5 border-none rounded-lg text-[0.95rem] font-medium cursor-pointer transition-all bg-blue-600 text-white hover:bg-blue-700">
-          <Download size={18} /> Export Report
-        </button>
       </div>
 
-      {/* Course Selector */}
+      {/* Offering selector + view switcher */}
       <div className="bg-white rounded-2xl shadow-sm p-4 mb-5 flex items-center gap-3 max-sm:flex-col">
-        <div className="flex gap-2 overflow-x-auto flex-1 max-sm:w-full">
-          {offerings.map(o => (
-            <button
-              key={o.id}
-              onClick={() => setSelectedOffering(o)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all cursor-pointer border ${
-                selectedOffering.id === o.id
-                  ? 'bg-blue-50 border-blue-200 text-blue-700'
-                  : 'bg-white border-gray-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {o.code} - {o.section}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2 max-sm:w-full">
+        {offerings.length === 0 ? (
+          <p className="text-sm text-slate-400 flex-1">No offerings assigned</p>
+        ) : (
+          <div className="flex gap-2 overflow-x-auto flex-1 max-sm:w-full">
+            {offerings.map(o => (
+              <button
+                key={o.id}
+                onClick={() => setSelected(o)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all cursor-pointer border ${
+                  selected?.id === o.id
+                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    : 'bg-white border-gray-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {offeringLabel(o)}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2 max-sm:w-full shrink-0">
           {['summary', 'mark', 'students'].map(v => (
             <button
               key={v}
@@ -148,7 +175,7 @@ const TeacherAttendance = () => {
                   : 'bg-white border-gray-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              {v === 'mark' ? 'Mark Today' : v}
+              {v === 'mark' ? 'Mark' : v}
             </button>
           ))}
         </div>
@@ -156,155 +183,184 @@ const TeacherAttendance = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-5 mb-6 max-sm:grid-cols-2">
-        {stats.map((stat, i) => (
+        {stats.map((s, i) => (
           <div key={i} className="bg-white rounded-2xl p-5 flex items-center gap-3 shadow-sm">
             <div className="w-12 h-12 rounded-xl flex items-center justify-center"
-              style={{ backgroundColor: `${stat.color}15`, color: stat.color }}>
-              <stat.icon size={22} />
+              style={{ backgroundColor: `${s.color}15`, color: s.color }}>
+              <s.icon size={22} />
             </div>
             <div>
-              <p className="text-xs text-slate-500 m-0 mb-0.5 font-medium">{stat.label}</p>
-              <h3 className="text-2xl font-bold text-slate-800 m-0">{stat.value}</h3>
+              <p className="text-xs text-slate-500 m-0 mb-0.5 font-medium">{s.label}</p>
+              <h3 className="text-2xl font-bold text-slate-800 m-0">{s.value}</h3>
             </div>
           </div>
         ))}
       </div>
 
+      {loading && (
+        <div className="bg-white rounded-2xl shadow-sm p-10 text-center text-slate-400 text-sm">Loading…</div>
+      )}
+
       {/* Summary View */}
-      {view === 'summary' && (
+      {!loading && view === 'summary' && (
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h2 className="text-lg font-bold text-slate-800 m-0 mb-4">
-            {selectedOffering.code} - {selectedOffering.name} (Section {selectedOffering.section})
+            Session History — {selected ? offeringLabel(selected) : ''}
           </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
-                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Present</th>
-                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Absent</th>
-                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Late</th>
-                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r, i) => {
-                  const rate = Math.round((r.present / r.total) * 100);
-                  return (
-                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-3 text-sm font-medium text-slate-700">
-                        {new Date(r.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right">
-                        <span className="text-green-600 font-medium">{r.present}</span>
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right">
-                        <span className="text-red-500 font-medium">{r.absent}</span>
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right">
-                        <span className="text-amber-500 font-medium">{r.late}</span>
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right">
-                        <div className="inline-flex items-center gap-2">
-                          <div className="w-16 bg-slate-100 rounded-full h-1.5">
-                            <div
-                              className={`h-1.5 rounded-full ${rate >= 90 ? 'bg-green-500' : rate >= 75 ? 'bg-amber-500' : 'bg-red-500'}`}
-                              style={{ width: `${rate}%` }}
-                            />
+          {sessions.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-8">No attendance sessions recorded yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    {['Date', 'Present', 'Absent', 'Late', 'Rate'].map(h => (
+                      <th key={h} className={`py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider ${h === 'Date' ? 'text-left' : 'text-right'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessions.map((r, i) => {
+                    const rate = r.total ? Math.round(r.present / r.total * 100) : 0;
+                    return (
+                      <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3 px-3 text-sm font-medium text-slate-700">
+                          {new Date(r.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </td>
+                        <td className="py-3 px-3 text-sm text-right text-green-600 font-medium">{r.present}</td>
+                        <td className="py-3 px-3 text-sm text-right text-red-500 font-medium">{r.absent}</td>
+                        <td className="py-3 px-3 text-sm text-right text-amber-500 font-medium">{r.late}</td>
+                        <td className="py-3 px-3 text-sm text-right">
+                          <div className="inline-flex items-center gap-2">
+                            <div className="w-16 bg-slate-100 rounded-full h-1.5">
+                              <div className={`h-1.5 rounded-full ${rate >= 90 ? 'bg-green-500' : rate >= 75 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                style={{ width: `${rate}%` }} />
+                            </div>
+                            <span className="font-medium text-slate-700">{rate}%</span>
                           </div>
-                          <span className="font-medium text-slate-700">{rate}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Mark Attendance View */}
-      {view === 'mark' && (
+      {/* Mark View */}
+      {!loading && view === 'mark' && (
         <div className="bg-white rounded-2xl shadow-sm p-6">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-5 max-sm:flex-col max-sm:items-start max-sm:gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-800 m-0">Mark Attendance</h2>
-              <p className="text-sm text-slate-500 m-0 mt-1">{markDate} &middot; {selectedOffering.code} Section {selectedOffering.section}</p>
+              <p className="text-sm text-slate-500 m-0 mt-1">{selected ? offeringLabel(selected) : ''}</p>
             </div>
-            <button className="inline-flex items-center gap-2 py-2.5 px-5 border-none rounded-lg text-[0.95rem] font-medium cursor-pointer transition-all bg-green-600 text-white hover:bg-green-700">
-              <CheckCircle size={18} /> Save Attendance
-            </button>
+            <div className="flex items-center gap-3">
+              <input
+                type="date"
+                value={markDate}
+                max={TODAY}
+                onChange={e => setMarkDate(e.target.value)}
+                className="py-2 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/10"
+              />
+              <button
+                onClick={saveAttendance}
+                disabled={saving || !Object.keys(statuses).length}
+                className="inline-flex items-center gap-2 py-2.5 px-5 border-none rounded-lg text-[0.95rem] font-medium cursor-pointer transition-all bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CheckCircle size={18} /> {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
           </div>
 
           <div className="relative mb-4">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search student..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search student…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
               className="w-full py-2.5 pl-10 pr-4 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/10"
             />
           </div>
 
-          <div className="space-y-2">
-            {filteredStudents.map((s) => (
-              <div
-                key={s.id}
-                onClick={() => toggleStatus(s.id)}
-                className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50/50 cursor-pointer transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-sm font-semibold text-slate-600">
-                    {s.name.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-700 m-0">{s.name}</p>
-                    <p className="text-xs text-slate-400 m-0">{s.rollNo}</p>
-                  </div>
-                </div>
-                <div className={statusBadge(studentStatuses[s.id])}>
-                  {statusIcon(studentStatuses[s.id])}
-                  {studentStatuses[s.id]}
-                </div>
+          {filteredStudents.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-8">No students enrolled.</p>
+          ) : (
+            <>
+              {/* Quick-select row */}
+              <div className="flex gap-2 mb-3">
+                {['PRESENT', 'ABSENT', 'LATE'].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => {
+                      const map = {};
+                      filteredStudents.forEach(({ student }) => { map[student.id] = s; });
+                      setStatuses(prev => ({ ...prev, ...map }));
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-slate-600 hover:bg-slate-50 cursor-pointer transition-all"
+                  >
+                    All {s.charAt(0) + s.slice(1).toLowerCase()}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
+
+              <div className="space-y-2">
+                {filteredStudents.map(({ student }) => (
+                  <div
+                    key={student.id}
+                    onClick={() => toggleStatus(student.id)}
+                    className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50/50 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-sm font-semibold text-slate-600">
+                        {student.user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-700 m-0">{student.user.name}</p>
+                        <p className="text-xs text-slate-400 m-0">{student.studentId}</p>
+                      </div>
+                    </div>
+                    <StatusBadge status={statuses[student.id] || 'PRESENT'} />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* Students Overview */}
-      {view === 'students' && (
+      {/* Students View */}
+      {!loading && view === 'students' && (
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h2 className="text-lg font-bold text-slate-800 m-0 mb-4">Student Attendance Overview</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Student</th>
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Roll No</th>
-                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Attended</th>
-                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Total</th>
-                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rate</th>
-                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {studentList.map((s) => {
-                  const rate = Math.round((s.attended / s.totalClasses) * 100);
-                  const danger = rate < 75;
-                  return (
-                    <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-3 text-sm font-medium text-slate-700">{s.name}</td>
-                      <td className="py-3 px-3 text-sm text-slate-500">{s.rollNo}</td>
-                      <td className="py-3 px-3 text-sm text-right text-slate-600">{s.attended}</td>
-                      <td className="py-3 px-3 text-sm text-right text-slate-600">{s.totalClasses}</td>
+          {studentSummary.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-8">No students enrolled.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    {['Student', 'Roll No', 'Present', 'Absent', 'Late', 'Rate', 'Status'].map((h, i) => (
+                      <th key={h} className={`py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider ${i < 2 ? 'text-left' : 'text-right'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {studentSummary.map(({ student, present, absent, late, percentage, isAtRisk }, i) => (
+                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 px-3 text-sm font-medium text-slate-700">{student.user.name}</td>
+                      <td className="py-3 px-3 text-sm text-slate-500">{student.studentId}</td>
+                      <td className="py-3 px-3 text-sm text-right text-green-600 font-medium">{present}</td>
+                      <td className="py-3 px-3 text-sm text-right text-red-500 font-medium">{absent}</td>
+                      <td className="py-3 px-3 text-sm text-right text-amber-500 font-medium">{late}</td>
                       <td className="py-3 px-3 text-sm text-right">
-                        <span className={`font-semibold ${danger ? 'text-red-600' : 'text-green-600'}`}>{rate}%</span>
+                        <span className={`font-semibold ${isAtRisk ? 'text-red-600' : 'text-green-600'}`}>{percentage}%</span>
                       </td>
                       <td className="py-3 px-3 text-sm text-right">
-                        {danger ? (
+                        {isAtRisk ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-600 border border-red-200">
                             <AlertCircle size={12} /> At Risk
                           </span>
@@ -315,11 +371,11 @@ const TeacherAttendance = () => {
                         )}
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

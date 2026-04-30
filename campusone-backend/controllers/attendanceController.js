@@ -1,0 +1,197 @@
+import prisma from '../prisma/client.js';
+
+// ─── TEACHER ENDPOINTS ────────────────────────────────────────────────────────
+
+// POST /api/attendance
+// Body: { offeringId, date, records: [{ studentId, status }] }
+export const markAttendance = async (req, res) => {
+  try {
+    const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+    if (!teacher) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+
+    const { offeringId, date, records } = req.body;
+    if (!offeringId || !date || !Array.isArray(records) || records.length === 0) {
+      return res.status(400).json({ success: false, message: 'offeringId, date, and records[] are required' });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ success: false, message: 'date must be in YYYY-MM-DD format' });
+    }
+
+    const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher.id } });
+    if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
+
+    await Promise.all(records.map(({ studentId, status }) =>
+      prisma.attendance.upsert({
+        where: { offeringId_studentId_date: { offeringId, studentId, date } },
+        create: { offeringId, studentId, date, status, markedBy: teacher.id },
+        update: { status, markedBy: teacher.id },
+      })
+    ));
+
+    res.json({ success: true, count: records.length, message: `Attendance saved for ${records.length} students` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// GET /api/attendance/offering/:offeringId/sessions
+export const getSessions = async (req, res) => {
+  try {
+    const { offeringId } = req.params;
+
+    if (req.user.role === 'teacher') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+      const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher?.id } });
+      if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
+    }
+
+    // Group by date + status using Prisma groupBy
+    const grouped = await prisma.attendance.groupBy({
+      by: ['date', 'status'],
+      where: { offeringId },
+      _count: { _all: true },
+      orderBy: { date: 'desc' },
+    });
+
+    const sessions = {};
+    for (const row of grouped) {
+      if (!sessions[row.date]) sessions[row.date] = { date: row.date, present: 0, absent: 0, late: 0, total: 0 };
+      sessions[row.date][row.status.toLowerCase()] = row._count._all;
+      sessions[row.date].total += row._count._all;
+    }
+
+    res.json({ success: true, data: Object.values(sessions).sort((a, b) => b.date.localeCompare(a.date)) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// GET /api/attendance/offering/:offeringId/sessions/:date
+export const getSessionDetail = async (req, res) => {
+  try {
+    const { offeringId, date } = req.params;
+
+    if (req.user.role === 'teacher') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+      const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher?.id } });
+      if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
+    }
+
+    const records = await prisma.attendance.findMany({
+      where: { offeringId, date },
+      include: {
+        student: { select: { id: true, studentId: true, user: { select: { name: true } } } },
+      },
+      orderBy: { student: { studentId: 'asc' } },
+    });
+
+    res.json({ success: true, data: records });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// GET /api/attendance/offering/:offeringId/students
+export const getStudentSummary = async (req, res) => {
+  try {
+    const { offeringId } = req.params;
+
+    if (req.user.role === 'teacher') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+      const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher?.id } });
+      if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
+    }
+
+    const enrollments = await prisma.enrollment.findMany({
+      where: { offeringId, status: { in: ['ENROLLED', 'COMPLETED'] } },
+      include: { student: { select: { id: true, studentId: true, user: { select: { name: true } } } } },
+    });
+
+    const allAttendance = await prisma.attendance.findMany({ where: { offeringId } });
+    const uniqueDates = [...new Set(allAttendance.map(a => a.date))];
+    const totalSessions = uniqueDates.length;
+
+    const summary = enrollments.map(({ student }) => {
+      const records = allAttendance.filter(a => a.studentId === student.id);
+      const present = records.filter(r => r.status === 'PRESENT').length;
+      const absent  = records.filter(r => r.status === 'ABSENT').length;
+      const late    = records.filter(r => r.status === 'LATE').length;
+      const percentage = totalSessions > 0 ? Math.round((present + late) / totalSessions * 100) : 100;
+      return { student, totalSessions, present, absent, late, percentage, isAtRisk: percentage < 75 };
+    });
+
+    res.json({ success: true, data: summary });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── STUDENT ENDPOINT ─────────────────────────────────────────────────────────
+
+// GET /api/attendance/my
+export const getMyAttendance = async (req, res) => {
+  try {
+    const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+
+    const enrollments = await prisma.enrollment.findMany({
+      where: { studentId: student.id, status: { in: ['ENROLLED', 'COMPLETED'] } },
+      include: {
+        offering: {
+          include: {
+            course:  { select: { code: true, title: true } },
+            term:    { select: { code: true, season: true, academicYear: true } },
+            teacher: { select: { user: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+
+    if (!enrollments.length) return res.json({ success: true, data: [] });
+
+    const offeringIds = enrollments.map(e => e.offeringId);
+
+    // Fetch all attendance in two queries (no N+1)
+    const [myRecords, allSessions] = await Promise.all([
+      prisma.attendance.findMany({
+        where: { offeringId: { in: offeringIds }, studentId: student.id },
+        orderBy: { date: 'desc' },
+      }),
+      prisma.attendance.findMany({
+        where: { offeringId: { in: offeringIds } },
+        select: { offeringId: true, date: true },
+        distinct: ['offeringId', 'date'],
+      }),
+    ]);
+
+    const result = enrollments.map(({ offering }) => {
+      const records       = myRecords.filter(r => r.offeringId === offering.id);
+      const totalSessions = allSessions.filter(s => s.offeringId === offering.id).length;
+      const present  = records.filter(r => r.status === 'PRESENT').length;
+      const absent   = records.filter(r => r.status === 'ABSENT').length;
+      const late     = records.filter(r => r.status === 'LATE').length;
+      const percentage = totalSessions > 0 ? Math.round((present + late) / totalSessions * 100) : 100;
+
+      return {
+        offering: {
+          id:      offering.id,
+          section: offering.section,
+          course:  offering.course,
+          term:    offering.term,
+          teacher: offering.teacher.user.name,
+        },
+        totalSessions,
+        present,
+        absent,
+        late,
+        percentage,
+        isAtRisk: percentage < 75,
+        records: records.slice(0, 20),
+      };
+    });
+
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

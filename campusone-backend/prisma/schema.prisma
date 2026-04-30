@@ -81,6 +81,7 @@ model Student {
 
   enrollments           Enrollment[]
   submissions           Submission[]
+  attendances           Attendance[]
 
   // Personal Info
   phone                 String?
@@ -444,6 +445,7 @@ model CourseOffering {
   teacher      Teacher  @relation(fields: [teacherId], references: [id])
   enrollments  Enrollment[]
   assignments  Assignment[]
+  attendances  Attendance[]
 
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
@@ -533,6 +535,33 @@ model Assignment {
   @@index([offeringId])
   @@index([dueDate])
   @@index([status])
+}
+
+// ============ ATTENDANCE MANAGEMENT ============
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+}
+
+model Attendance {
+  id         String           @id @default(cuid())
+  offeringId String
+  studentId  String
+  date       String           // YYYY-MM-DD
+  status     AttendanceStatus @default(PRESENT)
+  markedBy   String           // teacher id
+
+  offering   CourseOffering   @relation(fields: [offeringId], references: [id])
+  student    Student          @relation(fields: [studentId], references: [id])
+
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([offeringId, studentId, date])
+  @@index([offeringId, date])
+  @@index([studentId])
 }
 
 model Submission {
