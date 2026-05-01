@@ -467,6 +467,54 @@ export const sendAnnouncementEmail = async ({ email, name, title, content, prior
   });
 };
 
+/**
+ * Send Q&A new-question notification email to teachers
+ */
+export const sendQnaQuestionEmail = async ({ email, teacherName, askerName, courseCode, courseTitle, questionTitle, questionBody, threadUrl }) => {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; }
+        .question-box { background: white; border-left: 4px solid #2563eb; padding: 15px; margin: 20px 0; border-radius: 4px; }
+        .question-title { font-size: 18px; font-weight: bold; color: #1f2937; margin-bottom: 8px; }
+        .meta { color: #6b7280; font-size: 13px; margin-bottom: 12px; }
+        .body-text { white-space: pre-wrap; word-wrap: break-word; color: #374151; }
+        .cta { display: inline-block; background: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-top: 15px; }
+        .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
+      </style>
+    </head>
+    <body>
+      <div class="header"><h1 style="margin: 0;">❓ New Question</h1></div>
+      <div class="content">
+        <p>Hello <strong>${teacherName}</strong>,</p>
+        <p>A student has posted a new question in your course <strong>${courseCode} — ${courseTitle}</strong>.</p>
+        <div class="question-box">
+          <div class="question-title">${questionTitle}</div>
+          <div class="meta">Asked by ${askerName}</div>
+          <div class="body-text">${questionBody}</div>
+        </div>
+        <p><a href="${threadUrl}" class="cta">Open in Portal &rarr;</a></p>
+        <p style="color: #6b7280; font-size: 13px; margin-top: 20px;">Log in to CampusOne to reply.</p>
+      </div>
+      <div class="footer"><p>© ${new Date().getFullYear()} CampusOne. All rights reserved.</p></div>
+    </body>
+    </html>
+  `;
+
+  const text = `Hello ${teacherName},\n\nA student has posted a new question in your course ${courseCode} — ${courseTitle}.\n\nTitle: ${questionTitle}\nAsked by: ${askerName}\n\n${questionBody}\n\nReply in the portal: ${threadUrl}\n\n— CampusOne`;
+
+  return sendEmail({
+    to: email,
+    subject: `[Q&A · ${courseCode}] ${questionTitle}`,
+    html,
+    text,
+  });
+};
+
 export default {
   generateOTP,
   sendOTPEmail,
@@ -476,4 +524,5 @@ export default {
   sendApplicationAcceptanceEmail,
   sendApplicationRejectionEmail,
   sendAnnouncementEmail,
+  sendQnaQuestionEmail,
 };

@@ -1,389 +1,633 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  HelpCircle,
-  Plus,
-  Search,
-  Clock,
-  Users,
-  CheckCircle,
-  AlertCircle,
-  ChevronDown,
-  ChevronUp,
-  Play,
-  Eye,
-  Edit3,
-  Trash2,
-  Trophy,
-  Timer,
-  BarChart3,
-  Copy,
+  HelpCircle, Plus, Search, Calendar, Clock, Users, Edit3, Trash2,
+  Eye, X, Loader2, Award, FileSpreadsheet, ListChecks,
 } from 'lucide-react';
+import { quizAPI, offeringAPI } from '../../utils/api';
+import toast from 'react-hot-toast';
 
-const offerings = [
-  { id: 1, code: 'CS101', name: 'Intro to Programming', section: 'A' },
-  { id: 2, code: 'CS201', name: 'Data Structures', section: 'A' },
-  { id: 3, code: 'CS301', name: 'Algorithms', section: 'B' },
-];
-
-const quizzes = [
-  {
-    id: 1,
-    title: 'Quiz 1: Basics of Programming',
-    courseCode: 'CS101',
-    courseName: 'Intro to Programming',
-    section: 'A',
-    questions: 15,
-    duration: 30,
-    totalMarks: 30,
-    startDate: '2026-02-10',
-    endDate: '2026-02-10',
-    attempts: 43,
-    totalStudents: 45,
-    avgScore: 24.5,
-    highestScore: 30,
-    lowestScore: 12,
-    status: 'completed',
-  },
-  {
-    id: 2,
-    title: 'Quiz 2: Loops & Arrays',
-    courseCode: 'CS101',
-    courseName: 'Intro to Programming',
-    section: 'A',
-    questions: 20,
-    duration: 40,
-    totalMarks: 40,
-    startDate: '2026-02-20',
-    endDate: '2026-02-20',
-    attempts: 0,
-    totalStudents: 45,
-    avgScore: null,
-    highestScore: null,
-    lowestScore: null,
-    status: 'scheduled',
-  },
-  {
-    id: 3,
-    title: 'Quiz 1: Arrays & Pointers Review',
-    courseCode: 'CS201',
-    courseName: 'Data Structures',
-    section: 'A',
-    questions: 10,
-    duration: 20,
-    totalMarks: 20,
-    startDate: '2026-02-12',
-    endDate: '2026-02-12',
-    attempts: 38,
-    totalStudents: 38,
-    avgScore: 16.2,
-    highestScore: 20,
-    lowestScore: 8,
-    status: 'completed',
-  },
-  {
-    id: 4,
-    title: 'Quiz 2: Trees & Graphs',
-    courseCode: 'CS201',
-    courseName: 'Data Structures',
-    section: 'A',
-    questions: 15,
-    duration: 30,
-    totalMarks: 30,
-    startDate: '2026-02-25',
-    endDate: '2026-02-25',
-    attempts: 0,
-    totalStudents: 38,
-    avgScore: null,
-    highestScore: null,
-    lowestScore: null,
-    status: 'draft',
-  },
-  {
-    id: 5,
-    title: 'Midterm Quiz: Complexity & Sorting',
-    courseCode: 'CS301',
-    courseName: 'Algorithms',
-    section: 'B',
-    questions: 25,
-    duration: 45,
-    totalMarks: 50,
-    startDate: '2026-02-16',
-    endDate: '2026-02-16',
-    attempts: 28,
-    totalStudents: 32,
-    avgScore: null,
-    highestScore: null,
-    lowestScore: null,
-    status: 'active',
-  },
-];
-
-const statusConfig = {
-  active: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', label: 'Live Now' },
-  scheduled: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', label: 'Scheduled' },
-  completed: { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', label: 'Completed' },
-  draft: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', label: 'Draft' },
+const STATUS_CONFIG = {
+  DRAFT:     { bg: 'bg-amber-50',  text: 'text-amber-700',  label: 'Draft' },
+  PUBLISHED: { bg: 'bg-blue-50',   text: 'text-blue-700',   label: 'Published' },
+  CLOSED:    { bg: 'bg-slate-50',  text: 'text-slate-700',  label: 'Closed' },
 };
 
-const TeacherQuizzes = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCourse, setFilterCourse] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [expandedId, setExpandedId] = useState(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
-  const filtered = quizzes.filter(q => {
-    if (filterCourse && q.courseCode !== filterCourse) return false;
-    if (filterStatus && q.status !== filterStatus) return false;
-    if (searchQuery) {
-      const s = searchQuery.toLowerCase();
-      return q.title.toLowerCase().includes(s) || q.courseCode.toLowerCase().includes(s);
-    }
-    return true;
-  });
-
-  const totalQuizzes = quizzes.length;
-  const activeCount = quizzes.filter(q => q.status === 'active').length;
-  const completedCount = quizzes.filter(q => q.status === 'completed').length;
-  const scheduledCount = quizzes.filter(q => q.status === 'scheduled').length;
-
-  const stats = [
-    { icon: HelpCircle, label: 'Total Quizzes', value: totalQuizzes, color: '#3b82f6' },
-    { icon: Play, label: 'Live Now', value: activeCount, color: '#10b981' },
-    { icon: Clock, label: 'Scheduled', value: scheduledCount, color: '#06b6d4' },
-    { icon: CheckCircle, label: 'Completed', value: completedCount, color: '#8b5cf6' },
-  ];
+// ─── Question Editor ────────────────────────────────────────────────────────
+const QuestionEditor = ({ question, index, onChange, onRemove }) => {
+  const set = (k, v) => onChange({ ...question, [k]: v });
+  const setOption = (i, v) => {
+    const opts = [...(question.options || ['', '', '', ''])];
+    opts[i] = v;
+    set('options', opts);
+  };
 
   return (
-    <div className="max-w-[1400px] mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 max-sm:flex-col max-sm:items-start max-sm:gap-3">
-        <div>
-          <h1 className="text-[28px] font-bold text-slate-800 m-0 max-md:text-2xl">Quiz Management</h1>
-          <p className="text-sm text-slate-500 m-0 mt-1">Create and manage course quizzes</p>
-        </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 py-2.5 px-5 border-none rounded-lg text-[0.95rem] font-medium cursor-pointer transition-all bg-blue-600 text-white hover:bg-blue-700"
-        >
-          <Plus size={18} /> Create Quiz
-        </button>
+    <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="font-semibold text-slate-700">Q{index + 1}</div>
+        <button type="button" onClick={onRemove} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={16} /></button>
       </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-5 mb-6 max-sm:grid-cols-2">
-        {stats.map((stat, i) => (
-          <div key={i} className="bg-white rounded-2xl p-5 flex items-center gap-3 shadow-sm">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center"
-              style={{ backgroundColor: `${stat.color}15`, color: stat.color }}>
-              <stat.icon size={22} />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 m-0 mb-0.5 font-medium">{stat.label}</p>
-              <h3 className="text-2xl font-bold text-slate-800 m-0">{stat.value}</h3>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Search & Filters */}
-      <div className="bg-white rounded-2xl shadow-sm p-4 mb-5 flex items-center gap-3 max-sm:flex-col">
-        <div className="flex-1 relative max-sm:w-full">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search quizzes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full py-2.5 pl-10 pr-4 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/10"
-          />
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
         <select
-          value={filterCourse}
-          onChange={(e) => setFilterCourse(e.target.value)}
-          className="py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] bg-white focus:outline-none focus:border-blue-500"
+          value={question.type}
+          onChange={(e) => {
+            const newType = e.target.value;
+            const opts = newType === 'TRUE_FALSE' ? ['True', 'False'] : (newType === 'MCQ' ? ['', '', '', ''] : []);
+            onChange({ ...question, type: newType, options: opts, correctAnswer: newType === 'SHORT' ? '' : 0 });
+          }}
+          className="py-2 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
         >
-          <option value="">All Courses</option>
-          {offerings.map(o => (
-            <option key={o.id} value={o.code}>{o.code} - {o.section}</option>
+          <option value="MCQ">Multiple Choice</option>
+          <option value="TRUE_FALSE">True / False</option>
+          <option value="SHORT">Short Answer</option>
+        </select>
+        <input
+          type="number" min="1" step="0.5"
+          value={question.marks}
+          onChange={(e) => set('marks', +e.target.value)}
+          placeholder="Marks"
+          className="py-2 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+        />
+      </div>
+      <textarea
+        value={question.questionText}
+        onChange={(e) => set('questionText', e.target.value)}
+        placeholder="Question text…"
+        rows={2}
+        className="w-full py-2 px-3 border border-gray-200 rounded-lg text-sm mb-3 focus:outline-none focus:border-blue-500 resize-none"
+      />
+
+      {question.type === 'MCQ' && (
+        <div className="space-y-2">
+          {(question.options || ['', '', '', '']).map((opt, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="radio" name={`correct-${index}`}
+                checked={question.correctAnswer === i}
+                onChange={() => set('correctAnswer', i)}
+              />
+              <input
+                value={opt}
+                onChange={(e) => setOption(i, e.target.value)}
+                placeholder={`Option ${String.fromCharCode(65 + i)}`}
+                className="flex-1 py-1.5 px-3 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
           ))}
-        </select>
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] bg-white focus:outline-none focus:border-blue-500"
-        >
-          <option value="">All Status</option>
-          <option value="active">Live</option>
-          <option value="scheduled">Scheduled</option>
-          <option value="completed">Completed</option>
-          <option value="draft">Draft</option>
-        </select>
-      </div>
-
-      {/* Quiz Cards */}
-      <div className="space-y-3">
-        {filtered.map((q) => {
-          const expanded = expandedId === q.id;
-          const sc = statusConfig[q.status];
-          return (
-            <div key={q.id} className="bg-white rounded-2xl shadow-sm overflow-hidden transition-all">
-              <div
-                className="p-5 flex items-center gap-4 cursor-pointer hover:bg-slate-50/50 transition-colors max-sm:flex-col max-sm:items-start"
-                onClick={() => setExpandedId(expanded ? null : q.id)}
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                  q.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-purple-50 text-purple-600'
-                }`}>
-                  <HelpCircle size={20} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h3 className="text-[0.95rem] font-semibold text-slate-800 m-0 truncate">{q.title}</h3>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
-                      {q.status === 'active' && <span className="inline-block w-1.5 h-1.5 bg-green-500 rounded-full mr-1 animate-pulse" />}
-                      {sc.label}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-slate-500">
-                    <span>{q.courseCode} - {q.courseName} (Sec {q.section})</span>
-                    <span>&middot;</span>
-                    <span className="flex items-center gap-1"><Timer size={12} /> {q.duration} min</span>
-                    <span>&middot;</span>
-                    <span>{q.questions} questions</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 max-sm:w-full max-sm:justify-between">
-                  <div className="text-right">
-                    <p className="text-xs text-slate-500 m-0">Attempts</p>
-                    <p className="text-sm font-semibold text-slate-700 m-0">{q.attempts}/{q.totalStudents}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-slate-500 m-0">Total Marks</p>
-                    <p className="text-sm font-semibold text-slate-700 m-0">{q.totalMarks}</p>
-                  </div>
-                  {expanded ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
-                </div>
-              </div>
-              {expanded && (
-                <div className="px-5 pb-5 border-t border-slate-100 pt-4">
-                  <div className="grid grid-cols-3 gap-4 mb-4 max-sm:grid-cols-1">
-                    <div className="bg-slate-50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-slate-500 m-0 mb-1">Average Score</p>
-                      <p className="text-lg font-bold text-slate-800 m-0">
-                        {q.avgScore !== null ? `${q.avgScore}/${q.totalMarks}` : '—'}
-                      </p>
-                    </div>
-                    <div className="bg-green-50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-green-600 m-0 mb-1">Highest Score</p>
-                      <p className="text-lg font-bold text-green-700 m-0">
-                        {q.highestScore !== null ? q.highestScore : '—'}
-                      </p>
-                    </div>
-                    <div className="bg-red-50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-red-500 m-0 mb-1">Lowest Score</p>
-                      <p className="text-lg font-bold text-red-600 m-0">
-                        {q.lowestScore !== null ? q.lowestScore : '—'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-slate-500 mb-4">
-                    <span>Scheduled: {q.startDate}</span>
-                    {q.endDate !== q.startDate && <span>to {q.endDate}</span>}
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <button className="inline-flex items-center gap-1.5 py-2 px-4 border border-gray-200 rounded-lg text-sm font-medium cursor-pointer transition-all bg-white text-slate-700 hover:bg-slate-50">
-                      <Eye size={16} /> View Results
-                    </button>
-                    <button className="inline-flex items-center gap-1.5 py-2 px-4 border border-gray-200 rounded-lg text-sm font-medium cursor-pointer transition-all bg-white text-slate-700 hover:bg-slate-50">
-                      <BarChart3 size={16} /> Analytics
-                    </button>
-                    <button className="inline-flex items-center gap-1.5 py-2 px-4 border border-gray-200 rounded-lg text-sm font-medium cursor-pointer transition-all bg-white text-slate-700 hover:bg-slate-50">
-                      <Copy size={16} /> Duplicate
-                    </button>
-                    <button className="inline-flex items-center gap-1.5 py-2 px-4 border border-gray-200 rounded-lg text-sm font-medium cursor-pointer transition-all bg-white text-slate-700 hover:bg-slate-50">
-                      <Edit3 size={16} /> Edit
-                    </button>
-                    <button className="inline-flex items-center gap-1.5 py-2 px-4 border border-red-200 rounded-lg text-sm font-medium cursor-pointer transition-all bg-white text-red-600 hover:bg-red-50">
-                      <Trash2 size={16} /> Delete
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {filtered.length === 0 && (
-        <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
-          <HelpCircle size={48} className="mx-auto text-slate-300 mb-3" />
-          <h3 className="text-lg font-semibold text-slate-700 m-0 mb-1">No quizzes found</h3>
-          <p className="text-sm text-slate-500 m-0">Try adjusting your filters or create a new quiz.</p>
+          <p className="text-xs text-slate-500">Select the radio next to the correct answer.</p>
         </div>
       )}
 
-      {/* Create Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-100">
-              <h2 className="text-xl font-bold text-slate-800 m-0">Create Quiz</h2>
+      {question.type === 'TRUE_FALSE' && (
+        <div className="flex gap-4">
+          <label className="flex items-center gap-2"><input type="radio" name={`tf-${index}`} checked={question.correctAnswer === 0} onChange={() => set('correctAnswer', 0)} /> True</label>
+          <label className="flex items-center gap-2"><input type="radio" name={`tf-${index}`} checked={question.correctAnswer === 1} onChange={() => set('correctAnswer', 1)} /> False</label>
+        </div>
+      )}
+
+      {question.type === 'SHORT' && (
+        <input
+          value={question.correctAnswer || ''}
+          onChange={(e) => set('correctAnswer', e.target.value)}
+          placeholder="Expected answer (for grading reference)…"
+          className="w-full py-2 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+        />
+      )}
+    </div>
+  );
+};
+
+// ─── Quiz Modal ─────────────────────────────────────────────────────────────
+const QuizModal = ({ offerings, initial, onClose, onSave }) => {
+  const [form, setForm] = useState({
+    offeringId: initial?.offeringId ?? '',
+    title: initial?.title ?? '',
+    description: initial?.description ?? '',
+    durationMinutes: initial?.durationMinutes ?? 30,
+    startAt: initial?.startAt ? new Date(initial.startAt).toISOString().slice(0, 16) : '',
+    endAt: initial?.endAt ? new Date(initial.endAt).toISOString().slice(0, 16) : '',
+    status: initial?.status ?? 'PUBLISHED',
+    shuffleQuestions: initial?.shuffleQuestions ?? false,
+    maxViolations: initial?.maxViolations ?? 3,
+    allowReview: initial?.allowReview ?? true,
+  });
+  const [questions, setQuestions] = useState(initial?.questions || []);
+  const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const addQuestion = (type = 'MCQ') => {
+    const base = { type, questionText: '', marks: 1, options: [], correctAnswer: type === 'SHORT' ? '' : 0 };
+    if (type === 'MCQ') base.options = ['', '', '', ''];
+    if (type === 'TRUE_FALSE') base.options = ['True', 'False'];
+    setQuestions([...questions, base]);
+  };
+
+  const updateQuestion = (i, q) => {
+    const next = [...questions];
+    next[i] = q;
+    setQuestions(next);
+  };
+
+  const removeQuestion = (i) => setQuestions(questions.filter((_, idx) => idx !== i));
+
+  const handleImportExcel = async (file) => {
+    if (!file) return;
+    setImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await quizAPI.importExcel(fd);
+      setQuestions((prev) => [...prev, ...res.data.data]);
+      toast.success(`Imported ${res.data.count} questions`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Import failed');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.offeringId || !form.title || !form.startAt || !form.endAt) {
+      toast.error('Course, title, start, and end times are required');
+      return;
+    }
+    if (questions.length === 0) {
+      toast.error('Add at least one question');
+      return;
+    }
+    if (new Date(form.endAt) <= new Date(form.startAt)) {
+      toast.error('End time must be after start time');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({ ...form, questions });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const totalMarks = questions.reduce((s, q) => s + (Number(q.marks) || 0), 0);
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+          <h2 className="text-xl font-bold text-slate-800 m-0">{initial ? 'Edit Quiz' : 'Create Quiz'}</h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"><X size={20} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Course Offering</label>
+              <select
+                value={form.offeringId}
+                onChange={(e) => set('offeringId', e.target.value)}
+                required disabled={!!initial}
+                className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500 disabled:bg-slate-50"
+              >
+                <option value="">Select course…</option>
+                {offerings.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.course?.code} — {o.course?.title} (Sec {o.section}) · {o.term?.code}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="p-6 space-y-4">
+
+            <div>
+              <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Title</label>
+              <input
+                value={form.title} onChange={(e) => set('title', e.target.value)} required
+                placeholder="Quiz title…"
+                className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Description (optional)</label>
+              <textarea
+                value={form.description} onChange={(e) => set('description', e.target.value)}
+                rows={2}
+                placeholder="Brief instructions for students…"
+                className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500 resize-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Course</label>
-                <select className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500">
-                  {offerings.map(o => (
-                    <option key={o.id}>{o.code} - {o.name} (Sec {o.section})</option>
-                  ))}
+                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Start At</label>
+                <input
+                  type="datetime-local" value={form.startAt} onChange={(e) => set('startAt', e.target.value)} required
+                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">End At</label>
+                <input
+                  type="datetime-local" value={form.endAt} onChange={(e) => set('endAt', e.target.value)} required
+                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Duration (min)</label>
+                <input
+                  type="number" min="1" value={form.durationMinutes}
+                  onChange={(e) => set('durationMinutes', +e.target.value)}
+                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Max Violations</label>
+                <input
+                  type="number" min="1" value={form.maxViolations}
+                  onChange={(e) => set('maxViolations', +e.target.value)}
+                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Status</label>
+                <select
+                  value={form.status} onChange={(e) => set('status', e.target.value)}
+                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
+                >
+                  <option value="DRAFT">Draft</option>
+                  <option value="PUBLISHED">Published</option>
+                  <option value="CLOSED">Closed</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Title</label>
-                <input className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500" placeholder="Quiz title..." />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Questions</label>
-                  <input type="number" className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500" placeholder="15" />
-                </div>
-                <div>
-                  <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Duration (min)</label>
-                  <input type="number" className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500" placeholder="30" />
-                </div>
-                <div>
-                  <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Total Marks</label>
-                  <input type="number" className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500" placeholder="30" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Start Date</label>
-                  <input type="date" className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">End Date</label>
-                  <input type="date" className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500" />
-                </div>
-              </div>
             </div>
-            <div className="p-6 border-t border-slate-100 flex justify-end gap-3">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="py-2.5 px-5 border border-gray-200 rounded-lg text-[0.95rem] font-medium cursor-pointer bg-white text-slate-800 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="py-2.5 px-5 border-none rounded-lg text-[0.95rem] font-medium cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
-              >
-                Create
-              </button>
+
+            <div className="flex flex-wrap items-center gap-6">
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={form.shuffleQuestions} onChange={(e) => set('shuffleQuestions', e.target.checked)} />
+                Shuffle question order
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={form.allowReview} onChange={(e) => set('allowReview', e.target.checked)} />
+                Show answers to students after submit
+              </label>
+            </div>
+
+            <div className="border-t border-slate-100 pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-800 m-0">Questions ({questions.length})</h3>
+                  <p className="text-xs text-slate-500">Total marks: {totalMarks}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-200 rounded-lg cursor-pointer hover:bg-slate-50">
+                    {importing ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
+                    Import Excel
+                    <input type="file" accept=".xlsx,.xls" hidden onChange={(e) => handleImportExcel(e.target.files[0])} />
+                  </label>
+                  <button type="button" onClick={() => addQuestion('MCQ')} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <Plus size={14} /> Add Question
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {questions.map((q, i) => (
+                  <QuestionEditor key={i} question={q} index={i} onChange={(nq) => updateQuestion(i, nq)} onRemove={() => removeQuestion(i)} />
+                ))}
+                {questions.length === 0 && (
+                  <p className="text-center text-slate-500 text-sm py-6 bg-slate-50 rounded-lg">No questions yet. Add one or import from Excel.</p>
+                )}
+              </div>
             </div>
           </div>
+
+          <div className="p-6 border-t border-slate-100 flex justify-end gap-3 sticky bottom-0 bg-white">
+            <button type="button" onClick={onClose} className="px-5 py-2.5 border border-gray-200 rounded-lg text-slate-700 hover:bg-slate-50">Cancel</button>
+            <button type="submit" disabled={saving} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2">
+              {saving && <Loader2 size={16} className="animate-spin" />}
+              {initial ? 'Update Quiz' : 'Create Quiz'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ─── Manual Grade Sub-component ─────────────────────────────────────────────
+const ManualGrade = ({ ans, maxMarks, onSave }) => {
+  const [marks, setMarks] = useState(ans?.marksAwarded ?? 0);
+  const [feedback, setFeedback] = useState(ans?.feedback ?? '');
+  if (!ans) return <p className="text-xs text-slate-400">No answer to grade</p>;
+  return (
+    <div className="flex gap-2 items-end">
+      <div>
+        <label className="block text-xs text-slate-500">Marks</label>
+        <input type="number" min="0" max={maxMarks} step="0.5" value={marks} onChange={(e) => setMarks(+e.target.value)} className="w-20 py-1.5 px-2 border border-gray-200 rounded text-sm" />
+      </div>
+      <div className="flex-1">
+        <label className="block text-xs text-slate-500">Feedback</label>
+        <input value={feedback} onChange={(e) => setFeedback(e.target.value)} className="w-full py-1.5 px-2 border border-gray-200 rounded text-sm" />
+      </div>
+      <button type="button" onClick={() => onSave(marks, feedback)} className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Save</button>
+    </div>
+  );
+};
+
+// ─── Attempt Detail Modal ───────────────────────────────────────────────────
+const AttemptDetailModal = ({ attemptId, onClose, onBack }) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    quizAPI.getAttemptDetail(attemptId).then((r) => setData(r.data.data)).finally(() => setLoading(false));
+  }, [attemptId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const grade = async (answerId, marks, feedback) => {
+    try {
+      await quizAPI.gradeAnswer(answerId, { marksAwarded: marks, feedback });
+      toast.success('Saved');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to grade');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+          <div>
+            <button type="button" onClick={onBack} className="text-sm text-blue-600 mb-1 inline-flex items-center gap-1">← Back</button>
+            <h2 className="text-xl font-bold text-slate-800 m-0">Attempt Detail</h2>
+            {data && <p className="text-sm text-slate-500 mt-1">{data.student.user.name} · Score: {data.totalScore ?? '—'} / {data.quiz.totalMarks} · {data.violations} violations</p>}
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100"><X size={20} /></button>
         </div>
+        <div className="p-6 space-y-4">
+          {loading ? <div className="py-10 text-center"><Loader2 className="animate-spin inline" /></div> : data?.quiz.questions.map((q, idx) => {
+            const ans = data.answers.find((a) => a.questionId === q.id);
+            const correct = q.correctAnswer;
+            const opts = q.options || [];
+
+            return (
+              <div key={q.id} className="border border-slate-200 rounded-lg p-4">
+                <div className="flex justify-between mb-2">
+                  <div className="font-semibold text-slate-800">Q{idx + 1} · {q.type} · {q.marks} marks</div>
+                  <div className={`text-sm font-medium ${ans?.isCorrect ? 'text-green-700' : ans?.isCorrect === false ? 'text-red-700' : 'text-amber-700'}`}>
+                    {ans?.marksAwarded ?? 0} / {q.marks}
+                  </div>
+                </div>
+                <p className="text-slate-700 mb-3">{q.questionText}</p>
+
+                {q.type !== 'SHORT' && (
+                  <div className="text-sm space-y-1">
+                    {opts.map((o, i) => (
+                      <div key={i} className={`px-2 py-1 rounded ${i === correct ? 'bg-green-50 text-green-800' : ''} ${ans?.answer === i && i !== correct ? 'bg-red-50 text-red-800' : ''}`}>
+                        {String.fromCharCode(65 + i)}. {o} {i === correct && '✓ correct'} {ans?.answer === i && '(student)'}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {q.type === 'SHORT' && (
+                  <div className="space-y-2">
+                    <div className="text-xs text-slate-500">Expected: <span className="text-slate-700">{q.correctAnswer}</span></div>
+                    <div className="bg-slate-50 p-2 rounded text-sm">Student: {ans?.answer || <em className="text-slate-400">No answer</em>}</div>
+                    <ManualGrade ans={ans} maxMarks={q.marks} onSave={(m, f) => grade(ans.id, m, f)} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Attempts List Modal ────────────────────────────────────────────────────
+const AttemptsModal = ({ quiz, onClose }) => {
+  const [attempts, setAttempts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    quizAPI.getAttempts(quiz.id).then((r) => setAttempts(r.data.data)).finally(() => setLoading(false));
+  }, [quiz.id]);
+
+  if (selected) {
+    return <AttemptDetailModal attemptId={selected} onClose={onClose} onBack={() => setSelected(null)} />;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto">
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800 m-0">{quiz.title} · Attempts</h2>
+            <p className="text-sm text-slate-500 mt-1">{attempts.length} student attempts</p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100"><X size={20} /></button>
+        </div>
+        <div className="p-6">
+          {loading ? <div className="py-10 text-center"><Loader2 className="animate-spin inline" /></div> : (
+            <div className="space-y-2">
+              {attempts.length === 0 && <p className="text-center text-slate-500 py-8">No attempts yet</p>}
+              {attempts.map((a) => (
+                <div key={a.id} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50">
+                  <div>
+                    <div className="font-medium text-slate-800">{a.student.user.name}</div>
+                    <div className="text-xs text-slate-500">{a.student.studentId} · {a.student.user.email}</div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <div className="font-semibold text-slate-800">{a.totalScore ?? '—'} / {quiz.totalMarks}</div>
+                      <div className="text-xs text-slate-500">{a.status} · {a.violations} violations</div>
+                    </div>
+                    <button onClick={() => setSelected(a.id)} className="px-3 py-1.5 text-sm border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50">View</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── MAIN PAGE ──────────────────────────────────────────────────────────────
+const TeacherQuizzes = () => {
+  const [quizzes, setQuizzes] = useState([]);
+  const [offerings, setOfferings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filterOffering, setFilterOffering] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [viewingAttempts, setViewingAttempts] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [qRes, oRes] = await Promise.all([quizAPI.getAll(), offeringAPI.getMy()]);
+      setQuizzes(qRes.data.data);
+      setOfferings(oRes.data.data);
+    } catch (err) {
+      toast.error('Failed to load quizzes');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleSave = async (data) => {
+    try {
+      if (editing) {
+        await quizAPI.update(editing.id, data);
+        toast.success('Quiz updated');
+      } else {
+        await quizAPI.create(data);
+        toast.success('Quiz created');
+      }
+      setShowModal(false);
+      setEditing(null);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save quiz');
+    }
+  };
+
+  const handleEdit = async (quiz) => {
+    try {
+      const res = await quizAPI.getById(quiz.id);
+      setEditing(res.data.data);
+      setShowModal(true);
+    } catch (err) {
+      toast.error('Failed to load quiz');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this quiz? All attempts will be lost.')) return;
+    try {
+      await quizAPI.delete(id);
+      toast.success('Quiz deleted');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete');
+    }
+  };
+
+  const filtered = quizzes.filter((q) => {
+    const matchesSearch = !search || q.title.toLowerCase().includes(search.toLowerCase()) || q.offering?.course?.code?.toLowerCase().includes(search.toLowerCase());
+    const matchesOffering = !filterOffering || q.offeringId === filterOffering;
+    return matchesSearch && matchesOffering;
+  });
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <HelpCircle className="w-8 h-8 text-blue-600" />
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 m-0">Quizzes</h1>
+              <p className="text-slate-600 m-0">Create quizzes with anti-cheat protection</p>
+            </div>
+          </div>
+          <button
+            onClick={() => { setEditing(null); setShowModal(true); }}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <Plus size={16} /> Create Quiz
+          </button>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6 flex flex-wrap gap-3">
+          <div className="flex-1 min-w-[200px] relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by title or course code…"
+              className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <select
+            value={filterOffering} onChange={(e) => setFilterOffering(e.target.value)}
+            className="py-2.5 px-3.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+          >
+            <option value="">All courses</option>
+            {offerings.map((o) => (
+              <option key={o.id} value={o.id}>{o.course?.code} (Sec {o.section})</option>
+            ))}
+          </select>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-20"><Loader2 className="animate-spin inline w-8 h-8 text-blue-600" /></div>
+        ) : filtered.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+            <HelpCircle className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+            <p className="text-slate-500">No quizzes yet. Create your first quiz.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((q) => {
+              const cfg = STATUS_CONFIG[q.status] || STATUS_CONFIG.DRAFT;
+              return (
+                <div key={q.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <h3 className="text-lg font-semibold text-slate-900 m-0">{q.title}</h3>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${cfg.bg} ${cfg.text}`}>{cfg.label}</span>
+                      </div>
+                      <p className="text-sm text-slate-500 mt-1">
+                        {q.offering?.course?.code} · {q.offering?.course?.title} (Sec {q.offering?.section})
+                      </p>
+                      <div className="flex items-center flex-wrap gap-4 mt-3 text-sm text-slate-600">
+                        <span className="inline-flex items-center gap-1"><ListChecks size={14} /> {q._count?.questions ?? 0} questions</span>
+                        <span className="inline-flex items-center gap-1"><Award size={14} /> {q.totalMarks} marks</span>
+                        <span className="inline-flex items-center gap-1"><Clock size={14} /> {q.durationMinutes} min</span>
+                        <span className="inline-flex items-center gap-1"><Users size={14} /> {q._count?.attempts ?? 0} attempts</span>
+                        <span className="inline-flex items-center gap-1"><Calendar size={14} /> {fmtDateTime(q.startAt)} → {fmtDateTime(q.endAt)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button onClick={() => setViewingAttempts(q)} className="p-2 text-slate-600 hover:bg-slate-50 rounded-lg" title="View attempts"><Eye size={16} /></button>
+                      <button onClick={() => handleEdit(q)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit"><Edit3 size={16} /></button>
+                      <button onClick={() => handleDelete(q.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Delete"><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {showModal && (
+        <QuizModal
+          offerings={offerings}
+          initial={editing}
+          onClose={() => { setShowModal(false); setEditing(null); }}
+          onSave={handleSave}
+        />
+      )}
+
+      {viewingAttempts && (
+        <AttemptsModal quiz={viewingAttempts} onClose={() => setViewingAttempts(null)} />
       )}
     </div>
   );
