@@ -680,10 +680,10 @@ export const disable2FA = async (req, res) => {
     const { password, token } = req.body;
     const user = req.user;
 
-    if (!password || !token) {
+    if (!password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide password and 2FA token'
+        message: 'Please provide your password'
       });
     }
 
@@ -696,19 +696,28 @@ export const disable2FA = async (req, res) => {
       });
     }
 
-    // Verify 2FA token
-    const verified = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
-      encoding: 'base32',
-      token: token,
-      window: 2
-    });
+    // For authenticator-based 2FA, also verify the TOTP token
+    if (user.twoFactorMethod === 'authenticator') {
+      if (!token) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please provide your authenticator code'
+        });
+      }
 
-    if (!verified) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid 2FA token'
+      const verified = speakeasy.totp.verify({
+        secret: user.twoFactorSecret,
+        encoding: 'base32',
+        token: token,
+        window: 2
       });
+
+      if (!verified) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid authenticator code'
+        });
+      }
     }
 
     // Disable 2FA and clear trusted devices
@@ -717,7 +726,8 @@ export const disable2FA = async (req, res) => {
         where: { id: user.id },
         data: {
           twoFactorEnabled: false,
-          twoFactorSecret: null
+          twoFactorSecret: null,
+          twoFactorMethod: null
         }
       }),
       prisma.trustedDevice.deleteMany({ where: { userId: user.id } })
@@ -1602,6 +1612,71 @@ export const resetPassword = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Change password for authenticated user
+ * @route   POST /api/auth/change-password
+ * @access  Private
+ */
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = req.user;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide current and new password'
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 8 characters long'
+      });
+    }
+
+    // Verify current password
+    const isPasswordMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isPasswordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Ensure new password is different
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be different from current password'
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordChangedAt: new Date()
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error changing password',
+      error: error.message
+    });
+  }
+};
+
 // Helper functions
 const extractDeviceName = (userAgent) => {
   if (!userAgent) return 'Unknown Device';
@@ -1648,5 +1723,6 @@ export default {
   verifyEmailOTP,
   forgotPassword,
   verifyResetCode,
-  resetPassword
+  resetPassword,
+  changePassword
 };
