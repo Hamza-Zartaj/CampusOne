@@ -372,6 +372,13 @@ export const quizAPI = {
   getMyResult: (attemptId) => api.get(`/quizzes/attempts/${attemptId}/result`),
 };
 
+// Dashboard API
+export const dashboardAPI = {
+  admin: () => api.get('/dashboard/admin'),
+  teacher: () => api.get('/dashboard/teacher'),
+  student: () => api.get('/dashboard/student'),
+};
+
 // Notification API
 export const notificationAPI = {
   getAll: (params = {}) => api.get('/notifications', { params }),
