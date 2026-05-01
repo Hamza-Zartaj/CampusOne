@@ -24,9 +24,12 @@ export default function TwoFactorVerification({ userId, method, email, onComplet
       // Store auth data
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify({
+        id: data.data.user.id,
         email: data.data.user.email,
         name: data.data.user.name,
-        userType: data.data.user.role,
+        role: data.data.user.role,
+        profilePicture: data.data.user.profilePicture || null,
+        isSuperAdmin: data.data.roleData?.isSuperAdmin || false,
         authenticated: true
       }));
 

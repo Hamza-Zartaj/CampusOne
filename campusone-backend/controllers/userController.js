@@ -323,7 +323,6 @@ export const createUser = async (req, res) => {
               data: {
                 userId: user.id,
                 employeeId: adminEmpId,
-                department: adminDept,
                 designation: adminDesig || 'Administrator',
                 permissions: permissions || ['manage_users', 'manage_courses'],
                 isSuperAdmin: canCreateSuperAdmin && isSuperAdmin === true
