@@ -18,7 +18,8 @@ import {
   verifyEmailOTP,
   forgotPassword,
   verifyResetCode,
-  resetPassword
+  resetPassword,
+  changePassword
 } from '../controllers/authController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -58,5 +59,8 @@ router.post('/enable-email-2fa', enableEmail2FA);
 // Trusted Devices Management
 router.get('/trusted-devices', getTrustedDevices);
 router.delete('/trusted-devices/:deviceId', removeTrustedDevice);
+
+// Change Password
+router.post('/change-password', changePassword);
 
 export default router;

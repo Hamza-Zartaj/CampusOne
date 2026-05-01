@@ -22,12 +22,16 @@ import {
 } from 'lucide-react';
 import { authAPI, userAPI } from '../utils/api';
 import toast from 'react-hot-toast';
+import ChangePasswordModal from '../components/ChangePasswordModal';
+import ManageTwoFactorModal from '../components/ManageTwoFactorModal';
 
 const Profile = () => {
   const [user, setUser] = useState(null);
   const [roleData, setRoleData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showManage2FA, setShowManage2FA] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
   const [editForm, setEditForm] = useState({
@@ -764,7 +768,9 @@ const Profile = () => {
                         : 'Add an extra layer of security to your account'}
                     </p>
                   </div>
-                  <button className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors">
+                  <button
+                    onClick={() => setShowManage2FA(true)}
+                    className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors">
                     {user?.twoFactorEnabled ? 'Manage' : 'Enable'}
                   </button>
                 </div>
@@ -778,7 +784,9 @@ const Profile = () => {
                         : 'Never'}
                     </p>
                   </div>
-                  <button className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors">
+                  <button
+                    onClick={() => setShowChangePassword(true)}
+                    className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors">
                     Change Password
                   </button>
                 </div>
@@ -838,6 +846,18 @@ const Profile = () => {
           </div>
         </div>
       </div>
+
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
+
+      {showManage2FA && (
+        <ManageTwoFactorModal
+          user={user}
+          onClose={() => setShowManage2FA(false)}
+          onUpdated={fetchUserProfile}
+        />
+      )}
     </div>
   );
 };

@@ -94,6 +94,9 @@ export const authAPI = {
   
   resetPassword: (resetToken, newPassword) => 
     api.post('/auth/reset-password', { resetToken, newPassword }),
+
+  changePassword: (currentPassword, newPassword) =>
+    api.post('/auth/change-password', { currentPassword, newPassword }),
 };
 
 // User Management endpoints
