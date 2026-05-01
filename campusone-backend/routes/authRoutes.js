@@ -20,7 +20,8 @@ import {
   verifyResetCode,
   resetPassword,
   changePassword,
-  sendVerificationOTP
+  sendVerificationOTP,
+  recoverSuperAdmin
 } from '../controllers/authController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -36,6 +37,9 @@ router.post('/verify-email-otp', verifyEmailOTP);
 router.post('/forgot-password', forgotPassword);
 router.post('/verify-reset-code', verifyResetCode);
 router.post('/reset-password', resetPassword);
+
+// Super admin recovery via one-time key (public)
+router.post('/recover-super-admin', recoverSuperAdmin);
 
 // Protected routes (require authentication)
 router.use(protect); // All routes below require authentication

@@ -148,6 +148,9 @@ model Admin {
   isSuperAdmin          Boolean   @default(false)
   permissions           String[]
 
+  // Recovery keys (only used by super admins) — hashed, one-time use
+  recoveryKeys          String[]  @default([])
+
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 

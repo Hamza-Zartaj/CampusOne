@@ -1,9 +1,16 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import prisma from '../prisma/client.js';
 import readline from 'readline';
+
+// Generate a single human-readable recovery key in format XXXX-XXXX-XXXX-XXXX
+const generateRecoveryKey = () => {
+  const bytes = crypto.randomBytes(8).toString('hex').toUpperCase();
+  return `${bytes.slice(0, 4)}-${bytes.slice(4, 8)}-${bytes.slice(8, 12)}-${bytes.slice(12, 16)}`;
+};
 
 // Get directory path for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -93,6 +100,10 @@ const createSuperAdmin = async () => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Generate 8 one-time recovery keys
+    const plainKeys = Array.from({ length: 8 }, () => generateRecoveryKey());
+    const hashedKeys = await Promise.all(plainKeys.map((k) => bcrypt.hash(k, 10)));
+
     const { user, admin } = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -101,7 +112,6 @@ const createSuperAdmin = async () => {
           username: employeeId.toLowerCase(),
           password: hashedPassword,
           role: 'admin',
-          isFirstLogin: true,
           isFirstLogin: true
         }
       });
@@ -116,7 +126,8 @@ const createSuperAdmin = async () => {
             'manage_users', 'manage_courses', 'manage_assignments',
             'manage_attendance', 'manage_announcements', 'view_reports',
             'system_config', 'manage_ta_eligibility', 'manage_quiz'
-          ]
+          ],
+          recoveryKeys: hashedKeys
         }
       });
 
@@ -134,6 +145,13 @@ const createSuperAdmin = async () => {
     console.log('================================\n');
     console.log('⚠️  Please save these credentials securely!');
     console.log('⚠️  You will be required to change password and set email on first login.\n');
+
+    console.log('🔐 RECOVERY KEYS (one-time use — save NOW, they will NEVER be shown again):');
+    console.log('================================');
+    plainKeys.forEach((k, i) => console.log(`  ${String(i + 1).padStart(2, '0')}.  ${k}`));
+    console.log('================================');
+    console.log('⚠️  Each key works ONCE to unlock your super admin account and reset password.');
+    console.log('⚠️  Store these somewhere safe (password manager, encrypted file, printed copy).\n');
 
     rl.close();
     await prisma.$disconnect();
