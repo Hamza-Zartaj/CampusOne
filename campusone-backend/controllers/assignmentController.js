@@ -1,6 +1,7 @@
 import prisma from '../prisma/client.js';
 import { uploadToStorage, deleteFromStorage, pathFromUrl } from '../utils/supabaseStorage.js';
 import { v4 as uuidv4 } from 'uuid';
+import { notify, notifyMany, TYPE } from '../services/notificationService.js';
 
 const BUCKET = 'Assignments';
 
@@ -128,6 +129,27 @@ export const createAssignment = async (req, res) => {
       },
       include: assignmentInclude,
     });
+
+    // Notify enrolled students (only if PUBLISHED)
+    if (assignment.status === 'PUBLISHED') {
+      (async () => {
+        const enrollments = await prisma.enrollment.findMany({
+          where: { offeringId, status: 'ENROLLED' },
+          select: { student: { select: { userId: true } } },
+        });
+        const userIds = enrollments.map((e) => e.student?.userId).filter(Boolean);
+        const courseCode = assignment.offering?.course?.code || '';
+        notifyMany({
+          userIds,
+          type: TYPE.ASSIGNMENT_NEW,
+          title: `New assignment: ${assignment.title}`,
+          body: `${courseCode} · Due ${new Date(assignment.dueDate).toLocaleDateString()}`,
+          linkUrl: '/student/assignments',
+          metadata: { assignmentId: assignment.id, offeringId },
+        });
+      })();
+    }
+
     res.status(201).json({ success: true, data: assignment });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -255,6 +277,26 @@ export const gradeSubmission = async (req, res) => {
         gradedBy: teacher.id,
       },
     });
+
+    // Notify student
+    (async () => {
+      const student = await prisma.student.findUnique({ where: { id: submission.studentId }, select: { userId: true } });
+      const assignment = await prisma.assignment.findUnique({
+        where: { id: submission.assignmentId },
+        include: { offering: { include: { course: true } } },
+      });
+      if (student?.userId && assignment) {
+        notify({
+          userId: student.userId,
+          type: TYPE.ASSIGNMENT_GRADED,
+          title: `Assignment graded: ${assignment.title}`,
+          body: `${assignment.offering?.course?.code || ''} · ${updated.obtainedMarks ?? '—'} / ${assignment.totalMarks}`,
+          linkUrl: '/student/assignments',
+          metadata: { assignmentId: assignment.id, submissionId: updated.id },
+        });
+      }
+    })();
+
     res.json({ success: true, data: updated });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

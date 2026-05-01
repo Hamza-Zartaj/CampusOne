@@ -1,5 +1,6 @@
 import prisma from '../prisma/client.js';
 import xlsx from 'xlsx';
+import { notify, notifyMany, TYPE } from '../services/notificationService.js';
 
 const quizInclude = {
   offering: {
@@ -131,6 +132,25 @@ export const createQuiz = async (req, res) => {
       },
       include: { ...quizInclude, questions: { orderBy: { order: 'asc' } } },
     });
+
+    // Notify enrolled students if published
+    if (quiz.status === 'PUBLISHED') {
+      (async () => {
+        const enrollments = await prisma.enrollment.findMany({
+          where: { offeringId, status: 'ENROLLED' },
+          select: { student: { select: { userId: true } } },
+        });
+        const userIds = enrollments.map((e) => e.student?.userId).filter(Boolean);
+        notifyMany({
+          userIds,
+          type: TYPE.QUIZ_NEW,
+          title: `New quiz: ${quiz.title}`,
+          body: `${quiz.offering?.course?.code || ''} · Opens ${new Date(quiz.startAt).toLocaleString()}`,
+          linkUrl: '/student/quizzes',
+          metadata: { quizId: quiz.id, offeringId },
+        });
+      })();
+    }
 
     res.status(201).json({ success: true, data: quiz });
   } catch (err) {
@@ -340,6 +360,24 @@ export const gradeAnswer = async (req, res) => {
       where: { id: answer.attemptId },
       data: { totalScore: total, manualScore: allAnswers.filter((a) => a.id === answer.id ? true : a.marksAwarded > 0).reduce((s, a) => s + a.marksAwarded, 0) },
     });
+
+    // Notify the student
+    (async () => {
+      const attempt = await prisma.quizAttempt.findUnique({
+        where: { id: answer.attemptId },
+        include: { student: { select: { userId: true } }, quiz: { select: { id: true, title: true, totalMarks: true } } },
+      });
+      if (attempt?.student?.userId) {
+        notify({
+          userId: attempt.student.userId,
+          type: TYPE.QUIZ_GRADED,
+          title: `Quiz graded: ${attempt.quiz.title}`,
+          body: `${total} / ${attempt.quiz.totalMarks}`,
+          linkUrl: '/student/quizzes',
+          metadata: { quizId: attempt.quiz.id, attemptId: attempt.id },
+        });
+      }
+    })();
 
     res.json({ success: true, data: updated });
   } catch (err) {

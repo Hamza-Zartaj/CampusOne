@@ -1,5 +1,6 @@
 import prisma from '../prisma/client.js';
 import { sendAnnouncementEmail } from '../services/emailService.js';
+import { notifyMany, TYPE } from '../services/notificationService.js';
 import { auditLog } from '../utils/auditLogger.js';
 
 /**
@@ -34,7 +35,7 @@ export const sendAnnouncement = async (req, res) => {
       // All users (admins, teachers, students)
       recipients = await prisma.user.findMany({
         where: { isActive: true },
-        select: { email: true, name: true }
+        select: { id: true, email: true, name: true }
       });
     } else if (targetAudience === 'teachers') {
       // All teachers and admins
@@ -43,7 +44,7 @@ export const sendAnnouncement = async (req, res) => {
           role: { in: ['teacher', 'admin'] },
           isActive: true
         },
-        select: { email: true, name: true }
+        select: { id: true, email: true, name: true }
       });
     } else if (targetAudience === 'students') {
       // All students
@@ -52,7 +53,19 @@ export const sendAnnouncement = async (req, res) => {
           role: 'student',
           isActive: true
         },
-        select: { email: true, name: true }
+        select: { id: true, email: true, name: true }
+      });
+    }
+
+    // In-app notification (instant — single bulk insert)
+    if (recipients.length > 0) {
+      notifyMany({
+        userIds: recipients.map((r) => r.id),
+        type: TYPE.ANNOUNCEMENT,
+        title: `📢 ${title}`,
+        body: content.length > 200 ? content.slice(0, 200) + '…' : content,
+        linkUrl: '/announcements',
+        metadata: { announcementId: announcement.id, priority },
       });
     }
 

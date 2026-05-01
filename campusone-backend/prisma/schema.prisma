@@ -738,3 +738,22 @@ model QnaReply {
   @@index([threadId])
   @@index([authorId])
 }
+
+// ============ NOTIFICATIONS ============
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String                       // recipient
+  type        String                       // ANNOUNCEMENT, ASSIGNMENT_NEW, ASSIGNMENT_GRADED, QUIZ_NEW, QNA_REPLY, QNA_NEW, ATTENDANCE_LOW, GENERAL
+  title       String
+  body        String?
+  linkUrl     String?                      // optional in-app target
+  metadata    Json      @default("{}")
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+}
