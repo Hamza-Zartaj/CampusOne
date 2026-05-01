@@ -104,6 +104,9 @@ export const authAPI = {
 
   sendVerificationOTP: () =>
     api.post('/auth/send-verification-otp'),
+
+  recoverSuperAdmin: (username, recoveryKey) =>
+    api.post('/auth/recover-super-admin', { username, recoveryKey }),
 };
 
 // User Management endpoints

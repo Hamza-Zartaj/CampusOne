@@ -6,6 +6,7 @@ import FirstTimeSetup from './components/FirstTimeSetup';
 import TwoFactorVerification from './components/TwoFactorVerification';
 import ForgotPassword from './components/ForgotPassword';
 import PasswordReset from './components/PasswordReset';
+import SuperAdminRecovery from './components/SuperAdminRecovery';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export default function Login() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [resetData, setResetData] = useState(null);
+  const [showRecovery, setShowRecovery] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -304,9 +306,16 @@ export default function Login() {
             </div>
 
             {/* Forgot Password */}
-            <div className="flex items-center justify-end pt-1">
-              <a 
-                href="#" 
+            <div className="flex items-center justify-between pt-1">
+              <button
+                type="button"
+                onClick={() => setShowRecovery(true)}
+                className="text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                Locked out? Use recovery key
+              </button>
+              <a
+                href="#"
                 onClick={handleForgotPasswordClick}
                 className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
               >
@@ -379,6 +388,15 @@ export default function Login() {
           isOpen={showPasswordReset}
           onClose={handlePasswordResetClose}
           resetData={resetData}
+        />
+      )}
+
+      {/* Super Admin Recovery Modal */}
+      {showRecovery && (
+        <SuperAdminRecovery
+          isOpen={showRecovery}
+          onClose={() => setShowRecovery(false)}
+          onRecovered={() => setShowRecovery(false)}
         />
       )}
     </>

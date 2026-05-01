@@ -1731,6 +1731,109 @@ export const changePassword = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Recover super admin account using a one-time recovery key.
+ *          Verifies username + key, consumes the key, unlocks the account,
+ *          and returns a short-lived reset token to set a new password.
+ * @route   POST /api/auth/recover-super-admin
+ * @access  Public
+ */
+export const recoverSuperAdmin = async (req, res) => {
+  try {
+    const { username, recoveryKey } = req.body;
+
+    if (!username || !recoveryKey) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide username and recovery key'
+      });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: username.toLowerCase() },
+          { email: username.toLowerCase() }
+        ]
+      },
+      include: { admin: true }
+    });
+
+    if (!user || !user.admin || !user.admin.isSuperAdmin) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or recovery key'
+      });
+    }
+
+    const storedKeys = user.admin.recoveryKeys || [];
+    if (storedKeys.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'No recovery keys remain on this account. Contact another super admin.'
+      });
+    }
+
+    // Find which stored hash matches the supplied key
+    let matchedIndex = -1;
+    for (let i = 0; i < storedKeys.length; i++) {
+      // eslint-disable-next-line no-await-in-loop
+      const ok = await bcrypt.compare(recoveryKey.trim(), storedKeys[i]);
+      if (ok) {
+        matchedIndex = i;
+        break;
+      }
+    }
+
+    if (matchedIndex === -1) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or recovery key'
+      });
+    }
+
+    // Consume the key + unlock account
+    const remainingKeys = storedKeys.filter((_, i) => i !== matchedIndex);
+
+    await prisma.$transaction([
+      prisma.admin.update({
+        where: { id: user.admin.id },
+        data: { recoveryKeys: remainingKeys }
+      }),
+      prisma.user.update({
+        where: { id: user.id },
+        data: {
+          accountLocked: false,
+          accountLockedUntil: null,
+          failedLoginAttempts: 0
+        }
+      })
+    ]);
+
+    // Issue a short-lived reset token so the super admin can set a new password
+    const resetToken = jwt.sign(
+      { userId: user.id, purpose: 'password-reset' },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Recovery successful. Set a new password to continue.',
+      data: {
+        resetToken,
+        keysRemaining: remainingKeys.length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error processing recovery',
+      error: error.message
+    });
+  }
+};
+
 // Helper functions
 const extractDeviceName = (userAgent) => {
   if (!userAgent) return 'Unknown Device';
@@ -1779,5 +1882,6 @@ export default {
   verifyResetCode,
   resetPassword,
   changePassword,
-  sendVerificationOTP
+  sendVerificationOTP,
+  recoverSuperAdmin
 };
