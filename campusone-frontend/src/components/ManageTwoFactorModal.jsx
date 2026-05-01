@@ -84,8 +84,22 @@ export default function ManageTwoFactorModal({ user, onClose, onUpdated }) {
   const [setupData, setSetupData] = useState(null);
   const [setupCode, setSetupCode] = useState('');
   const [isSettingUp, setIsSettingUp] = useState(false);
+  const [isSwitchInProgress, setIsSwitchInProgress] = useState(false);
 
   const resetVerifyForm = () => { setPassword(''); setCode(''); setOtpSent(false); };
+
+  // If old 2FA was already disabled (switch in progress), don't let user close
+  // without completing new setup — redirect to enable-select instead.
+  const handleClose = () => {
+    if (isSwitchInProgress) {
+      toast('Your previous 2FA was disabled. Please set up a new method to protect your account.', { icon: '⚠️' });
+      setView('enable-select');
+      setSetupCode('');
+      onUpdated(); // refresh profile so it shows 2FA as disabled
+      return;
+    }
+    onClose();
+  };
 
   const sendVerificationOTP = async () => {
     setIsSendingOTP(true);
@@ -120,6 +134,7 @@ export default function ManageTwoFactorModal({ user, onClose, onUpdated }) {
     setIsSubmitting(true);
     try {
       await authAPI.disable2FA(password, code);
+      setIsSwitchInProgress(true); // old 2FA is now off — must complete new setup
       resetVerifyForm();
       await beginSetup(otherMethod);
     } catch (err) {
@@ -171,7 +186,8 @@ export default function ManageTwoFactorModal({ user, onClose, onUpdated }) {
       } else {
         await authAPI.enable2FA(setupCode);
       }
-      toast.success(`Two-factor authentication ${isEnabled ? 'switched to' : 'enabled via'} ${selectedMethod === 'email' ? 'Email OTP' : 'Authenticator App'}`);
+      toast.success(`Two-factor authentication ${isSwitchInProgress ? 'switched to' : isEnabled ? 'switched to' : 'enabled via'} ${selectedMethod === 'email' ? 'Email OTP' : 'Authenticator App'}`);
+      setIsSwitchInProgress(false);
       onUpdated();
       onClose();
     } catch (err) {
@@ -338,7 +354,15 @@ export default function ManageTwoFactorModal({ user, onClose, onUpdated }) {
           )}
           <div className="flex gap-3 pt-1">
             <button type="button"
-              onClick={() => { setView(isSwitch ? 'switch-verify' : 'enable-select'); setSetupCode(''); }}
+              onClick={() => {
+                if (isSwitchInProgress) {
+                  toast('Your previous 2FA was disabled. Please complete the new setup.', { icon: '⚠️' });
+                  setView('enable-select');
+                } else {
+                  setView(isSwitch ? 'switch-verify' : 'enable-select');
+                }
+                setSetupCode('');
+              }}
               disabled={isSettingUp}
               className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-1">
               <ChevronLeft className="w-4 h-4" /> Back
@@ -376,7 +400,14 @@ export default function ManageTwoFactorModal({ user, onClose, onUpdated }) {
             }
           </button>
         ))}
-        <button onClick={onClose} className="w-full mt-1 text-sm text-gray-500 hover:text-gray-700 py-2">Cancel</button>
+        {!isSwitchInProgress && (
+          <button onClick={onClose} className="w-full mt-1 text-sm text-gray-500 hover:text-gray-700 py-2">Cancel</button>
+        )}
+        {isSwitchInProgress && (
+          <p className="text-center text-xs text-amber-600 mt-1">
+            Your previous 2FA was disabled — please complete the new setup.
+          </p>
+        )}
       </div>
     );
   };
@@ -400,7 +431,7 @@ export default function ManageTwoFactorModal({ user, onClose, onUpdated }) {
             </div>
             <h2 className="text-lg font-semibold text-gray-900">{titles[view] || 'Two-Factor Authentication'}</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
