@@ -182,7 +182,6 @@ export default function Login() {
     // Navigate to dashboard
     setTimeout(() => {
       navigate('/dashboard');
-      window.location.href = '/'; // Redirect to dashboard or home
     }, 1000);
   };
 
