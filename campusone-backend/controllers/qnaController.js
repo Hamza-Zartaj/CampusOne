@@ -1,5 +1,6 @@
 import prisma from '../prisma/client.js';
 import { sendQnaQuestionEmail } from '../services/emailService.js';
+import { notify, TYPE } from '../services/notificationService.js';
 
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
@@ -146,7 +147,7 @@ export const createThread = async (req, res) => {
       include: threadInclude,
     });
 
-    // Fire-and-forget email to course teacher(s)
+    // Fire-and-forget email + in-app notification to course teacher
     (async () => {
       try {
         const offering = await prisma.courseOffering.findUnique({
@@ -156,21 +157,33 @@ export const createThread = async (req, res) => {
             teacher: { include: { user: true } },
           },
         });
-        if (!offering?.teacher?.user?.email) return;
+        if (!offering?.teacher?.user) return;
 
         const asker = await prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } });
-        await sendQnaQuestionEmail({
-          email: offering.teacher.user.email,
-          teacherName: offering.teacher.user.name,
-          askerName: asker?.name || 'A student',
-          courseCode: offering.course.code,
-          courseTitle: offering.course.title,
-          questionTitle: title,
-          questionBody: body,
-          threadUrl: `${CLIENT_URL}/teacher/qna?thread=${thread.id}`,
+
+        notify({
+          userId: offering.teacher.user.id,
+          type: TYPE.QNA_NEW,
+          title: `New question in ${offering.course.code}`,
+          body: `${asker?.name || 'A student'} asked: ${title}`,
+          linkUrl: `/teacher/qna?thread=${thread.id}`,
+          metadata: { threadId: thread.id, offeringId },
         });
+
+        if (offering.teacher.user.email) {
+          await sendQnaQuestionEmail({
+            email: offering.teacher.user.email,
+            teacherName: offering.teacher.user.name,
+            askerName: asker?.name || 'A student',
+            courseCode: offering.course.code,
+            courseTitle: offering.course.title,
+            questionTitle: title,
+            questionBody: body,
+            threadUrl: `${CLIENT_URL}/teacher/qna?thread=${thread.id}`,
+          });
+        }
       } catch (err) {
-        console.error('Q&A email failed:', err.message);
+        console.error('Q&A notify failed:', err.message);
       }
     })();
 
@@ -207,6 +220,19 @@ export const createReply = async (req, res) => {
       where: { id: req.user.id },
       select: { id: true, name: true, role: true, email: true },
     });
+
+    // Notify the asker (if reply is from someone else)
+    if (thread.askedById !== req.user.id) {
+      const linkPath = req.user.role === 'teacher' ? `/student/qna?thread=${thread.id}` : `/teacher/qna?thread=${thread.id}`;
+      notify({
+        userId: thread.askedById,
+        type: TYPE.QNA_REPLY,
+        title: `${author?.name || 'Someone'} replied to your question`,
+        body: thread.title,
+        linkUrl: linkPath,
+        metadata: { threadId: thread.id, replyId: reply.id },
+      });
+    }
 
     res.status(201).json({ success: true, data: { ...reply, author } });
   } catch (err) {

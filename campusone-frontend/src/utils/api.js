@@ -372,6 +372,16 @@ export const quizAPI = {
   getMyResult: (attemptId) => api.get(`/quizzes/attempts/${attemptId}/result`),
 };
 
+// Notification API
+export const notificationAPI = {
+  getAll: (params = {}) => api.get('/notifications', { params }),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markRead: (id) => api.put(`/notifications/${id}/read`),
+  markAllRead: () => api.put('/notifications/read-all'),
+  delete: (id) => api.delete(`/notifications/${id}`),
+  clearRead: () => api.delete('/notifications/clear-read'),
+};
+
 // Q&A API
 export const qnaAPI = {
   getThreads: (params = {}) => api.get('/qna', { params }),

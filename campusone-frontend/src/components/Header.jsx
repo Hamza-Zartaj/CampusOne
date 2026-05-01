@@ -1,11 +1,12 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  Menu, 
-  User, 
-  LogOut, 
-  ChevronDown 
+import {
+  Menu,
+  User,
+  LogOut,
+  ChevronDown
 } from 'lucide-react';
+import NotificationBell from './NotificationBell';
 
 const Header = ({ toggleSidebar }) => {
   const navigate = useNavigate();
@@ -50,6 +51,7 @@ const Header = ({ toggleSidebar }) => {
       </div>
 
       <div className="flex items-center gap-4">
+        <NotificationBell />
         <div className="relative">
           <div 
             className="flex items-center gap-3 cursor-pointer py-2 px-3 rounded-xl transition-colors hover:bg-white/10"
