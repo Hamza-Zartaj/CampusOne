@@ -44,7 +44,9 @@ export const protect = async (req, res, next) => {
           failedLoginAttempts: true,
           twoFactorSecret: true,
           twoFactorEnabled: true,
-          twoFactorMethod: true
+          twoFactorMethod: true,
+          emailOTP: true,
+          emailOTPExpiry: true
         }
       });
 

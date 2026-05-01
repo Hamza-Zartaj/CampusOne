@@ -19,7 +19,8 @@ import {
   forgotPassword,
   verifyResetCode,
   resetPassword,
-  changePassword
+  changePassword,
+  sendVerificationOTP
 } from '../controllers/authController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -62,5 +63,8 @@ router.delete('/trusted-devices/:deviceId', removeTrustedDevice);
 
 // Change Password
 router.post('/change-password', changePassword);
+
+// Send verification OTP for security operations
+router.post('/send-verification-otp', sendVerificationOTP);
 
 export default router;

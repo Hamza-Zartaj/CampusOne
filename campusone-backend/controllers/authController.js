@@ -651,10 +651,10 @@ export const enable2FA = async (req, res) => {
       });
     }
 
-    // Enable 2FA
+    // Enable 2FA with authenticator method
     await prisma.user.update({
       where: { id: user.id },
-      data: { twoFactorEnabled: true }
+      data: { twoFactorEnabled: true, twoFactorMethod: 'authenticator' }
     });
 
     res.status(200).json({
@@ -696,7 +696,7 @@ export const disable2FA = async (req, res) => {
       });
     }
 
-    // For authenticator-based 2FA, also verify the TOTP token
+    // Verify the 2FA token based on method
     if (user.twoFactorMethod === 'authenticator') {
       if (!token) {
         return res.status(400).json({
@@ -716,6 +716,28 @@ export const disable2FA = async (req, res) => {
         return res.status(401).json({
           success: false,
           message: 'Invalid authenticator code'
+        });
+      }
+    } else if (user.twoFactorMethod === 'email') {
+      if (!token) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please provide the OTP sent to your email'
+        });
+      }
+
+      if (!user.emailOTP || user.emailOTP !== token) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid OTP code'
+        });
+      }
+
+      if (new Date() > user.emailOTPExpiry) {
+        await prisma.user.update({ where: { id: user.id }, data: { emailOTP: null, emailOTPExpiry: null } });
+        return res.status(401).json({
+          success: false,
+          message: 'OTP has expired. Please request a new one.'
         });
       }
     }
@@ -1613,6 +1635,38 @@ export const resetPassword = async (req, res) => {
 };
 
 /**
+ * @desc    Send OTP for security operations (disable/switch 2FA) - authenticated
+ * @route   POST /api/auth/send-verification-otp
+ * @access  Private
+ */
+export const sendVerificationOTP = async (req, res) => {
+  try {
+    const user = req.user;
+
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailOTP: otp, emailOTPExpiry: expiresAt }
+    });
+
+    const emailResult = await sendOTPEmail(user.email, user.name, otp);
+    if (!emailResult.success) {
+      return res.status(500).json({ success: false, message: 'Failed to send OTP email. Please try again.' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification OTP sent to your email',
+      data: { email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3') }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error sending OTP', error: error.message });
+  }
+};
+
+/**
  * @desc    Change password for authenticated user
  * @route   POST /api/auth/change-password
  * @access  Private
@@ -1724,5 +1778,6 @@ export default {
   forgotPassword,
   verifyResetCode,
   resetPassword,
-  changePassword
+  changePassword,
+  sendVerificationOTP
 };

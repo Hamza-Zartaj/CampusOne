@@ -29,13 +29,17 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Only redirect to login if we're not already on the login page
-      // and if the error is due to an invalid/expired token (not wrong credentials)
       const currentPath = window.location.pathname;
-      const isLoginError = error.config?.url?.includes('/auth/login');
-      
-      if (currentPath !== '/login' && !isLoginError) {
-        // Unauthorized - clear token and redirect to login
+      const url = error.config?.url || '';
+      // These endpoints return 401 for wrong credentials, not expired tokens
+      const isCredentialCheck = url.includes('/auth/login')
+        || url.includes('/auth/disable-2fa')
+        || url.includes('/auth/change-password')
+        || url.includes('/auth/verify-2fa')
+        || url.includes('/auth/verify-email-otp');
+
+      if (currentPath !== '/login' && !isCredentialCheck) {
+        // Truly unauthorized (expired/invalid token) — clear session and redirect
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         window.location.href = '/login';
@@ -97,6 +101,9 @@ export const authAPI = {
 
   changePassword: (currentPassword, newPassword) =>
     api.post('/auth/change-password', { currentPassword, newPassword }),
+
+  sendVerificationOTP: () =>
+    api.post('/auth/send-verification-otp'),
 };
 
 // User Management endpoints

@@ -3,7 +3,7 @@ import { Lock, Eye, EyeOff, X } from 'lucide-react';
 import { authAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 
-export default function ChangePasswordModal({ onClose }) {
+export default function ChangePasswordModal({ onClose, onSuccess }) {
   const [formData, setFormData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -44,6 +44,7 @@ export default function ChangePasswordModal({ onClose }) {
     try {
       await authAPI.changePassword(formData.currentPassword, formData.newPassword);
       toast.success('Password changed successfully');
+      if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to change password');

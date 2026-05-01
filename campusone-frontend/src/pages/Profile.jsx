@@ -848,7 +848,7 @@ const Profile = () => {
       </div>
 
       {showChangePassword && (
-        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} onSuccess={fetchUserProfile} />
       )}
 
       {showManage2FA && (
