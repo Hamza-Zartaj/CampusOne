@@ -92,9 +92,10 @@ export default function Login() {
           role: data.data.user.role,
           profilePicture: data.data.user.profilePicture,
           isSuperAdmin: data.data.roleData?.isSuperAdmin || false,
+          permissions: data.data.roleData?.permissions || [],
           authenticated: true
         };
-        
+
         localStorage.setItem('user', JSON.stringify(userData));
 
         // Show success toast
@@ -155,6 +156,7 @@ export default function Login() {
         role: userData.user.role,
         profilePicture: userData.user.profilePicture || null,
         isSuperAdmin: userData.roleData?.isSuperAdmin || false,
+        permissions: userData.roleData?.permissions || [],
         authenticated: true
       }));
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ModalHeader, ErrorAlert, ModalFooter } from '../ModalComponents';
-import { UI_CLASSES, AVAILABLE_PERMISSIONS, TEACHER_DESIGNATIONS } from '../../config/userManagementConfig';
+import { UI_CLASSES, AVAILABLE_PERMISSIONS, PERMISSION_PRESETS, TEACHER_DESIGNATIONS } from '../../config/userManagementConfig';
 
 const EditUserModal = ({
   show,
@@ -239,8 +239,43 @@ const EditUserModal = ({
           {/* Permissions for Admin */}
           {editingUser.role === 'admin' && (
             <div className="mb-4">
+              <label className={UI_CLASSES.label} htmlFor="edit-preset">
+                Permission Preset
+              </label>
+              <select
+                id="edit-preset"
+                value={(() => {
+                  const match = PERMISSION_PRESETS.find(p =>
+                    p.id !== 'custom' &&
+                    p.permissions.length === form.permissions.length &&
+                    p.permissions.every(perm => form.permissions.includes(perm))
+                  );
+                  return match ? match.id : 'custom';
+                })()}
+                onChange={(e) => {
+                  const preset = PERMISSION_PRESETS.find(p => p.id === e.target.value);
+                  if (preset && preset.id !== 'custom') {
+                    const current = new Set(form.permissions);
+                    const next = new Set(preset.permissions);
+                    AVAILABLE_PERMISSIONS.forEach((p) => {
+                      const hasIt = current.has(p.id);
+                      const wantIt = next.has(p.id);
+                      if (hasIt !== wantIt) onPermissionChange(p.id);
+                    });
+                  }
+                }}
+                className={UI_CLASSES.input}
+              >
+                {PERMISSION_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500 mt-1 mb-3">
+                Pick a preset to overwrite the checkboxes, or check them individually.
+              </p>
+
               <label className={UI_CLASSES.label}>Permissions</label>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3 mt-2">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 mt-2">
                 {AVAILABLE_PERMISSIONS.map((permission) => (
                   <label
                     key={permission.id}

@@ -6,6 +6,7 @@ import {
   Megaphone, AlertCircle, Loader2, ChevronRight,
 } from 'lucide-react';
 import { dashboardAPI } from '../utils/api';
+import { hasPermission } from '../utils/permissions';
 import toast from 'react-hot-toast';
 
 const fmtRelative = (d) => {
@@ -62,30 +63,45 @@ const Dashboard = () => {
           <p className="text-slate-600 m-0">Here's what's happening across CampusOne today</p>
         </div>
 
-        {/* Stat cards */}
+        {/* Stat cards — gated by permissions */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <StatCard icon={Users} label="Total Users" value={stats.totalUsers} sub={`${stats.newSignupsThisWeek} new this week`} color="bg-blue-500" link="/admin/users" />
-          <StatCard icon={FileText} label="Pending Admissions" value={stats.pendingAdmissions} sub="Awaiting review" color="bg-amber-500" link="/admin/admissions" />
-          <StatCard icon={Layers} label="Active Offerings" value={stats.activeOfferings} sub="Course sections" color="bg-purple-500" link="/admin/offerings" />
-          <StatCard icon={MessageSquare} label="Open Q&A" value={stats.openQna} sub="Threads needing replies" color="bg-cyan-500" />
+          {hasPermission('manage_users') && (
+            <StatCard icon={Users} label="Total Users" value={stats.totalUsers} sub={`${stats.newSignupsThisWeek} new this week`} color="bg-blue-500" link="/admin/users" />
+          )}
+          {hasPermission('manage_admissions') && (
+            <StatCard icon={FileText} label="Pending Admissions" value={stats.pendingAdmissions} sub="Awaiting review" color="bg-amber-500" link="/admin/admissions" />
+          )}
+          {hasPermission('manage_offerings') && (
+            <StatCard icon={Layers} label="Active Offerings" value={stats.activeOfferings} sub="Course sections" color="bg-purple-500" link="/admin/offerings" />
+          )}
+          {hasPermission('view_reports') && (
+            <StatCard icon={MessageSquare} label="Open Q&A" value={stats.openQna} sub="Threads needing replies" color="bg-cyan-500" />
+          )}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <StatCard icon={GraduationCap} label="Students" value={stats.students} color="bg-green-500" />
-          <StatCard icon={Briefcase} label="Teachers" value={stats.teachers} color="bg-blue-500" />
-          <StatCard icon={Shield} label="Admins" value={stats.admins} color="bg-slate-600" />
-          <StatCard icon={Activity} label="Audit Activity (24h)" value={stats.auditLast24h} color="bg-indigo-500" link="/admin/audit-logs" />
-        </div>
+        {hasPermission('manage_users') && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <StatCard icon={GraduationCap} label="Students" value={stats.students} color="bg-green-500" />
+            <StatCard icon={Briefcase} label="Teachers" value={stats.teachers} color="bg-blue-500" />
+            <StatCard icon={Shield} label="Admins" value={stats.admins} color="bg-slate-600" />
+            {hasPermission('view_audit_logs') && (
+              <StatCard icon={Activity} label="Audit Activity (24h)" value={stats.auditLast24h} color="bg-indigo-500" link="/admin/audit-logs" />
+            )}
+          </div>
+        )}
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-          <StatCard icon={Building2} label="Departments" value={stats.departments} color="bg-orange-500" link="/admin/departments" />
-          <StatCard icon={TrendingUp} label="Programs" value={stats.programs} color="bg-pink-500" link="/admin/programs" />
-          <StatCard icon={BookOpen} label="Courses" value={stats.courses} color="bg-teal-500" link="/admin/courses" />
-        </div>
+        {hasPermission('manage_academic') && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+            <StatCard icon={Building2} label="Departments" value={stats.departments} color="bg-orange-500" link="/admin/academic/departments" />
+            <StatCard icon={TrendingUp} label="Programs" value={stats.programs} color="bg-pink-500" link="/admin/academic/programs" />
+            <StatCard icon={BookOpen} label="Courses" value={stats.courses} color="bg-teal-500" link="/admin/academic/courses" />
+          </div>
+        )}
 
         {/* Two-column widgets */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Pending Admissions */}
+          {hasPermission('manage_admissions') && (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-800 m-0 flex items-center gap-2">
@@ -118,8 +134,10 @@ const Dashboard = () => {
               </div>
             )}
           </div>
+          )}
 
           {/* Recent Announcements */}
+          {hasPermission('manage_announcements') && (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-800 m-0 flex items-center gap-2">
@@ -149,8 +167,10 @@ const Dashboard = () => {
               </div>
             )}
           </div>
+          )}
 
           {/* Audit Log */}
+          {hasPermission('view_audit_logs') && (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-800 m-0 flex items-center gap-2">
@@ -176,6 +196,7 @@ const Dashboard = () => {
               </div>
             )}
           </div>
+          )}
         </div>
       </div>
     </div>
