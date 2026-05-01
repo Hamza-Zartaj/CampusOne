@@ -324,7 +324,7 @@ export const createUser = async (req, res) => {
                 userId: user.id,
                 employeeId: adminEmpId,
                 designation: adminDesig || 'Administrator',
-                permissions: permissions || ['manage_users', 'manage_courses'],
+                permissions: Array.isArray(permissions) ? permissions : [],
                 isSuperAdmin: canCreateSuperAdmin && isSuperAdmin === true
               }
             });

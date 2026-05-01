@@ -27,22 +27,40 @@ const NAV_LABEL_CLASS = 'text-[10px] font-semibold uppercase tracking-wider text
 const Sidebar = ({ isOpen }) => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const userRole = user.role?.toLowerCase() || 'student';
+  const isSuperAdmin = !!user.isSuperAdmin;
+  const userPerms = Array.isArray(user.permissions) ? user.permissions : [];
+  const can = (perm) => isSuperAdmin || userPerms.includes(perm);
 
-  const adminItems = [
+  const adminItemsRaw = [
     { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/admin/users', icon: Users, label: 'Users' },
-    { path: '/admin/admissions', icon: UserPlus, label: 'Admissions' },
-    { path: '/admin/announcements', icon: Bell, label: 'Announcements' },
-    { label: null, group: 'Academic Setup' },
-    { path: '/admin/academic/departments', icon: Building2, label: 'Departments' },
-    { path: '/admin/academic/programs', icon: GraduationCap, label: 'Programs' },
-    { path: '/admin/academic/courses', icon: BookMarked, label: 'Courses' },
-    { path: '/admin/academic/terms', icon: Calendar, label: 'Terms' },
-    { path: '/admin/academic/offerings', icon: Layers, label: 'Offerings' },
-    { path: '/admin/academic/enrollments', icon: ClipboardList, label: 'Enrollments' },
-    { label: null, group: 'System' },
-    { path: '/admin/audit-logs', icon: ShieldCheck, label: 'Audit Logs' },
+    { path: '/admin/users', icon: Users, label: 'Users', perm: 'manage_users' },
+    { path: '/admin/admissions', icon: UserPlus, label: 'Admissions', perm: 'manage_admissions' },
+    { path: '/admin/announcements', icon: Bell, label: 'Announcements', perm: 'manage_announcements' },
+    { label: null, group: 'Academic Setup', anyPerm: ['manage_academic', 'manage_offerings'] },
+    { path: '/admin/academic/departments', icon: Building2, label: 'Departments', perm: 'manage_academic' },
+    { path: '/admin/academic/programs', icon: GraduationCap, label: 'Programs', perm: 'manage_academic' },
+    { path: '/admin/academic/courses', icon: BookMarked, label: 'Courses', perm: 'manage_academic' },
+    { path: '/admin/academic/terms', icon: Calendar, label: 'Terms', perm: 'manage_academic' },
+    { path: '/admin/academic/offerings', icon: Layers, label: 'Offerings', perm: 'manage_offerings' },
+    { path: '/admin/academic/enrollments', icon: ClipboardList, label: 'Enrollments', perm: 'manage_offerings' },
+    { label: null, group: 'System', anyPerm: ['view_audit_logs'] },
+    { path: '/admin/audit-logs', icon: ShieldCheck, label: 'Audit Logs', perm: 'view_audit_logs' },
   ];
+
+  // Filter out items the admin doesn't have permission for, and drop section headers
+  // whose section has no remaining visible items.
+  const adminItems = (() => {
+    const visible = adminItemsRaw.filter((item) => !item.perm || can(item.perm));
+    return visible.filter((item, idx) => {
+      if (item.label !== null) return true;
+      // section header: keep only if at least one following non-header has a visible link before next header
+      for (let j = idx + 1; j < visible.length; j++) {
+        if (visible[j].label === null) return false;
+        if (visible[j].path) return true;
+      }
+      return false;
+    });
+  })();
 
   const teacherItems = [
     { path: '/teacher/dashboard', icon: LayoutDashboard, label: 'Dashboard' },

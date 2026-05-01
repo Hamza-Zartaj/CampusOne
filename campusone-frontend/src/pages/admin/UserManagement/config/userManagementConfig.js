@@ -1,10 +1,24 @@
 import { Users, BookOpen, Shield } from 'lucide-react';
 
+// Canonical permission catalog — keep in sync with backend authorizePermission usages
 export const AVAILABLE_PERMISSIONS = [
-  { id: 'manage_users', label: 'Manage Users' },
-  { id: 'manage_courses', label: 'Manage Courses' },
-  { id: 'manage_attendance', label: 'Manage Attendance' },
-  { id: 'manage_announcements', label: 'Manage Announcements' }
+  { id: 'manage_users',         label: 'Manage Users' },
+  { id: 'manage_admissions',    label: 'Manage Admissions' },
+  { id: 'manage_academic',      label: 'Manage Academic (Depts/Programs/Courses/Terms)' },
+  { id: 'manage_offerings',     label: 'Manage Offerings & Enrollments' },
+  { id: 'manage_announcements', label: 'Manage Announcements' },
+  { id: 'view_audit_logs',      label: 'View Audit Logs' },
+  { id: 'view_reports',         label: 'View Reports / Dashboard' },
+];
+
+// Bundled "role" presets — pure UI convenience, not stored separately in DB
+export const PERMISSION_PRESETS = [
+  { id: 'custom',         label: 'Custom (pick manually)', permissions: [] },
+  { id: 'registrar',      label: 'Registrar',              permissions: ['manage_users', 'manage_admissions', 'view_reports'] },
+  { id: 'academic',       label: 'Academic Admin',         permissions: ['manage_academic', 'manage_offerings', 'view_reports'] },
+  { id: 'communications', label: 'Communications Admin',   permissions: ['manage_announcements', 'view_reports'] },
+  { id: 'auditor',        label: 'Auditor',                permissions: ['view_audit_logs', 'view_reports'] },
+  { id: 'all',            label: 'All Permissions',        permissions: ['manage_users', 'manage_admissions', 'manage_academic', 'manage_offerings', 'manage_announcements', 'view_audit_logs', 'view_reports'] },
 ];
 
 export const TEACHER_DESIGNATIONS = [

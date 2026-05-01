@@ -30,6 +30,7 @@ export default function TwoFactorVerification({ userId, method, email, onComplet
         role: data.data.user.role,
         profilePicture: data.data.user.profilePicture || null,
         isSuperAdmin: data.data.roleData?.isSuperAdmin || false,
+        permissions: data.data.roleData?.permissions || [],
         authenticated: true
       }));
 

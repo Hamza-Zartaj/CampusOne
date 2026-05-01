@@ -122,11 +122,8 @@ const createSuperAdmin = async () => {
           employeeId,
           designation: 'Super Administrator',
           isSuperAdmin: true,
-          permissions: [
-            'manage_users', 'manage_courses', 'manage_assignments',
-            'manage_attendance', 'manage_announcements', 'view_reports',
-            'system_config', 'manage_ta_eligibility', 'manage_quiz'
-          ],
+          // Super admin bypasses all permission checks; this array is intentionally empty.
+          permissions: [],
           recoveryKeys: hashedKeys
         }
       });
