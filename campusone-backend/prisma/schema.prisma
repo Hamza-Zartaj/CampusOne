@@ -82,6 +82,7 @@ model Student {
   enrollments           Enrollment[]
   submissions           Submission[]
   attendances           Attendance[]
+  quizAttempts          QuizAttempt[]
 
   // Personal Info
   phone                 String?
@@ -446,6 +447,8 @@ model CourseOffering {
   enrollments  Enrollment[]
   assignments  Assignment[]
   attendances  Attendance[]
+  quizzes      Quiz[]
+  qnaThreads   QnaThread[]
 
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
@@ -589,4 +592,149 @@ model Submission {
   @@unique([assignmentId, studentId])
   @@index([assignmentId])
   @@index([studentId])
+}
+
+// ============ QUIZ MANAGEMENT ============
+
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum QuestionType {
+  MCQ
+  TRUE_FALSE
+  SHORT
+}
+
+enum QuizAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  AUTO_SUBMITTED
+}
+
+model Quiz {
+  id                String       @id @default(cuid())
+  offeringId        String
+  title             String
+  description       String?
+  totalMarks        Float        @default(0)
+  durationMinutes   Int          @default(30)
+  startAt           DateTime
+  endAt             DateTime
+  status            QuizStatus   @default(PUBLISHED)
+  shuffleQuestions  Boolean      @default(false)
+  maxViolations     Int          @default(3)
+  allowReview       Boolean      @default(true)
+
+  offering          CourseOffering @relation(fields: [offeringId], references: [id])
+  questions         QuizQuestion[]
+  attempts          QuizAttempt[]
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([offeringId])
+  @@index([status])
+  @@index([startAt])
+}
+
+model QuizQuestion {
+  id            String       @id @default(cuid())
+  quizId        String
+  type          QuestionType
+  questionText  String
+  options       Json         @default("[]")  // for MCQ: ["a","b","c","d"]; TF: ["True","False"]
+  correctAnswer Json                          // MCQ: index (0-3); TF: 0|1; SHORT: string
+  marks         Float        @default(1)
+  order         Int          @default(0)
+
+  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers       QuizAnswer[]
+
+  @@index([quizId, order])
+}
+
+model QuizAttempt {
+  id              String            @id @default(cuid())
+  quizId          String
+  studentId       String
+
+  startedAt       DateTime          @default(now())
+  submittedAt     DateTime?
+  status          QuizAttemptStatus @default(IN_PROGRESS)
+
+  totalScore      Float?
+  autoGradedScore Float?            // sum of MCQ + TRUE_FALSE auto-marks
+  manualScore     Float?            // sum of teacher-graded SHORT marks
+
+  violations      Int               @default(0)
+  violationLog    Json              @default("[]")  // [{type, at}]
+
+  quiz            Quiz              @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student         Student           @relation(fields: [studentId], references: [id])
+  answers         QuizAnswer[]
+
+  @@unique([quizId, studentId])
+  @@index([quizId])
+  @@index([studentId])
+}
+
+model QuizAnswer {
+  id            String       @id @default(cuid())
+  attemptId     String
+  questionId    String
+
+  answer        Json?        // MCQ/TF: index; SHORT: string
+  isCorrect     Boolean?     // null until graded (SHORT) or auto-set (MCQ/TF)
+  marksAwarded  Float        @default(0)
+  feedback      String?
+
+  attempt       QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question      QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@index([questionId])
+}
+
+// ============ Q&A FORUM ============
+
+enum QnaStatus {
+  OPEN
+  RESOLVED
+}
+
+model QnaThread {
+  id           String     @id @default(cuid())
+  offeringId   String
+  askedById    String     // User.id of asker
+  title        String
+  body         String
+  status       QnaStatus  @default(OPEN)
+
+  offering     CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  replies      QnaReply[]
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([offeringId])
+  @@index([askedById])
+  @@index([status])
+}
+
+model QnaReply {
+  id          String     @id @default(cuid())
+  threadId    String
+  authorId    String     // User.id of replier
+  body        String
+
+  thread      QnaThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime   @default(now())
+
+  @@index([threadId])
+  @@index([authorId])
 }

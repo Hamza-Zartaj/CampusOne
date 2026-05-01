@@ -351,6 +351,38 @@ export const auditLogAPI = {
   getCategories: () => api.get('/audit-logs/categories'),
 };
 
+// Quiz API
+export const quizAPI = {
+  // Teacher
+  getAll: (params = {}) => api.get('/quizzes', { params }),
+  getById: (id) => api.get(`/quizzes/${id}`),
+  create: (data) => api.post('/quizzes', data),
+  update: (id, data) => api.put(`/quizzes/${id}`, data),
+  delete: (id) => api.delete(`/quizzes/${id}`),
+  importExcel: (formData) => api.post('/quizzes/import-excel', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  getAttempts: (id) => api.get(`/quizzes/${id}/attempts`),
+  getAttemptDetail: (attemptId) => api.get(`/quizzes/teacher/attempts/${attemptId}`),
+  gradeAnswer: (answerId, data) => api.put(`/quizzes/answers/${answerId}/grade`, data),
+  // Student
+  getMy: () => api.get('/quizzes/my'),
+  start: (id) => api.post(`/quizzes/${id}/start`),
+  saveAnswer: (attemptId, data) => api.put(`/quizzes/attempts/${attemptId}/answer`, data),
+  logViolation: (attemptId, data) => api.post(`/quizzes/attempts/${attemptId}/violation`, data),
+  submit: (attemptId, data) => api.post(`/quizzes/attempts/${attemptId}/submit`, data),
+  getMyResult: (attemptId) => api.get(`/quizzes/attempts/${attemptId}/result`),
+};
+
+// Q&A API
+export const qnaAPI = {
+  getThreads: (params = {}) => api.get('/qna', { params }),
+  getThread: (id) => api.get(`/qna/${id}`),
+  createThread: (data) => api.post('/qna', data),
+  reply: (id, data) => api.post(`/qna/${id}/replies`, data),
+  setStatus: (id, status) => api.put(`/qna/${id}/status`, { status }),
+  deleteThread: (id) => api.delete(`/qna/${id}`),
+  deleteReply: (replyId) => api.delete(`/qna/replies/${replyId}`),
+};
+
 // Attendance API
 export const attendanceAPI = {
   mark: (data) => api.post('/attendance', data),
