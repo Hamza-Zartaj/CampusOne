@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, Plus, Trash2, Search } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, Search, ArrowRightLeft, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { enrollmentAPI, offeringAPI, termAPI, userAPI } from '../../../utils/api';
 
@@ -22,6 +22,9 @@ const EnrollmentManagement = () => {
   const [saving, setSaving] = useState(false);
   const [filterOffering, setFilterOffering] = useState('');
   const [filterTerm, setFilterTerm] = useState('');
+  const [transferTarget, setTransferTarget] = useState(null);
+  const [transferOfferingId, setTransferOfferingId] = useState('');
+  const [transferring, setTransferring] = useState(false);
 
   useEffect(() => { loadMeta(); }, []);
   useEffect(() => { if (filterOffering) loadEnrollments(); }, [filterOffering]);
@@ -92,6 +95,36 @@ const EnrollmentManagement = () => {
       setSaving(false);
     }
   };
+
+  const openTransfer = (enrollment) => {
+    setTransferTarget(enrollment);
+    setTransferOfferingId('');
+  };
+
+  const handleTransfer = async () => {
+    if (!transferTarget || !transferOfferingId) return toast.error('Select a target section');
+    try {
+      setTransferring(true);
+      await enrollmentAPI.transferSection(transferTarget.id, transferOfferingId);
+      toast.success('Section transferred');
+      setTransferTarget(null);
+      setTransferOfferingId('');
+      loadEnrollments();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to transfer');
+    } finally {
+      setTransferring(false);
+    }
+  };
+
+  // Sections of same course in same term, excluding current
+  const sectionOptions = transferTarget
+    ? offerings.filter(
+        (o) =>
+          o.courseId === transferTarget.offering?.course?.id ||
+          o.course?.code === transferTarget.offering?.course?.code
+      ).filter((o) => o.id !== transferTarget.offeringId)
+    : [];
 
   const handleDrop = async (enrollment) => {
     if (!confirm(`Drop ${enrollment.student?.user?.name} from this course?`)) return;
@@ -170,6 +203,55 @@ const EnrollmentManagement = () => {
         </div>
       )}
 
+      {transferTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="font-semibold text-slate-800">Move to Another Section</h2>
+              <button onClick={() => setTransferTarget(null)} className="text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-slate-50 rounded-lg p-3 text-sm">
+                <p className="m-0"><b>{transferTarget.student?.user?.name}</b> ({transferTarget.student?.studentId})</p>
+                <p className="m-0 text-xs text-slate-600 mt-1">
+                  Currently in: {transferTarget.offering?.course?.code} — Sec {transferTarget.offering?.section}
+                </p>
+              </div>
+              <div>
+                <label className={labelClass}>Target Section</label>
+                <select
+                  className={inputClass}
+                  value={transferOfferingId}
+                  onChange={(e) => setTransferOfferingId(e.target.value)}
+                >
+                  <option value="">Select another section…</option>
+                  {sectionOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      Sec {o.section} — {o.teacher?.user?.name || 'Unassigned'}
+                    </option>
+                  ))}
+                </select>
+                {sectionOptions.length === 0 && (
+                  <p className="text-xs text-slate-400 mt-1">No other sections of this course in this term.</p>
+                )}
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setTransferTarget(null)} className={btnSecondary}>Cancel</button>
+                <button
+                  onClick={handleTransfer}
+                  disabled={transferring || !transferOfferingId}
+                  className={btnPrimary}
+                >
+                  {transferring ? 'Moving…' : 'Move'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!filterOffering ? (
         <div className="text-center py-12 text-slate-400">Select a term and offering to view enrollments.</div>
       ) : loading ? (
@@ -200,7 +282,14 @@ const EnrollmentManagement = () => {
                   <td className="py-3 px-4 text-center text-slate-600 font-medium">{e.gradeLetter || '—'}</td>
                   <td className="py-3 px-4 text-right">
                     {e.status === 'ENROLLED' && (
-                      <button onClick={() => handleDrop(e)} className="p-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50"><Trash2 size={13} /></button>
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          onClick={() => openTransfer(e)}
+                          title="Move to another section"
+                          className="p-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50"
+                        ><ArrowRightLeft size={13} /></button>
+                        <button onClick={() => handleDrop(e)} className="p-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50"><Trash2 size={13} /></button>
+                      </div>
                     )}
                   </td>
                 </tr>

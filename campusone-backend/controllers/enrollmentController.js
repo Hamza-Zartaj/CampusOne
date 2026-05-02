@@ -149,6 +149,63 @@ export const dropEnrollment = async (req, res) => {
   }
 };
 
+// PUT /api/enrollments/:id/transfer-section  — admin moves student to a different section of the same course/term
+export const transferSection = async (req, res) => {
+  try {
+    const { newOfferingId } = req.body;
+    if (!newOfferingId) return res.status(400).json({ success: false, message: 'newOfferingId is required' });
+
+    const enrollment = await prisma.enrollment.findUnique({
+      where: { id: req.params.id },
+      include: { offering: { select: { id: true, courseId: true, termId: true, section: true } } },
+    });
+    if (!enrollment) return res.status(404).json({ success: false, message: 'Enrollment not found' });
+
+    if (enrollment.status !== 'ENROLLED') {
+      return res.status(409).json({ success: false, message: 'Only active enrollments can be transferred' });
+    }
+    if (enrollment.gradeLetter) {
+      return res.status(409).json({ success: false, message: 'Cannot transfer after grading has begun' });
+    }
+    if (enrollment.offeringId === newOfferingId) {
+      return res.status(400).json({ success: false, message: 'New offering must differ from current' });
+    }
+
+    const target = await prisma.courseOffering.findUnique({
+      where: { id: newOfferingId },
+      include: { _count: { select: { enrollments: { where: { status: 'ENROLLED' } } } } },
+    });
+    if (!target || !target.isActive) return res.status(404).json({ success: false, message: 'Target offering not found or inactive' });
+
+    if (target.courseId !== enrollment.offering.courseId || target.termId !== enrollment.offering.termId) {
+      return res.status(400).json({ success: false, message: 'Target offering must be the same course in the same term' });
+    }
+    if (target.section === enrollment.offering.section) {
+      return res.status(400).json({ success: false, message: 'Target offering must be a different section' });
+    }
+    if (target._count.enrollments >= target.capacity) {
+      return res.status(409).json({ success: false, message: 'Target section is at full capacity' });
+    }
+
+    // Ensure no existing enrollment row for student/target
+    const existing = await prisma.enrollment.findUnique({
+      where: { studentId_offeringId: { studentId: enrollment.studentId, offeringId: newOfferingId } },
+    });
+    if (existing) {
+      return res.status(409).json({ success: false, message: 'Student already has an enrollment in target section' });
+    }
+
+    const updated = await prisma.enrollment.update({
+      where: { id: enrollment.id },
+      data: { offeringId: newOfferingId },
+    });
+
+    res.json({ success: true, data: updated, message: `Transferred from ${enrollment.offering.section} to ${target.section}` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // PUT /api/enrollments/:id/grade  — teacher submits grade for one student
 export const updateGrade = async (req, res) => {
   try {

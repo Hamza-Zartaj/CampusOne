@@ -29,6 +29,7 @@ import quizRoutes from './routes/quizRoutes.js';
 import qnaRoutes from './routes/qnaRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import leaveRoutes from './routes/leaveRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -100,6 +101,7 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/qna', qnaRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/leave', leaveRoutes);
 
 // 404 Handler - Route not found
 app.use((req, res, next) => {

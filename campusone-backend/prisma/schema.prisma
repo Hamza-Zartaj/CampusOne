@@ -83,6 +83,8 @@ model Student {
   submissions           Submission[]
   attendances           Attendance[]
   quizAttempts          QuizAttempt[]
+  leaveApplications     LeaveApplication[]
+  fines                 Fine[]
 
   // Personal Info
   phone                 String?
@@ -168,7 +170,8 @@ model Announcement {
   title           String
   content         String
   priority        String    @default("medium") // "low", "medium", "high"
-  targetAudience  String?   // "all", "teachers", "students"
+  targetAudience  String?   // "all", "teachers", "students", "course"
+  offeringId      String?   // set when targetAudience = "course"
   createdBy       String
 
   createdAt       DateTime  @default(now())
@@ -176,6 +179,7 @@ model Announcement {
 
   @@index([createdBy])
   @@index([createdAt])
+  @@index([offeringId])
 }
 
 // ============ ADMINISTRATIVE & SYSTEM ============
@@ -452,6 +456,8 @@ model CourseOffering {
   attendances  Attendance[]
   quizzes      Quiz[]
   qnaThreads   QnaThread[]
+  leaveApplications LeaveApplication[]
+  fines        Fine[]
 
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
@@ -740,6 +746,66 @@ model QnaReply {
 
   @@index([threadId])
   @@index([authorId])
+}
+
+// ============ LEAVE MANAGEMENT ============
+
+enum LeaveApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum FineStatus {
+  UNPAID
+  PAID
+  WAIVED
+}
+
+model LeaveApplication {
+  id             String                 @id @default(cuid())
+  studentId      String
+  offeringId     String
+
+  fromDate       String                 // YYYY-MM-DD
+  toDate         String                 // YYYY-MM-DD
+  reason         String
+  attachmentUrl  String?
+
+  status         LeaveApplicationStatus @default(PENDING)
+  reviewedBy     String?                // teacher userId
+  reviewNotes    String?
+  reviewedAt     DateTime?
+
+  student        Student                @relation(fields: [studentId], references: [id])
+  offering       CourseOffering         @relation(fields: [offeringId], references: [id])
+
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([studentId])
+  @@index([offeringId])
+  @@index([status])
+}
+
+model Fine {
+  id          String      @id @default(cuid())
+  studentId   String
+  offeringId  String
+
+  reason      String      // e.g. "Absent on 2026-03-12 (over 4-leave quota)"
+  amount      Float
+  status      FineStatus  @default(UNPAID)
+
+  student     Student     @relation(fields: [studentId], references: [id])
+  offering    CourseOffering @relation(fields: [offeringId], references: [id])
+
+  createdAt   DateTime    @default(now())
+  paidAt      DateTime?
+
+  @@index([studentId])
+  @@index([offeringId])
+  @@index([status])
 }
 
 // ============ NOTIFICATIONS ============

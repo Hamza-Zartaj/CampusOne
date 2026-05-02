@@ -1,4 +1,5 @@
 import prisma from '../prisma/client.js';
+import { reevaluateAfterAttendance } from './leaveController.js';
 
 // ─── TEACHER ENDPOINTS ────────────────────────────────────────────────────────
 
@@ -27,6 +28,13 @@ export const markAttendance = async (req, res) => {
         update: { status, markedBy: teacher.id },
       })
     ));
+
+    // Fire-and-forget leave-quota re-evaluation (fines + drop-off)
+    reevaluateAfterAttendance({
+      offeringId,
+      studentIds: records.map((r) => r.studentId),
+      performedById: req.user.id,
+    });
 
     res.json({ success: true, count: records.length, message: `Attendance saved for ${records.length} students` });
   } catch (err) {
