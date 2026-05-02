@@ -14,6 +14,7 @@ import ApplicationsManagement from './pages/admin/Admissions/ApplicationsManagem
 import AnnouncementManagement from './pages/admin/AnnouncementManagement';
 import Reports from './pages/admin/Reports';
 import AuditLogs from './pages/admin/AuditLogs';
+import TAOversight from './pages/admin/TAOversight';
 
 // Admin Academic Pages
 import DepartmentManagement from './pages/admin/academic/DepartmentManagement';
@@ -32,6 +33,7 @@ import TeacherAssignments from './pages/teacher/TeacherAssignments';
 import TeacherQuizzes from './pages/teacher/TeacherQuizzes';
 import TeacherQnA from './pages/teacher/TeacherQnA';
 import TeacherLeaveApplications from './pages/teacher/TeacherLeaveApplications';
+import TeacherTAApplications from './pages/teacher/TeacherTAApplications';
 
 // Teacher Academic Pages
 import MyOfferings from './pages/teacher/academic/MyOfferings';
@@ -45,6 +47,7 @@ import StudentAssignments from './pages/student/StudentAssignments';
 import StudentQuizzes from './pages/student/StudentQuizzes';
 import StudentQnA from './pages/student/StudentQnA';
 import StudentLeaveStatus from './pages/student/StudentLeaveStatus';
+import MyTAAssignments from './pages/student/MyTAAssignments';
 
 // Student Academic Pages
 import MyCourses from './pages/student/academic/MyCourses';
@@ -90,6 +93,7 @@ function App() {
           <Route path="/admin/academic/offerings" element={<CourseOfferingManagement />} />
           <Route path="/admin/academic/enrollments" element={<EnrollmentManagement />} />
           <Route path="/admin/audit-logs" element={<AuditLogs />} />
+          <Route path="/admin/ta-oversight" element={<TAOversight />} />
 
           {/* Teacher Routes */}
           <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
@@ -102,6 +106,7 @@ function App() {
           <Route path="/teacher/offerings" element={<MyOfferings />} />
           <Route path="/teacher/offerings/:offeringId/marks" element={<MarksUpload />} />
           <Route path="/teacher/leave-applications" element={<TeacherLeaveApplications />} />
+          <Route path="/teacher/ta-applications" element={<TeacherTAApplications />} />
 
           {/* Student Routes */}
           <Route path="/student/dashboard" element={<StudentDashboard />} />
@@ -116,6 +121,7 @@ function App() {
           <Route path="/student/transcript" element={<Transcript />} />
           <Route path="/student/timetable" element={<MyTimetable />} />
           <Route path="/student/leave-status" element={<StudentLeaveStatus />} />
+          <Route path="/student/ta" element={<MyTAAssignments />} />
         </Route>
       </Routes>
     </Router>

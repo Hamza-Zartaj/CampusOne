@@ -230,15 +230,27 @@ export const deleteAssignment = async (req, res) => {
 // GET /api/assignments/:id/submissions  — teacher views all submissions
 export const getSubmissions = async (req, res) => {
   try {
-    const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
     const assignment = await prisma.assignment.findUnique({
       where: { id: req.params.id },
-      include: { offering: { select: { teacherId: true, _count: { select: { enrollments: true } } } } },
+      include: { offering: { select: { id: true, teacherId: true, _count: { select: { enrollments: true } } } } },
     });
     if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
-    if (assignment.offering.teacherId !== teacher?.id) {
-      return res.status(403).json({ success: false, message: 'Not your assignment' });
+
+    let allowed = req.user.role === 'admin';
+    if (!allowed && req.user.role === 'teacher') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+      allowed = teacher && assignment.offering.teacherId === teacher.id;
     }
+    if (!allowed && req.user.role === 'student') {
+      const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+      if (student) {
+        const ta = await prisma.tAAssignment.findUnique({
+          where: { studentId_offeringId: { studentId: student.id, offeringId: assignment.offering.id } },
+        });
+        allowed = ta && ta.status === 'APPROVED' && ta.permissions.includes('GRADE_ASSIGNMENTS');
+      }
+    }
+    if (!allowed) return res.status(403).json({ success: false, message: 'Not authorised' });
 
     const submissions = await prisma.submission.findMany({
       where: { assignmentId: req.params.id },
@@ -253,18 +265,36 @@ export const getSubmissions = async (req, res) => {
   }
 };
 
-// PUT /api/submissions/:id/grade  — teacher grades a submission
+// PUT /api/submissions/:id/grade  — teacher (or TA with GRADE_ASSIGNMENTS) grades a submission
 export const gradeSubmission = async (req, res) => {
   try {
-    const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
     const submission = await prisma.submission.findUnique({
       where: { id: req.params.id },
-      include: { assignment: { include: { offering: { select: { teacherId: true } } } } },
+      include: { assignment: { include: { offering: { select: { id: true, teacherId: true } } } } },
     });
     if (!submission) return res.status(404).json({ success: false, message: 'Submission not found' });
-    if (submission.assignment.offering.teacherId !== teacher?.id) {
-      return res.status(403).json({ success: false, message: 'Not your assignment' });
+
+    let graderId = null; // teacher.id, student.id (TA), or user.id (admin)
+    let allowed = false;
+    if (req.user.role === 'admin') { allowed = true; graderId = req.user.id; }
+    if (!allowed && req.user.role === 'teacher') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+      if (teacher && submission.assignment.offering.teacherId === teacher.id) {
+        allowed = true; graderId = teacher.id;
+      }
     }
+    if (!allowed && req.user.role === 'student') {
+      const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+      if (student) {
+        const ta = await prisma.tAAssignment.findUnique({
+          where: { studentId_offeringId: { studentId: student.id, offeringId: submission.assignment.offering.id } },
+        });
+        if (ta && ta.status === 'APPROVED' && ta.permissions.includes('GRADE_ASSIGNMENTS')) {
+          allowed = true; graderId = student.id;
+        }
+      }
+    }
+    if (!allowed) return res.status(403).json({ success: false, message: 'Not authorised to grade this submission' });
 
     const { obtainedMarks, feedback } = req.body;
     const updated = await prisma.submission.update({
@@ -274,7 +304,7 @@ export const gradeSubmission = async (req, res) => {
         feedback: feedback ?? undefined,
         status: 'GRADED',
         gradedAt: new Date(),
-        gradedBy: teacher.id,
+        gradedBy: graderId,
       },
     });
 

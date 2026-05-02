@@ -85,6 +85,7 @@ model Student {
   quizAttempts          QuizAttempt[]
   leaveApplications     LeaveApplication[]
   fines                 Fine[]
+  taAssignments         TAAssignment[]
 
   // Personal Info
   phone                 String?
@@ -458,6 +459,7 @@ model CourseOffering {
   qnaThreads   QnaThread[]
   leaveApplications LeaveApplication[]
   fines        Fine[]
+  taAssignments TAAssignment[]
 
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
@@ -806,6 +808,53 @@ model Fine {
   @@index([studentId])
   @@index([offeringId])
   @@index([status])
+}
+
+// ============ TA ASSIGNMENTS ============
+
+enum TAStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RELIEVED
+}
+
+enum TAPermission {
+  MARK_ATTENDANCE
+  GRADE_ASSIGNMENTS
+  GRADE_QUIZZES
+  ANSWER_QNA
+  UPLOAD_RESOURCES
+  VIEW_ROSTER
+}
+
+model TAAssignment {
+  id                 String         @id @default(cuid())
+  studentId          String
+  offeringId         String
+
+  status             TAStatus       @default(PENDING)
+  permissions        TAPermission[] @default([VIEW_ROSTER])
+
+  appliedSemester    Int
+  targetSemesterMin  Int
+  targetSemesterMax  Int
+
+  reason             String?
+  reviewNotes        String?
+  reviewedBy         String?
+  reviewedAt         DateTime?
+
+  appliedAt          DateTime       @default(now())
+  startedAt          DateTime?
+  endedAt            DateTime?
+
+  student            Student        @relation(fields: [studentId], references: [id])
+  offering           CourseOffering @relation(fields: [offeringId], references: [id])
+
+  @@unique([studentId, offeringId])
+  @@index([offeringId, status])
+  @@index([studentId, status])
 }
 
 // ============ NOTIFICATIONS ============

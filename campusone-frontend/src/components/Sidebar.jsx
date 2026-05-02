@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { taAPI } from '../utils/api';
 import {
   LayoutDashboard,
   Users,
@@ -21,6 +22,7 @@ import {
   PenLine,
   ShieldCheck,
   CalendarOff,
+  GraduationCap as GradCapIcon,
 } from 'lucide-react';
 
 const NAV_LABEL_CLASS = 'text-[10px] font-semibold uppercase tracking-wider text-slate-400 px-6 pt-4 pb-1 select-none';
@@ -31,6 +33,15 @@ const Sidebar = ({ isOpen }) => {
   const isSuperAdmin = !!user.isSuperAdmin;
   const userPerms = Array.isArray(user.permissions) ? user.permissions : [];
   const can = (perm) => isSuperAdmin || userPerms.includes(perm);
+
+  const [taActive, setTaActive] = useState([]);
+  useEffect(() => {
+    if (userRole !== 'student') return;
+    taAPI.getMyActive()
+      .then((r) => setTaActive(r.data.data || []))
+      .catch(() => setTaActive([]));
+  }, [userRole]);
+  const hasActiveTA = taActive.length > 0;
 
   const adminItemsRaw = [
     { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -44,6 +55,7 @@ const Sidebar = ({ isOpen }) => {
     { path: '/admin/academic/terms', icon: Calendar, label: 'Terms', perm: 'manage_academic' },
     { path: '/admin/academic/offerings', icon: Layers, label: 'Offerings', perm: 'manage_offerings' },
     { path: '/admin/academic/enrollments', icon: ClipboardList, label: 'Enrollments', perm: 'manage_offerings' },
+    { path: '/admin/ta-oversight', icon: GradCapIcon, label: 'TA Oversight', perm: 'manage_offerings' },
     { label: null, group: 'System', anyPerm: ['view_audit_logs'] },
     { path: '/admin/audit-logs', icon: ShieldCheck, label: 'Audit Logs', perm: 'view_audit_logs' },
   ];
@@ -72,6 +84,7 @@ const Sidebar = ({ isOpen }) => {
     { path: '/teacher/quizzes', icon: FileText, label: 'Quizzes' },
     { path: '/teacher/qna', icon: MessageSquare, label: 'Q&A Forum' },
     { path: '/teacher/leave-applications', icon: CalendarOff, label: 'Leave Applications' },
+    { path: '/teacher/ta-applications', icon: GradCapIcon, label: 'TA Applications' },
     { label: null, group: 'Other' },
     { path: '/teacher/announcements', icon: Bell, label: 'Announcements' },
     { path: '/teacher/notification', icon: Bell, label: 'Notifications' },
@@ -85,12 +98,16 @@ const Sidebar = ({ isOpen }) => {
     { path: '/student/timetable', icon: CalendarDays, label: 'Timetable' },
     { path: '/student/grades', icon: Award, label: 'My Grades' },
     { path: '/student/transcript', icon: ScrollText, label: 'Transcript' },
+    ...(hasActiveTA
+      ? [{ label: null, group: 'TA Duties' }, { path: '/student/ta', icon: GradCapIcon, label: 'My TA Assignments' }]
+      : []),
     { label: null, group: 'Other' },
     { path: '/student/attendance', icon: UserCheck, label: 'Attendance' },
     { path: '/student/assignments', icon: ClipboardList, label: 'Assignments' },
     { path: '/student/quizzes', icon: FileText, label: 'Quizzes' },
     { path: '/student/qna', icon: MessageSquare, label: 'Q&A Forum' },
     { path: '/student/leave-status', icon: CalendarOff, label: 'Leave Status' },
+    ...(hasActiveTA ? [] : [{ path: '/student/ta', icon: GradCapIcon, label: 'TA Program' }]),
     { path: '/student/notification', icon: Bell, label: 'Notifications' },
   ];
 
