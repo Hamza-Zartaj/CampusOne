@@ -1732,6 +1732,69 @@ export const changePassword = async (req, res) => {
 };
 
 /**
+ * @desc    Update current user's email address.
+ *          - During first-time login → no verification (default email is fake).
+ *          - Otherwise, if user has email-based 2FA → require a valid OTP
+ *            (issued via /auth/send-verification-otp).
+ *          - Otherwise → updates directly (only the user themselves can hit this).
+ * @route   PUT /api/auth/my-email
+ * @access  Private
+ */
+export const updateMyEmail = async (req, res) => {
+  try {
+    const { newEmail, otp } = req.body;
+
+    if (!newEmail) {
+      return res.status(400).json({ success: false, message: 'New email is required' });
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
+    }
+
+    const normalized = newEmail.toLowerCase().trim();
+    if (normalized === req.user.email) {
+      return res.status(400).json({ success: false, message: 'New email is the same as the current one' });
+    }
+
+    const existing = await prisma.user.findFirst({
+      where: { email: normalized, id: { not: req.user.id } },
+    });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'This email is already in use' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+
+    // OTP gate: only enforced when user is past first-time setup AND uses email 2FA
+    if (!user.isFirstLogin && user.twoFactorEnabled && user.twoFactorMethod === 'email') {
+      if (!otp) {
+        return res.status(400).json({ success: false, message: 'OTP is required to change your email' });
+      }
+      if (!user.emailOTP || user.emailOTP !== otp) {
+        return res.status(401).json({ success: false, message: 'Invalid OTP' });
+      }
+      if (new Date() > user.emailOTPExpiry) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { emailOTP: null, emailOTPExpiry: null },
+        });
+        return res.status(401).json({ success: false, message: 'OTP has expired' });
+      }
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { email: normalized, emailOTP: null, emailOTPExpiry: null },
+    });
+
+    res.status(200).json({ success: true, message: 'Email updated successfully', data: { email: normalized } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error updating email', error: error.message });
+  }
+};
+
+/**
  * @desc    Recover super admin account using a one-time recovery key.
  *          Verifies username + key, consumes the key, unlocks the account,
  *          and returns a short-lived reset token to set a new password.
@@ -1883,5 +1946,6 @@ export default {
   resetPassword,
   changePassword,
   sendVerificationOTP,
-  recoverSuperAdmin
+  recoverSuperAdmin,
+  updateMyEmail
 };
