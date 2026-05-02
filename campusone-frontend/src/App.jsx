@@ -31,6 +31,7 @@ import TeacherAttendance from './pages/teacher/TeacherAttendance';
 import TeacherAssignments from './pages/teacher/TeacherAssignments';
 import TeacherQuizzes from './pages/teacher/TeacherQuizzes';
 import TeacherQnA from './pages/teacher/TeacherQnA';
+import TeacherLeaveApplications from './pages/teacher/TeacherLeaveApplications';
 
 // Teacher Academic Pages
 import MyOfferings from './pages/teacher/academic/MyOfferings';
@@ -43,6 +44,7 @@ import StudentAttendance from './pages/student/StudentAttendance';
 import StudentAssignments from './pages/student/StudentAssignments';
 import StudentQuizzes from './pages/student/StudentQuizzes';
 import StudentQnA from './pages/student/StudentQnA';
+import StudentLeaveStatus from './pages/student/StudentLeaveStatus';
 
 // Student Academic Pages
 import MyCourses from './pages/student/academic/MyCourses';
@@ -99,6 +101,7 @@ function App() {
           <Route path="/teacher/notification" element={<TeacherNotification />} />
           <Route path="/teacher/offerings" element={<MyOfferings />} />
           <Route path="/teacher/offerings/:offeringId/marks" element={<MarksUpload />} />
+          <Route path="/teacher/leave-applications" element={<TeacherLeaveApplications />} />
 
           {/* Student Routes */}
           <Route path="/student/dashboard" element={<StudentDashboard />} />
@@ -112,6 +115,7 @@ function App() {
           <Route path="/student/grades" element={<MyGrades />} />
           <Route path="/student/transcript" element={<Transcript />} />
           <Route path="/student/timetable" element={<MyTimetable />} />
+          <Route path="/student/leave-status" element={<StudentLeaveStatus />} />
         </Route>
       </Routes>
     </Router>

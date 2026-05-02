@@ -11,6 +11,7 @@ const MyTimetable = () => {
   const [timetable, setTimetable] = useState({});
   const [term, setTerm] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [primarySection, setPrimarySection] = useState(null);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -23,6 +24,15 @@ const MyTimetable = () => {
       const res = await enrollmentAPI.getCurrent(studentId);
       const enrollments = res.data.data || [];
       setTerm(res.data.term);
+
+      // Derive primary section: the most common section across the student's enrollments
+      const sectionCounts = {};
+      enrollments.forEach((e) => {
+        const s = e.offering?.section;
+        if (s) sectionCounts[s] = (sectionCounts[s] || 0) + 1;
+      });
+      const top = Object.entries(sectionCounts).sort((a, b) => b[1] - a[1])[0];
+      setPrimarySection(top ? top[0] : null);
 
       const byDay = {};
       DAYS.forEach((d) => (byDay[d] = []));
@@ -58,12 +68,19 @@ const MyTimetable = () => {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <CalendarDays size={24} className="text-blue-600" />
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">My Timetable</h1>
-          {term && <p className="text-sm text-slate-500">{term.code} — {term.academicYear}</p>}
+      <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+        <div className="flex items-center gap-3">
+          <CalendarDays size={24} className="text-blue-600" />
+          <div>
+            <h1 className="text-xl font-semibold text-slate-800">My Timetable</h1>
+            {term && <p className="text-sm text-slate-500">{term.code} — {term.academicYear}</p>}
+          </div>
         </div>
+        {primarySection && (
+          <div className="px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-sm font-semibold">
+            Section {primarySection}
+          </div>
+        )}
       </div>
 
       {loading ? (

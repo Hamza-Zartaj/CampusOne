@@ -20,6 +20,7 @@ import {
   ScrollText,
   PenLine,
   ShieldCheck,
+  CalendarOff,
 } from 'lucide-react';
 
 const NAV_LABEL_CLASS = 'text-[10px] font-semibold uppercase tracking-wider text-slate-400 px-6 pt-4 pb-1 select-none';
@@ -70,6 +71,7 @@ const Sidebar = ({ isOpen }) => {
     { path: '/teacher/assignments', icon: ClipboardList, label: 'Assignments' },
     { path: '/teacher/quizzes', icon: FileText, label: 'Quizzes' },
     { path: '/teacher/qna', icon: MessageSquare, label: 'Q&A Forum' },
+    { path: '/teacher/leave-applications', icon: CalendarOff, label: 'Leave Applications' },
     { label: null, group: 'Other' },
     { path: '/teacher/announcements', icon: Bell, label: 'Announcements' },
     { path: '/teacher/notification', icon: Bell, label: 'Notifications' },
@@ -88,6 +90,7 @@ const Sidebar = ({ isOpen }) => {
     { path: '/student/assignments', icon: ClipboardList, label: 'Assignments' },
     { path: '/student/quizzes', icon: FileText, label: 'Quizzes' },
     { path: '/student/qna', icon: MessageSquare, label: 'Q&A Forum' },
+    { path: '/student/leave-status', icon: CalendarOff, label: 'Leave Status' },
     { path: '/student/notification', icon: Bell, label: 'Notifications' },
   ];
 

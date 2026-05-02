@@ -342,6 +342,7 @@ export const enrollmentAPI = {
   drop: (id) => api.delete(`/enrollments/${id}`),
   updateGrade: (id, data) => api.put(`/enrollments/${id}/grade`, data),
   bulkGrade: (data) => api.post('/enrollments/bulk-grade', data),
+  transferSection: (id, newOfferingId) => api.put(`/enrollments/${id}/transfer-section`, { newOfferingId }),
   getTranscript: (studentId) => api.get(`/enrollments/students/${studentId}/transcript`),
   getCGPA: (studentId) => api.get(`/enrollments/students/${studentId}/cgpa`),
   getCurrent: (studentId) => api.get(`/enrollments/students/${studentId}/current`),
@@ -425,6 +426,21 @@ export const qnaAPI = {
   setStatus: (id, status) => api.put(`/qna/${id}/status`, { status }),
   deleteThread: (id) => api.delete(`/qna/${id}`),
   deleteReply: (replyId) => api.delete(`/qna/replies/${replyId}`),
+};
+
+// Leave Management API
+export const leaveAPI = {
+  // Student
+  getMy: () => api.get('/leave/my'),
+  getMyFines: () => api.get('/leave/my/fines'),
+  submitApplication: (data) => api.post('/leave/applications', data),
+  // Teacher / Admin
+  getOfferingStatus: (offeringId) => api.get(`/leave/offering/${offeringId}`),
+  getPendingForTeacher: () => api.get('/leave/applications/teacher/pending'),
+  approve: (id, reviewNotes) => api.put(`/leave/applications/${id}/approve`, { reviewNotes }),
+  reject: (id, reviewNotes) => api.put(`/leave/applications/${id}/reject`, { reviewNotes }),
+  // Shared
+  getApplication: (id) => api.get(`/leave/applications/${id}`),
 };
 
 // Attendance API

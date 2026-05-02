@@ -8,6 +8,7 @@ router.get('/', protect, authorize('admin', 'teacher'), ctrl.getEnrollments);
 router.get('/:id', protect, ctrl.getEnrollmentById);
 router.post('/', protect, authorizePermission('manage_offerings'), ctrl.enrollStudent);
 router.delete('/:id', protect, authorizePermission('manage_offerings'), ctrl.dropEnrollment);
+router.put('/:id/transfer-section', protect, authorizePermission('manage_offerings'), ctrl.transferSection);
 router.put('/:id/grade', protect, authorize('teacher', 'admin'), ctrl.updateGrade);
 router.post('/bulk-grade', protect, authorize('teacher', 'admin'), ctrl.bulkGrade);
 
