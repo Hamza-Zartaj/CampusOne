@@ -1,72 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Megaphone,
-  Send,
-  Trash2,
-  AlertCircle,
-  CheckCircle,
-  Loader,
-  BookOpen,
-  Clock,
+  Megaphone, Send, Trash2, AlertCircle, CheckCircle, Loader, BookOpen, Clock,
 } from 'lucide-react';
-import { announcementAPI } from '../../utils/api';
-
-// Dummy data for development/demo
-const dummyCourseOfferings = [
-  {
-    id: '1',
-    course: {
-      courseCode: 'CS101',
-      courseName: 'Introduction to Computer Science',
-      creditHours: 3
-    },
-    program: { programCode: 'BSCS' },
-    section: 'A',
-    semesterNumber: 1,
-    academicYear: '2026',
-    currentEnrollment: 45,
-    maxCapacity: 50,
-    status: 'active',
-    resultsLocked: false
-  },
-  {
-    id: '2',
-    course: {
-      courseCode: 'CS201',
-      courseName: 'Data Structures & Algorithms',
-      creditHours: 3
-    },
-    program: { programCode: 'BSCS' },
-    section: 'B',
-    semesterNumber: 2,
-    academicYear: '2026',
-    currentEnrollment: 38,
-    maxCapacity: 40,
-    status: 'active',
-    resultsLocked: true
-  },
-];
-
-const dummyAnnouncements = [
-  {
-    id: '1',
-    title: 'Important: Assignment Deadline Extended',
-    content: 'Due to popular request, we have extended the assignment deadline to next Friday. Please make sure to submit your work by then.',
-    priority: 'high',
-    courseId: { title: 'CS101' },
-    targetAudience: 'specific_course',
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-  },
-  {
-    id: '2',
-    title: 'Midterm Preparation Tips',
-    content: 'Here are some tips to help you prepare for the midterm exam. Focus on chapters 1-5 from the textbook.',
-    priority: 'medium',
-    courseId: { title: 'CS101' },
-    targetAudience: 'specific_course',
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-  }
-];
+import { announcementAPI, offeringAPI } from '../../utils/api';
 
 const inputClass =
   'w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] transition-all focus:outline-none focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/10';
@@ -75,39 +11,38 @@ const btnPrimaryClass =
   'inline-flex items-center gap-2 py-2.5 px-5 border-none rounded-lg text-[0.95rem] font-medium cursor-pointer transition-all bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed';
 
 const PRIORITY_BADGES = {
-  low: { bg: 'bg-green-100', text: 'text-green-700' },
-  medium: { bg: 'bg-blue-100', text: 'text-blue-700' },
-  high: { bg: 'bg-red-100', text: 'text-red-700' },
+  low:    'bg-green-100 text-green-700',
+  medium: 'bg-blue-100 text-blue-700',
+  high:   'bg-red-100 text-red-700',
 };
 
 const TeacherAnnouncement = () => {
-  const [announcements, setAnnouncements] = useState(dummyAnnouncements);
-  const [courseOfferings, setCourseOfferings] = useState(dummyCourseOfferings);
-  const [loading, setLoading] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
+  const [offerings, setOfferings] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Form states
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [priority, setPriority] = useState('medium');
-  const [courseId, setCourseId] = useState('');
+  const [offeringId, setOfferingId] = useState('');
   const [sending, setSending] = useState(false);
 
-  // Load data
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const announcRes = await announcementAPI.getMyAnnouncements();
-      setAnnouncements(announcRes.data);
+      const [annRes, offRes] = await Promise.all([
+        announcementAPI.getMyAnnouncements(),
+        offeringAPI.getMy(),
+      ]);
+      setAnnouncements(Array.isArray(annRes.data) ? annRes.data : (annRes.data.data || []));
+      setOfferings(offRes.data.data || []);
       setError('');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load data');
-      console.error('Error loading data:', err);
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -115,79 +50,66 @@ const TeacherAnnouncement = () => {
 
   const handleSend = async (e) => {
     e.preventDefault();
-
-    if (!title.trim() || !content.trim() || !courseId) {
+    if (!title.trim() || !content.trim() || !offeringId) {
       setError('Please fill in all required fields');
       return;
     }
-
     try {
       setSending(true);
       setError('');
-
-      const data = {
+      const res = await announcementAPI.sendCourseAnnouncement({
         title: title.trim(),
         content: content.trim(),
         priority,
-        courseId,
-      };
-
-      const res = await announcementAPI.sendCourseAnnouncement(data);
-
+        offeringId,
+      });
       setSuccess(`✓ Announcement sent to ${res.data.recipientCount} students`);
-      setTitle('');
-      setContent('');
-      setPriority('medium');
-      setCourseId('');
-
-      // Reload announcements
+      setTitle(''); setContent(''); setPriority('medium'); setOfferingId('');
       loadData();
-
       setTimeout(() => setSuccess(''), 5000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to send announcement');
-      console.error('Error sending announcement:', err);
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to send announcement');
     } finally {
       setSending(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this announcement?')) {
-      return;
-    }
-
+    if (!window.confirm('Delete this announcement?')) return;
     try {
       await announcementAPI.deleteAnnouncement(id);
-      setSuccess('Announcement deleted successfully');
+      setSuccess('Announcement deleted');
       loadData();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to delete announcement');
-      console.error('Error deleting announcement:', err);
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to delete');
     }
   };
 
-  // Filter announcements created by current teacher
   const currentUserId = JSON.parse(localStorage.getItem('user') || '{}').id;
   const myAnnouncements = announcements.filter(
-    (ann) => ann.createdBy === currentUserId || (ann.createdBy && ann.createdBy.id === currentUserId)
+    (ann) =>
+      ann.createdBy === currentUserId ||
+      (ann.createdBy && ann.createdBy.id === currentUserId)
   );
+
+  const offeringLabel = (id) => {
+    const o = offerings.find((x) => x.id === id);
+    return o ? `${o.course?.code} (Sec ${o.section})` : null;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Megaphone className="w-8 h-8 text-blue-600" />
             <h1 className="text-3xl font-bold text-slate-900">Announce to Students</h1>
           </div>
-          <p className="text-slate-600">Send announcements to your course students</p>
+          <p className="text-slate-600">Send announcements to one of your course offerings</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Form Section */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sticky top-6">
               <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
@@ -198,71 +120,62 @@ const TeacherAnnouncement = () => {
               {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
                   <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-red-700 text-sm">{error}</p>
+                  <p className="text-red-700 text-sm m-0">{error}</p>
                 </div>
               )}
-
               {success && (
                 <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex gap-2">
                   <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-green-700 text-sm">{success}</p>
+                  <p className="text-green-700 text-sm m-0">{success}</p>
                 </div>
               )}
 
               <form onSubmit={handleSend} className="space-y-4">
                 <div>
-                  <label className={labelClass}>Select Course *</label>
+                  <label className={labelClass}>Course Offering *</label>
                   <select
-                    value={courseId}
-                    onChange={(e) => setCourseId(e.target.value)}
+                    value={offeringId}
+                    onChange={(e) => setOfferingId(e.target.value)}
                     className={inputClass}
-                    disabled={sending || courseOfferings.length === 0}
+                    disabled={sending || offerings.length === 0}
+                    required
                   >
-                    <option value="">Choose a course</option>
-                    {courseOfferings.map((offering) => (
-                      <option key={offering.id} value={offering.id}>
-                        {offering.course?.courseCode} - {offering.course?.courseName || 'Unknown Course'}
+                    <option value="">Choose an offering</option>
+                    {offerings.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.course?.code} — {o.course?.title} (Sec {o.section})
                       </option>
                     ))}
                   </select>
-                  {courseOfferings.length === 0 && (
-                    <p className="text-xs text-amber-600 mt-1">
-                      You are not teaching any courses this semester
-                    </p>
+                  {offerings.length === 0 && !loading && (
+                    <p className="text-xs text-amber-600 mt-1">You are not teaching any courses this term.</p>
                   )}
                 </div>
 
                 <div>
                   <label className={labelClass}>Title *</label>
                   <input
-                    type="text"
-                    value={title}
+                    type="text" value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="Announcement title"
-                    className={inputClass}
-                    disabled={sending}
+                    className={inputClass} disabled={sending}
                   />
                 </div>
 
                 <div>
                   <label className={labelClass}>Content *</label>
                   <textarea
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
+                    value={content} onChange={(e) => setContent(e.target.value)}
                     placeholder="Announcement content"
-                    rows="5"
-                    className={`${inputClass} resize-none`}
-                    disabled={sending}
+                    rows="5" className={`${inputClass} resize-none`} disabled={sending}
                   />
                 </div>
 
                 <div>
                   <label className={labelClass}>Priority</label>
                   <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value)}
-                    className={inputClass}
-                    disabled={sending}
+                    value={priority} onChange={(e) => setPriority(e.target.value)}
+                    className={inputClass} disabled={sending}
                   >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
@@ -270,28 +183,13 @@ const TeacherAnnouncement = () => {
                   </select>
                 </div>
 
-                <button
-                  type="submit"
-                  className={btnPrimaryClass}
-                  disabled={sending || courseOfferings.length === 0}
-                >
-                  {sending ? (
-                    <>
-                      <Loader className="w-4 h-4 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4" />
-                      Send to Class
-                    </>
-                  )}
+                <button type="submit" className={btnPrimaryClass} disabled={sending || offerings.length === 0}>
+                  {sending ? (<><Loader className="w-4 h-4 animate-spin" />Sending…</>) : (<><Send className="w-4 h-4" />Send to Class</>)}
                 </button>
               </form>
             </div>
           </div>
 
-          {/* Announcements List */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-6 border-b border-gray-200">
@@ -302,16 +200,11 @@ const TeacherAnnouncement = () => {
               </div>
 
               {loading ? (
-                <div className="p-8 flex justify-center">
-                  <Loader className="w-6 h-6 animate-spin text-blue-600" />
-                </div>
+                <div className="p-8 flex justify-center"><Loader className="w-6 h-6 animate-spin text-blue-600" /></div>
               ) : myAnnouncements.length === 0 ? (
                 <div className="p-8 text-center">
                   <Megaphone className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500">No announcements yet</p>
-                  <p className="text-sm text-gray-400 mt-1">
-                    Create an announcement to send to your students
-                  </p>
                 </div>
               ) : (
                 <div className="divide-y divide-gray-200 max-h-[800px] overflow-y-auto">
@@ -319,36 +212,24 @@ const TeacherAnnouncement = () => {
                     <div key={announcement.id} className="p-4 hover:bg-gray-50 transition-colors">
                       <div className="flex justify-between items-start gap-4">
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-slate-900 truncate pr-2">
-                            {announcement.title}
-                          </h3>
-                          <p className="text-sm text-slate-600 mt-1 line-clamp-2">
-                            {announcement.content}
-                          </p>
+                          <h3 className="font-semibold text-slate-900 truncate pr-2">{announcement.title}</h3>
+                          <p className="text-sm text-slate-600 mt-1 line-clamp-2">{announcement.content}</p>
                           <div className="flex items-center gap-4 mt-3 flex-wrap">
-                            {announcement.courseId && (
+                            {announcement.offeringId && (
                               <div className="flex items-center gap-1 text-xs text-slate-500">
                                 <BookOpen className="w-4 h-4" />
-                                <span>{announcement.courseId.title}</span>
+                                <span>{offeringLabel(announcement.offeringId) || 'Course'}</span>
                               </div>
                             )}
                             <div className="flex items-center gap-1 text-xs text-slate-500">
                               <Clock className="w-4 h-4" />
                               <span>
                                 {new Date(announcement.createdAt).toLocaleDateString()} at{' '}
-                                {new Date(announcement.createdAt).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
+                                {new Date(announcement.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-medium ${
-                                PRIORITY_BADGES[announcement.priority]
-                              }`}
-                            >
-                              {announcement.priority.charAt(0).toUpperCase() +
-                                announcement.priority.slice(1)}
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${PRIORITY_BADGES[announcement.priority] || PRIORITY_BADGES.medium}`}>
+                              {announcement.priority?.charAt(0).toUpperCase() + announcement.priority?.slice(1)}
                             </span>
                           </div>
                         </div>

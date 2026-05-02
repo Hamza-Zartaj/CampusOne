@@ -105,15 +105,29 @@ export const sendAnnouncement = async (req, res) => {
 };
 
 /**
- * Send announcement to course students (Teacher) - deprecated, kept for route compatibility
+ * Send announcement to a single course offering's enrolled students (Teacher / Admin)
+ * Body: { title, content, priority, offeringId }
  */
 export const sendCourseAnnouncement = async (req, res) => {
   try {
-    const { title, content, priority } = req.body;
+    const { title, content, priority, offeringId } = req.body;
     const userId = req.user.id;
 
-    if (!title || !content) {
-      return res.status(400).json({ error: 'Title and content are required' });
+    if (!title || !content || !offeringId) {
+      return res.status(400).json({ error: 'title, content, offeringId are required' });
+    }
+
+    const offering = await prisma.courseOffering.findUnique({
+      where: { id: offeringId },
+      include: { course: { select: { code: true, title: true } } },
+    });
+    if (!offering) return res.status(404).json({ error: 'Offering not found' });
+
+    if (req.user.role === 'teacher') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId } });
+      if (!teacher || offering.teacherId !== teacher.id) {
+        return res.status(403).json({ error: 'Not your offering' });
+      }
     }
 
     const announcement = await prisma.announcement.create({
@@ -122,14 +136,58 @@ export const sendCourseAnnouncement = async (req, res) => {
         content,
         priority: priority || 'medium',
         createdBy: userId,
-        targetAudience: 'students'
-      }
+        targetAudience: 'course',
+        offeringId,
+      },
+    });
+
+    // Enrolled students of this offering
+    const enrollments = await prisma.enrollment.findMany({
+      where: { offeringId, status: 'ENROLLED' },
+      include: { student: { select: { userId: true, user: { select: { email: true, name: true } } } } },
+    });
+    const recipients = enrollments.map((e) => ({
+      id: e.student.userId,
+      email: e.student.user.email,
+      name: e.student.user.name,
+    }));
+
+    if (recipients.length > 0) {
+      notifyMany({
+        userIds: recipients.map((r) => r.id),
+        type: TYPE.ANNOUNCEMENT,
+        title: `📢 ${offering.course.code}: ${title}`,
+        body: content.length > 200 ? content.slice(0, 200) + '…' : content,
+        linkUrl: '/student/notification',
+        metadata: { announcementId: announcement.id, offeringId, priority },
+      });
+
+      (async () => {
+        for (const r of recipients) {
+          await sendAnnouncementEmail({
+            email: r.email,
+            name: r.name,
+            title: `${offering.course.code}: ${title}`,
+            content,
+            priority: priority || 'medium',
+          }).catch((err) => console.error(`Failed to email ${r.email}:`, err));
+          await new Promise((resolve) => setTimeout(resolve, 550));
+        }
+      })();
+    }
+
+    auditLog({
+      action: 'SEND_COURSE_ANNOUNCEMENT', category: 'ANNOUNCEMENT',
+      performedBy: userId, performedByRole: req.user.role,
+      targetModel: 'Announcement', targetId: announcement.id,
+      description: `Sent course announcement "${title}" to ${offering.course.code} (${recipients.length} students)`,
+      newValue: { title, priority, offeringId, recipientCount: recipients.length },
     });
 
     res.status(201).json({
-      message: 'Announcement sent to all students',
+      message: `Announcement sent to ${recipients.length} students`,
       announcement,
-      recipientCount: 0
+      recipientCount: recipients.length,
     });
   } catch (error) {
     console.error('Error sending course announcement:', error);
@@ -175,25 +233,43 @@ export const getMyAnnouncements = async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    // Base query: announcements for all users and based on role
+    // Find offerings relevant to the user (for "course"-targeted announcements)
+    let relevantOfferingIds = [];
+    if (userRole === 'student') {
+      const student = await prisma.student.findUnique({ where: { userId } });
+      if (student) {
+        const enrollments = await prisma.enrollment.findMany({
+          where: { studentId: student.id, status: 'ENROLLED' },
+          select: { offeringId: true },
+        });
+        relevantOfferingIds = enrollments.map((e) => e.offeringId);
+      }
+    } else if (userRole === 'teacher') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId } });
+      if (teacher) {
+        const offerings = await prisma.courseOffering.findMany({
+          where: { teacherId: teacher.id },
+          select: { id: true },
+        });
+        relevantOfferingIds = offerings.map((o) => o.id);
+      }
+    }
+
+    const orClauses = [
+      { targetAudience: 'all' },
+      { targetAudience: userRole === 'student' ? 'students' : 'teachers' },
+      { createdBy: userId }, // own announcements (e.g. teacher's course announcements)
+    ];
+    if (relevantOfferingIds.length > 0) {
+      orClauses.push({ targetAudience: 'course', offeringId: { in: relevantOfferingIds } });
+    }
+
     const baseAnnouncements = await prisma.announcement.findMany({
-      where: {
-        OR: [
-          { targetAudience: 'all' },
-          { 
-            targetAudience: userRole === 'student' ? 'students' : 'teachers'
-          }
-        ]
-      },
-      orderBy: { createdAt: 'desc' }
+      where: { OR: orClauses },
+      orderBy: { createdAt: 'desc' },
     });
 
     let allAnnouncements = [...baseAnnouncements];
-
-    // If student, also include course-specific announcements
-    if (userRole === 'student') {
-      // Course model removed - no course-specific announcements
-    }
 
     // Remove duplicates by id
     const uniqueAnnouncements = Array.from(
