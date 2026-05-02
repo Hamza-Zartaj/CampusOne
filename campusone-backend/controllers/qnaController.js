@@ -33,6 +33,17 @@ const verifyOfferingAccess = async (user, offeringId) => {
   if (user.role === 'student') {
     const student = await prisma.student.findUnique({ where: { userId: user.id } });
     if (!student) return { error: 'Student profile not found', status: 403 };
+
+    // TA path: APPROVED assignment with ANSWER_QNA grants offering access (even if not enrolled)
+    const ta = await prisma.tAAssignment.findUnique({
+      where: { studentId_offeringId: { studentId: student.id, offeringId } },
+    });
+    if (ta && ta.status === 'APPROVED' && ta.permissions.includes('ANSWER_QNA')) {
+      const offering = await prisma.courseOffering.findUnique({ where: { id: offeringId } });
+      if (offering) return { offering, student, isTA: true };
+    }
+
+    // Enrolled student path
     const enrolled = await prisma.enrollment.findFirst({
       where: { studentId: student.id, offeringId, status: { in: ['ENROLLED', 'COMPLETED'] } },
       include: { offering: true },

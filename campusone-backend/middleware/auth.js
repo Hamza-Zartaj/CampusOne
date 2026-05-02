@@ -431,4 +431,55 @@ export const authorizePermission = (...requiredPermissions) => {
   };
 };
 
-export default { protect, authorize, authorizeSuperAdmin, verify2FA, checkDeviceTrust, addTrustedDevice, authorizePermission };
+/**
+ * Middleware to allow either: (a) the teacher who owns the offering, or
+ * (b) a student with an APPROVED TAAssignment for that offering that grants
+ * the requested permission. The offering id is read from req.params.offeringId
+ * or req.body.offeringId.
+ *
+ * On success, sets req.taAssignment if the request was authorised via the TA path.
+ */
+export const authorizeTeacherOrTA = (taPermission) => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user) return res.status(401).json({ success: false, message: 'Not authenticated' });
+
+      const offeringId = req.params.offeringId || req.body.offeringId;
+      if (!offeringId) {
+        return res.status(400).json({ success: false, message: 'offeringId is required' });
+      }
+
+      // Admin bypass
+      if (req.user.role === 'admin') return next();
+
+      // Teacher of offering
+      if (req.user.role === 'teacher') {
+        const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+        const offering = teacher
+          ? await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher.id } })
+          : null;
+        if (offering) return next();
+      }
+
+      // TA on offering
+      if (req.user.role === 'student') {
+        const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+        if (!student) return res.status(403).json({ success: false, message: 'Not authorised' });
+
+        const assignment = await prisma.tAAssignment.findUnique({
+          where: { studentId_offeringId: { studentId: student.id, offeringId } },
+        });
+        if (assignment && assignment.status === 'APPROVED' && assignment.permissions.includes(taPermission)) {
+          req.taAssignment = assignment;
+          return next();
+        }
+      }
+
+      return res.status(403).json({ success: false, message: 'Not authorised for this offering' });
+    } catch (err) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  };
+};
+
+export default { protect, authorize, authorizeSuperAdmin, verify2FA, checkDeviceTrust, addTrustedDevice, authorizePermission, authorizeTeacherOrTA };

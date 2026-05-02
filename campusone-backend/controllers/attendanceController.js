@@ -1,15 +1,34 @@
 import prisma from '../prisma/client.js';
 import { reevaluateAfterAttendance } from './leaveController.js';
 
+// Allow teacher of offering, admin, or APPROVED TA (with optional permission gate).
+const assertCanViewOffering = async (user, offeringId, requiredTAPermission = 'VIEW_ROSTER') => {
+  if (user.role === 'admin') return true;
+  if (user.role === 'teacher') {
+    const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } });
+    const offering = teacher
+      ? await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher.id } })
+      : null;
+    return !!offering;
+  }
+  if (user.role === 'student') {
+    const student = await prisma.student.findUnique({ where: { userId: user.id } });
+    if (!student) return false;
+    const ta = await prisma.tAAssignment.findUnique({
+      where: { studentId_offeringId: { studentId: student.id, offeringId } },
+    });
+    return !!(ta && ta.status === 'APPROVED' && ta.permissions.includes(requiredTAPermission));
+  }
+  return false;
+};
+
 // ─── TEACHER ENDPOINTS ────────────────────────────────────────────────────────
 
 // POST /api/attendance
 // Body: { offeringId, date, records: [{ studentId, status }] }
+// Authorised for: teacher of the offering, admin, or an APPROVED TA with MARK_ATTENDANCE.
 export const markAttendance = async (req, res) => {
   try {
-    const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
-    if (!teacher) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
-
     const { offeringId, date, records } = req.body;
     if (!offeringId || !date || !Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ success: false, message: 'offeringId, date, and records[] are required' });
@@ -18,14 +37,37 @@ export const markAttendance = async (req, res) => {
       return res.status(400).json({ success: false, message: 'date must be in YYYY-MM-DD format' });
     }
 
-    const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher.id } });
-    if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
+    let markerId; // string used for `markedBy` (teacher.id, ta student.id, or user.id for admin)
+
+    if (req.user.role === 'admin') {
+      const offering = await prisma.courseOffering.findUnique({ where: { id: offeringId } });
+      if (!offering) return res.status(404).json({ success: false, message: 'Offering not found' });
+      markerId = req.user.id;
+    } else if (req.user.role === 'teacher') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+      if (!teacher) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+      const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher.id } });
+      if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
+      markerId = teacher.id;
+    } else if (req.user.role === 'student') {
+      const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+      if (!student) return res.status(403).json({ success: false, message: 'Not authorised' });
+      const ta = await prisma.tAAssignment.findUnique({
+        where: { studentId_offeringId: { studentId: student.id, offeringId } },
+      });
+      if (!ta || ta.status !== 'APPROVED' || !ta.permissions.includes('MARK_ATTENDANCE')) {
+        return res.status(403).json({ success: false, message: 'TA permission required: MARK_ATTENDANCE' });
+      }
+      markerId = student.id;
+    } else {
+      return res.status(403).json({ success: false, message: 'Not authorised' });
+    }
 
     await Promise.all(records.map(({ studentId, status }) =>
       prisma.attendance.upsert({
         where: { offeringId_studentId_date: { offeringId, studentId, date } },
-        create: { offeringId, studentId, date, status, markedBy: teacher.id },
-        update: { status, markedBy: teacher.id },
+        create: { offeringId, studentId, date, status, markedBy: markerId },
+        update: { status, markedBy: markerId },
       })
     ));
 
@@ -47,11 +89,8 @@ export const getSessions = async (req, res) => {
   try {
     const { offeringId } = req.params;
 
-    if (req.user.role === 'teacher') {
-      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
-      const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher?.id } });
-      if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
-    }
+    const allowed = await assertCanViewOffering(req.user, offeringId, 'VIEW_ROSTER');
+    if (!allowed) return res.status(403).json({ success: false, message: 'Not authorised for this offering' });
 
     // Group by date + status using Prisma groupBy
     const grouped = await prisma.attendance.groupBy({
@@ -79,11 +118,8 @@ export const getSessionDetail = async (req, res) => {
   try {
     const { offeringId, date } = req.params;
 
-    if (req.user.role === 'teacher') {
-      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
-      const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher?.id } });
-      if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
-    }
+    const allowed = await assertCanViewOffering(req.user, offeringId, 'VIEW_ROSTER');
+    if (!allowed) return res.status(403).json({ success: false, message: 'Not authorised for this offering' });
 
     const records = await prisma.attendance.findMany({
       where: { offeringId, date },
@@ -104,11 +140,8 @@ export const getStudentSummary = async (req, res) => {
   try {
     const { offeringId } = req.params;
 
-    if (req.user.role === 'teacher') {
-      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
-      const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher?.id } });
-      if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
-    }
+    const allowed = await assertCanViewOffering(req.user, offeringId, 'VIEW_ROSTER');
+    if (!allowed) return res.status(403).json({ success: false, message: 'Not authorised for this offering' });
 
     const enrollments = await prisma.enrollment.findMany({
       where: { offeringId, status: { in: ['ENROLLED', 'COMPLETED'] } },

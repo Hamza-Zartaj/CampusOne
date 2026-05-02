@@ -428,6 +428,21 @@ export const qnaAPI = {
   deleteReply: (replyId) => api.delete(`/qna/replies/${replyId}`),
 };
 
+// TA API
+export const taAPI = {
+  getEligibility: () => api.get('/ta/eligibility'),
+  getMy: () => api.get('/ta/my'),
+  getMyActive: () => api.get('/ta/my/active'),
+  apply: (data) => api.post('/ta/applications', data),
+  // Teacher
+  getTeacherApplications: () => api.get('/ta/teacher/applications'),
+  approve: (id, data) => api.put(`/ta/applications/${id}/approve`, data),
+  reject: (id, reviewNotes) => api.put(`/ta/applications/${id}/reject`, { reviewNotes }),
+  relieve: (id, reviewNotes) => api.put(`/ta/applications/${id}/relieve`, { reviewNotes }),
+  // Admin
+  getAll: (params = {}) => api.get('/ta', { params }),
+};
+
 // Reports API
 export const reportsAPI = {
   overview: () => api.get('/reports/overview'),
