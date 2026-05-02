@@ -69,7 +69,7 @@ const TAOversight = () => {
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto">
+    <div className="max-w-350 mx-auto">
       <div className="flex items-center justify-between mb-6 max-sm:flex-col max-sm:items-start max-sm:gap-3">
         <div className="flex items-center gap-3">
           <GraduationCap size={24} className="text-indigo-600" />
@@ -146,7 +146,7 @@ const TAOversight = () => {
                     <td className="px-3 py-3 text-xs text-slate-600">{a.student.currentSemester}</td>
                     <td className="px-3 py-3">
                       <div className="text-sm font-medium text-slate-800">{a.offering.course.code}</div>
-                      <div className="text-xs text-slate-500 truncate max-w-[200px]">{a.offering.course.title}</div>
+                      <div className="text-xs text-slate-500 truncate max-w-50">{a.offering.course.title}</div>
                     </td>
                     <td className="px-3 py-3 text-sm text-slate-600">{a.offering.section}</td>
                     <td className="px-3 py-3 text-xs text-slate-600">{a.offering.term.code}</td>

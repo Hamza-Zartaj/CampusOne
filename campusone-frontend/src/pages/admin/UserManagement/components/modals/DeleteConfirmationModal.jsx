@@ -13,11 +13,11 @@ const DeleteConfirmationModal = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-modal p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl max-w-[500px] w-full shadow-xl animate-slide-up"
+        className="bg-white rounded-xl max-w-125 w-full shadow-xl animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         <ModalHeader title="Delete User" onClose={onClose} />

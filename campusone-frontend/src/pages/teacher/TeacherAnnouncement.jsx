@@ -99,7 +99,7 @@ const TeacherAnnouncement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 p-6">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
@@ -119,13 +119,13 @@ const TeacherAnnouncement = () => {
 
               {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                   <p className="text-red-700 text-sm m-0">{error}</p>
                 </div>
               )}
               {success && (
                 <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
                   <p className="text-green-700 text-sm m-0">{success}</p>
                 </div>
               )}
@@ -207,7 +207,7 @@ const TeacherAnnouncement = () => {
                   <p className="text-gray-500">No announcements yet</p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-200 max-h-[800px] overflow-y-auto">
+                <div className="divide-y divide-gray-200 max-h-200 overflow-y-auto">
                   {myAnnouncements.map((announcement) => (
                     <div key={announcement.id} className="p-4 hover:bg-gray-50 transition-colors">
                       <div className="flex justify-between items-start gap-4">
@@ -235,7 +235,7 @@ const TeacherAnnouncement = () => {
                         </div>
                         <button
                           onClick={() => handleDelete(announcement.id)}
-                          className="p-2 hover:bg-red-50 rounded-lg text-red-600 transition-colors flex-shrink-0"
+                          className="p-2 hover:bg-red-50 rounded-lg text-red-600 transition-colors shrink-0"
                           title="Delete announcement"
                         >
                           <Trash2 className="w-4 h-4" />

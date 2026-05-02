@@ -377,7 +377,7 @@ const Profile = () => {
                       className="w-32 h-32 rounded-full object-cover mx-auto border-2 border-white shadow"
                     />
                   ) : (
-                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold mx-auto">
+                    <div className="w-32 h-32 rounded-full bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold mx-auto">
                       {user?.name?.charAt(0).toUpperCase() || 'U'}
                     </div>
                   )}
@@ -1023,7 +1023,7 @@ const Profile = () => {
       )}
 
       {emailOtpModal.open && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-start justify-between mb-3">
               <div>

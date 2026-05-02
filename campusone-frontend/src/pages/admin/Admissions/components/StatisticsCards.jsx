@@ -14,7 +14,7 @@ const ApplicationsTabs = ({ statistics, isLoading, selectedTab, onTabChange }) =
     return (
       <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="h-12 w-32 bg-gray-200 rounded-lg animate-pulse flex-shrink-0" />
+          <div key={i} className="h-12 w-32 bg-gray-200 rounded-lg animate-pulse shrink-0" />
         ))}
       </div>
     );
@@ -31,7 +31,7 @@ const ApplicationsTabs = ({ statistics, isLoading, selectedTab, onTabChange }) =
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
             className={`
-              flex items-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm flex-shrink-0 transition-all whitespace-nowrap
+              flex items-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm shrink-0 transition-all whitespace-nowrap
               ${isActive 
                 ? `${tab.bgColor} ${tab.color} border-2 ${tab.borderColor}` 
                 : 'bg-white text-slate-700 border-2 border-gray-200 hover:bg-gray-50'

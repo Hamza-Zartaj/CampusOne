@@ -55,7 +55,7 @@ const TeacherDashboard = () => {
   const { teacher, activeTerm, stats, myOfferings, recentQna, upcomingQuizzes, recentAnnouncements } = data;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-slate-900 m-0">Welcome back, {teacher.name?.split(' ')[0] || 'Teacher'} 👋</h1>
@@ -99,7 +99,7 @@ const TeacherDashboard = () => {
                         <p className="font-semibold text-slate-800 m-0">{o.course?.code} <span className="text-slate-500 font-normal">— Sec {o.section}</span></p>
                         <p className="text-sm text-slate-600 m-0 truncate">{o.course?.title}</p>
                       </div>
-                      <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700 flex-shrink-0">{o.course?.creditHours} CH</span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">{o.course?.creditHours} CH</span>
                     </div>
                     <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
                       <span className="inline-flex items-center gap-1"><Users size={12} /> {o._count?.enrollments ?? 0} students</span>
@@ -138,7 +138,7 @@ const TeacherDashboard = () => {
                           {t.offering?.course?.code} (Sec {t.offering?.section}) · {t.askedByName}
                         </p>
                       </div>
-                      <div className="text-right flex-shrink-0">
+                      <div className="text-right shrink-0">
                         <span className="text-xs text-slate-400 block">{fmtRelative(t.updatedAt)}</span>
                         <span className="text-xs text-slate-500">{t._count?.replies ?? 0} replies</span>
                       </div>
@@ -175,7 +175,7 @@ const TeacherDashboard = () => {
                           {q.offering?.course?.code} · {q._count?.questions ?? 0} questions · {q._count?.attempts ?? 0} attempts
                         </p>
                       </div>
-                      <span className="text-xs text-slate-400 flex-shrink-0">{fmtDateTime(q.startAt)}</span>
+                      <span className="text-xs text-slate-400 shrink-0">{fmtDateTime(q.startAt)}</span>
                     </div>
                   </Link>
                 ))}

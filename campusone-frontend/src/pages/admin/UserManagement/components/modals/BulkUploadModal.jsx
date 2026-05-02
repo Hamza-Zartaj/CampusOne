@@ -19,11 +19,11 @@ const BulkUploadModal = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-modal p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl max-w-[700px] w-full max-h-[90vh] overflow-y-auto shadow-xl animate-slide-up"
+        className="bg-white rounded-xl max-w-175 w-full max-h-[90vh] overflow-y-auto shadow-xl animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         <ModalHeader title="Bulk Upload Students" onClose={onClose} />
@@ -109,7 +109,7 @@ const BulkUploadModal = ({
                   <h4 className="text-base font-semibold m-0 mb-4 text-green-800">
                     ✓ Successfully Added ({uploadResults.successful.length})
                   </h4>
-                  <div className="max-h-[300px] overflow-y-auto flex flex-col gap-3">
+                  <div className="max-h-75 overflow-y-auto flex flex-col gap-3">
                     {uploadResults.successful.map((item, index) => (
                       <div
                         key={index}
@@ -136,7 +136,7 @@ const BulkUploadModal = ({
                   <h4 className="text-base font-semibold m-0 mb-4 text-red-800">
                     ✗ Failed to Add ({uploadResults.failed.length})
                   </h4>
-                  <div className="max-h-[300px] overflow-y-auto flex flex-col gap-3">
+                  <div className="max-h-75 overflow-y-auto flex flex-col gap-3">
                     {uploadResults.failed.map((item, index) => (
                       <div
                         key={index}

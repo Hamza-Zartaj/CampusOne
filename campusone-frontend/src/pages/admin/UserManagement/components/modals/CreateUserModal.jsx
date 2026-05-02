@@ -18,11 +18,11 @@ const CreateUserModal = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-modal p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl max-w-[700px] w-full max-h-[90vh] overflow-y-auto shadow-xl animate-slide-up"
+        className="bg-white rounded-xl max-w-175 w-full max-h-[90vh] overflow-y-auto shadow-xl animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         <ModalHeader title="Create New User" onClose={onClose} />

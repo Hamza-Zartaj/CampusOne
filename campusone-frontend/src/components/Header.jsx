@@ -36,7 +36,7 @@ const Header = ({ toggleSidebar }) => {
   };
 
   return (
-    <header className="flex justify-between items-center h-[70px] bg-gradient-primary text-white px-6 shadow-sm sticky top-0 z-[100]">
+    <header className="flex justify-between items-center h-[70px] bg-gradient-primary text-white px-6 shadow-sm sticky top-0 z-100">
       <div className="flex items-center gap-5">
         <button 
           className="bg-transparent border-none text-white cursor-pointer p-2 rounded-lg flex items-center justify-center transition-colors hover:bg-white/10" 
@@ -57,7 +57,7 @@ const Header = ({ toggleSidebar }) => {
             className="flex items-center gap-3 cursor-pointer py-2 px-3 rounded-xl transition-colors hover:bg-white/10"
             onClick={() => setShowDropdown(!showDropdown)}
           >
-            <div className="w-[45px] h-[45px] rounded-full overflow-hidden border-2 border-white/30 flex items-center justify-center bg-gradient-secondary">
+            <div className="w-11.25 h-11.25 rounded-full overflow-hidden border-2 border-white/30 flex items-center justify-center bg-gradient-secondary">
               {profilePic ? (
                 <img src={profilePic} alt={userName} className="w-full h-full object-cover" />
               ) : (
@@ -77,7 +77,7 @@ const Header = ({ toggleSidebar }) => {
           </div>
 
           {showDropdown && (
-            <div className="absolute top-[calc(100%+8px)] right-0 bg-white rounded-xl shadow-lg min-w-[200px] overflow-hidden animate-dropdown z-[100]">
+            <div className="absolute top-[calc(100%+8px)] right-0 bg-white rounded-xl shadow-lg min-w-50 overflow-hidden animate-dropdown z-100">
               <Link 
                 to="/profile" 
                 className="flex items-center gap-3 py-3 px-4 text-slate-800 no-underline transition-colors hover:bg-slate-100 text-sm"

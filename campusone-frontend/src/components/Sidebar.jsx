@@ -116,8 +116,8 @@ const Sidebar = ({ isOpen }) => {
   return (
     <aside
       className={`
-        w-[260px] bg-white shadow-sm transition-all duration-300 overflow-hidden z-50
-        max-md:fixed max-md:left-0 max-md:top-[60px] max-md:bottom-0 max-md:z-[999]
+        w-sidebar-width bg-white shadow-sm transition-all duration-300 overflow-hidden z-50
+        max-md:fixed max-md:left-0 max-md:top-15 max-md:bottom-0 max-md:z-999
         ${isOpen ? 'translate-x-0' : 'max-md:-translate-x-full md:w-[70px]'}
       `}
     >

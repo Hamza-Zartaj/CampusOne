@@ -697,6 +697,133 @@ async function main() {
   }
   await safeCreateMany('qnaReply', replyData, 'Q&A replies');
 
+  // ── TA ASSIGNMENTS ─────────────────────────────────────────────
+  // Pick eligible students (CGPA >= 3.5, completed a course with A/A+, semester gap >= 2)
+  // and assign them to currently-active SP26 offerings of those courses.
+  console.log('  ⏳ Building TA assignments…');
+  const taAssignmentData = [];
+  const taApprovedSeen = new Set(); // studentId|offeringId for de-dupe across batches
+
+  // Compute CGPA per student from existing graded enrollments
+  const studentsForTA = await prisma.student.findMany({
+    select: {
+      id: true, userId: true, currentSemester: true,
+      enrollments: {
+        where: { gradePoints: { not: null } },
+        select: {
+          gradeLetter: true, gradePoints: true,
+          offering: { select: { courseId: true, course: { select: { code: true } } } },
+        },
+      },
+    },
+  });
+
+  const ccRows = await prisma.curriculumCourse.findMany({ select: { courseId: true, semesterSlot: true } });
+  const slotByCourseId = {};
+  for (const c of ccRows) slotByCourseId[c.courseId] = c.semesterSlot;
+
+  // Active term offerings keyed by courseId (one section list)
+  const sp26ByCourse = {};
+  for (const off of sp26Offerings) {
+    if (!sp26ByCourse[off.courseId]) sp26ByCourse[off.courseId] = [];
+    sp26ByCourse[off.courseId].push(off);
+  }
+
+  // Distribution targets: ~6 active TAs (different students) + 3 pending + 1 rejected
+  const candidates = [];
+  for (const s of studentsForTA) {
+    const completed = s.enrollments.filter((e) => e.gradePoints != null);
+    if (completed.length === 0) continue;
+    const totalCr = completed.length * 3; // approximation; credit hours not fetched here
+    const totalPts = completed.reduce((x, e) => x + e.gradePoints, 0) * 3;
+    const cgpa = totalCr ? totalPts / totalCr : 0;
+    if (cgpa < 3.5) continue;
+
+    const aPlusCourses = completed.filter((e) => e.gradeLetter === 'A_PLUS' || e.gradeLetter === 'A');
+    if (aPlusCourses.length === 0) continue;
+
+    // Find an offering of one of those courses where semester gap >= 2 and student has none yet
+    for (const e of aPlusCourses) {
+      const slot = slotByCourseId[e.offering.courseId];
+      if (slot == null || s.currentSemester < slot + 2) continue;
+      const offerings = sp26ByCourse[e.offering.courseId] || [];
+      if (offerings.length === 0) continue;
+      const off = offerings[0];
+      const key = `${s.id}|${off.id}`;
+      if (taApprovedSeen.has(key)) continue;
+      candidates.push({ student: s, offering: off, slot, courseCode: e.offering.course.code });
+      break; // one candidate offering per student
+    }
+  }
+
+  // Shuffle deterministically and split into APPROVED / PENDING / REJECTED buckets
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+
+  const TA_PERMS_DEFAULT = ['VIEW_ROSTER', 'MARK_ATTENDANCE', 'ANSWER_QNA'];
+  const TA_PERMS_FULL = ['VIEW_ROSTER', 'MARK_ATTENDANCE', 'ANSWER_QNA', 'GRADE_ASSIGNMENTS', 'GRADE_QUIZZES'];
+  const teacherUserIdByOffering = {};
+  for (const off of sp26Offerings) {
+    const t = await prisma.teacher.findUnique({ where: { id: off.teacherId }, select: { userId: true } });
+    if (t) teacherUserIdByOffering[off.id] = t.userId;
+  }
+
+  const approvedTargets = candidates.slice(0, 6);
+  const pendingTargets  = candidates.slice(6, 9);
+  const rejectedTargets = candidates.slice(9, 10);
+
+  for (const c of approvedTargets) {
+    taAssignmentData.push({
+      studentId: c.student.id,
+      offeringId: c.offering.id,
+      status: 'APPROVED',
+      permissions: rand() > 0.5 ? TA_PERMS_FULL : TA_PERMS_DEFAULT,
+      appliedSemester: c.student.currentSemester,
+      targetSemesterMin: 1,
+      targetSemesterMax: c.slot,
+      reason: `I scored well in ${c.courseCode} and want to help juniors strengthen their fundamentals.`,
+      reviewedBy: teacherUserIdByOffering[c.offering.id],
+      reviewNotes: 'Approved — strong record in this subject.',
+      reviewedAt: daysAgo(randInt(2, 30)),
+      appliedAt: daysAgo(randInt(30, 60)),
+      startedAt: daysAgo(randInt(2, 30)),
+    });
+    taApprovedSeen.add(`${c.student.id}|${c.offering.id}`);
+  }
+  for (const c of pendingTargets) {
+    taAssignmentData.push({
+      studentId: c.student.id,
+      offeringId: c.offering.id,
+      status: 'PENDING',
+      permissions: ['VIEW_ROSTER'],
+      appliedSemester: c.student.currentSemester,
+      targetSemesterMin: 1,
+      targetSemesterMax: c.slot,
+      reason: `Looking forward to TA ${c.courseCode} — I really enjoyed this course.`,
+      appliedAt: daysAgo(randInt(1, 14)),
+    });
+  }
+  for (const c of rejectedTargets) {
+    taAssignmentData.push({
+      studentId: c.student.id,
+      offeringId: c.offering.id,
+      status: 'REJECTED',
+      permissions: ['VIEW_ROSTER'],
+      appliedSemester: c.student.currentSemester,
+      targetSemesterMin: 1,
+      targetSemesterMax: c.slot,
+      reason: `Want to help with ${c.courseCode}.`,
+      reviewedBy: teacherUserIdByOffering[c.offering.id],
+      reviewNotes: 'TA quota for this section already filled.',
+      reviewedAt: daysAgo(randInt(1, 10)),
+      appliedAt: daysAgo(randInt(15, 30)),
+    });
+  }
+
+  await safeCreateMany('tAAssignment', taAssignmentData, 'TA assignments');
+
   // Notifications — sample 3-5 per first 60 students/teachers
   const allUsers = await prisma.user.findMany({ select: { id: true }, take: 80 });
   const notificationData = [];
@@ -743,6 +870,12 @@ async function main() {
   for (const b of BATCH_CONFIG) {
     console.log(`  Batch ${b.batch} (currently sem ${b.currentSem}): sections ${b.sections.map((s) => b.label + s).join(', ')} (${b.studentsPerSection} students each)`);
   }
+  console.log('');
+  console.log('');
+  console.log('  TA ASSIGNMENTS (sample)');
+  console.log('  -----------------------');
+  console.log('  ~6 APPROVED, ~3 PENDING, ~1 REJECTED across senior students');
+  console.log('  Eligibility: CGPA ≥ 3.5 + A/A+ in the course + semester gap ≥ 2');
   console.log('');
   console.log('  TERMS: FA22 → SP23 → FA23 → SP24 → FA24 → SP25 → SU25 (retakes) → FA25 → SP26 (active)');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');

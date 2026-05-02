@@ -137,7 +137,7 @@ const AdmissionSettingsPage = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-slate-500">
+      <div className="flex flex-col items-center justify-center min-h-100 gap-4 text-slate-500">
         <RefreshCw className="animate-spin" size={32} />
         <p>Loading admission settings...</p>
       </div>
@@ -145,7 +145,7 @@ const AdmissionSettingsPage = () => {
   }
 
   return (
-    <div className="p-8 max-w-[1200px] mx-auto max-md:p-4">
+    <div className="p-8 max-w-300 mx-auto max-md:p-4">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 text-slate-800 mb-2">
@@ -181,7 +181,7 @@ const AdmissionSettingsPage = () => {
       {/* Applications List */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 mb-8">
         <div className="mb-4 flex gap-4 items-end flex-wrap">
-          <div className="flex-1 min-w-[200px]">
+          <div className="flex-1 min-w-50">
             <label className="block text-sm font-medium text-slate-700 mb-2">
               Filter by Program
             </label>
