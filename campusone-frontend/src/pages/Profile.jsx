@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, 
   Mail, 
@@ -36,6 +36,42 @@ const Profile = () => {
 
   // Email-change OTP flow (only triggered when user has email-2FA enabled)
   const [emailOtpModal, setEmailOtpModal] = useState({ open: false, otp: '', sending: false, verifying: false });
+
+  const fileInputRef = useRef(null);
+  const [uploadingPic, setUploadingPic] = useState(false);
+
+  const handlePickProfilePicture = () => fileInputRef.current?.click();
+
+  const handleProfilePictureSelected = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be 5 MB or smaller');
+      return;
+    }
+    setUploadingPic(true);
+    try {
+      const res = await authAPI.uploadProfilePicture(file);
+      const url = res.data?.data?.profilePicture;
+      toast.success('Profile picture updated');
+      // Mirror to localStorage so the header avatar refreshes immediately
+      try {
+        const stored = JSON.parse(localStorage.getItem('user') || '{}');
+        stored.profilePicture = url;
+        localStorage.setItem('user', JSON.stringify(stored));
+      } catch {}
+      await fetchUserProfile();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to upload picture');
+    } finally {
+      setUploadingPic(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
   
   const [editForm, setEditForm] = useState({
     name: '',
@@ -312,13 +348,41 @@ const Profile = () => {
               {/* Profile Picture */}
               <div className="text-center mb-6">
                 <div className="relative inline-block">
-                  <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold mx-auto">
-                    {user?.name?.charAt(0).toUpperCase() || 'U'}
-                  </div>
+                  {user?.profilePicture ? (
+                    <img
+                      src={user.profilePicture}
+                      alt={user.name}
+                      className="w-32 h-32 rounded-full object-cover mx-auto border-2 border-white shadow"
+                    />
+                  ) : (
+                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold mx-auto">
+                      {user?.name?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                  )}
                   {isEditMode && (
-                    <button className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors">
-                      <Camera className="w-4 h-4" />
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={handlePickProfilePicture}
+                        disabled={uploadingPic}
+                        title="Upload or take a picture"
+                        className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors shadow"
+                      >
+                        {uploadingPic ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                        ) : (
+                          <Camera className="w-4 h-4" />
+                        )}
+                      </button>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleProfilePictureSelected}
+                        className="hidden"
+                      />
+                    </>
                   )}
                 </div>
                 

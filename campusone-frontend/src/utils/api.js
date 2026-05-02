@@ -110,6 +110,14 @@ export const authAPI = {
 
   updateMyEmail: (newEmail, otp) =>
     api.put('/auth/my-email', otp ? { newEmail, otp } : { newEmail }),
+
+  uploadProfilePicture: (file) => {
+    const fd = new FormData();
+    fd.append('image', file);
+    return api.post('/auth/profile-picture', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 // User Management endpoints

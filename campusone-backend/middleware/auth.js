@@ -38,7 +38,9 @@ export const protect = async (req, res, next) => {
           name: true,
           role: true,
           isActive: true,
+          isFirstLogin: true,
           password: true,
+          profilePicture: true,
           accountLocked: true,
           accountLockedUntil: true,
           failedLoginAttempts: true,
@@ -46,7 +48,11 @@ export const protect = async (req, res, next) => {
           twoFactorEnabled: true,
           twoFactorMethod: true,
           emailOTP: true,
-          emailOTPExpiry: true
+          emailOTPExpiry: true,
+          lastLogin: true,
+          createdAt: true,
+          updatedAt: true,
+          passwordChangedAt: true
         }
       });
 

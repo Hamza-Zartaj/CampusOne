@@ -3,7 +3,11 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import speakeasy from 'speakeasy';
 import qrcode from 'qrcode';
+import { v4 as uuidv4 } from 'uuid';
 import { generateOTP, sendOTPEmail, send2FAEnabledEmail } from '../services/emailService.js';
+import { uploadToStorage, deleteFromStorage, pathFromUrl } from '../utils/supabaseStorage.js';
+
+const PROFILE_BUCKET = 'profile-pictures';
 
 /**
  * Generate JWT Token
@@ -1732,6 +1736,46 @@ export const changePassword = async (req, res) => {
 };
 
 /**
+ * @desc    Upload a profile picture for the current user. Stores the image
+ *          in the Supabase 'profile-pictures' bucket and saves the public
+ *          URL on User.profilePicture. Replaces any previous picture.
+ * @route   POST /api/auth/profile-picture
+ * @access  Private
+ */
+export const uploadProfilePicture = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No image uploaded' });
+    }
+    if (!req.file.mimetype.startsWith('image/')) {
+      return res.status(400).json({ success: false, message: 'Only image files are allowed' });
+    }
+    if (req.file.size > 5 * 1024 * 1024) {
+      return res.status(400).json({ success: false, message: 'Image must be 5 MB or smaller' });
+    }
+
+    const ext = (req.file.originalname.split('.').pop() || 'jpg').toLowerCase();
+    const filePath = `${req.user.id}/${uuidv4()}.${ext}`;
+    const publicUrl = await uploadToStorage(PROFILE_BUCKET, filePath, req.file.buffer, req.file.mimetype);
+
+    // Best-effort cleanup of the old picture
+    if (req.user.profilePicture) {
+      const oldPath = pathFromUrl(req.user.profilePicture, PROFILE_BUCKET);
+      if (oldPath) await deleteFromStorage(PROFILE_BUCKET, oldPath);
+    }
+
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { profilePicture: publicUrl },
+    });
+
+    res.status(200).json({ success: true, message: 'Profile picture updated', data: { profilePicture: publicUrl } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error uploading profile picture', error: error.message });
+  }
+};
+
+/**
  * @desc    Update current user's email address.
  *          - During first-time login → no verification (default email is fake).
  *          - Otherwise, if user has email-based 2FA → require a valid OTP
@@ -1947,5 +1991,6 @@ export default {
   changePassword,
   sendVerificationOTP,
   recoverSuperAdmin,
-  updateMyEmail
+  updateMyEmail,
+  uploadProfilePicture
 };
