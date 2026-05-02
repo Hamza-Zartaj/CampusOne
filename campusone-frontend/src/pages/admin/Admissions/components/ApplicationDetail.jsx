@@ -284,7 +284,7 @@ const ApplicationDetail = ({
 
           {/* Action Section */}
           {application.status === 'Accepted' ? (
-            <div className="border-t border-gray-200 pt-6 mt-8 p-6 bg-green-50 border border-green-200 rounded-lg">
+            <div className="border-t pt-6 mt-8 p-6 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center gap-3">
                 <CheckCircle size={24} className="text-green-600" />
                 <div>
@@ -293,7 +293,7 @@ const ApplicationDetail = ({
               </div>
             </div>
           ) : application.status === 'Rejected' ? (
-            <div className="border-t border-gray-200 pt-6 mt-8 p-6 bg-red-50 border border-red-200 rounded-lg">
+            <div className="border-t pt-6 mt-8 p-6 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-center gap-3">
                 <XCircle size={24} className="text-red-600" />
                 <div>

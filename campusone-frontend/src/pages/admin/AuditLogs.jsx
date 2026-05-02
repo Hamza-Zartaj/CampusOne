@@ -212,7 +212,7 @@ const AuditLogs = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/60">
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[160px]">Timestamp</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-40">Timestamp</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Performed By</th>
@@ -253,9 +253,9 @@ const AuditLogs = () => {
                           <td className="px-4 py-3 text-xs text-slate-500">
                             <span className="font-medium text-slate-700">{log.targetModel}</span>
                             <br />
-                            <span className="font-mono text-[10px] text-slate-400 truncate max-w-[100px] block">{log.targetId}</span>
+                            <span className="font-mono text-[10px] text-slate-400 truncate max-w-25 block">{log.targetId}</span>
                           </td>
-                          <td className="px-4 py-3 text-xs text-slate-600 max-w-[260px]">
+                          <td className="px-4 py-3 text-xs text-slate-600 max-w-sidebar-width">
                             {log.description || '—'}
                           </td>
                           <td className="px-4 py-3 text-slate-400">

@@ -145,7 +145,7 @@ const AnnouncementManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -167,14 +167,14 @@ const AnnouncementManagement = () => {
 
               {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                   <p className="text-red-700 text-sm">{error}</p>
                 </div>
               )}
 
               {success && (
                 <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
                   <p className="text-green-700 text-sm">{success}</p>
                 </div>
               )}
@@ -269,7 +269,7 @@ const AnnouncementManagement = () => {
                   <p className="text-gray-500">No announcements yet</p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-200 max-h-[800px] overflow-y-auto">
+                <div className="divide-y divide-gray-200 max-h-200 overflow-y-auto">
                   {announcements.map((announcement) => {
                     const AudienceIcon = getAudienceIcon(announcement.targetAudience);
                     return (
@@ -313,7 +313,7 @@ const AnnouncementManagement = () => {
                           </div>
                           <button
                             onClick={() => handleDelete(announcement.id)}
-                            className="p-2 hover:bg-red-50 rounded-lg text-red-600 transition-colors flex-shrink-0"
+                            className="p-2 hover:bg-red-50 rounded-lg text-red-600 transition-colors shrink-0"
                             title="Delete announcement"
                           >
                             <Trash2 className="w-4 h-4" />

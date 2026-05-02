@@ -19,7 +19,7 @@ const ApplicationSettings = ({ settings, onSettingsChange, onSave, saving, isLoa
         <textarea
           value={settings.instructions || ''}
           onChange={(e) => handleChange('instructions', e.target.value)}
-          className="w-full p-3 border-2 border-gray-200 rounded-lg text-base transition-all focus:outline-none focus:border-primary-500 focus:ring-[3px] focus:ring-primary-500/10 resize-y min-h-[100px] font-inherit"
+          className="w-full p-3 border-2 border-gray-200 rounded-lg text-base transition-all focus:outline-none focus:border-primary-500 focus:ring-[3px] focus:ring-primary-500/10 resize-y min-h-25 font-inherit"
           rows="4"
           placeholder="Enter instructions for applicants..."
           disabled={isLoading}

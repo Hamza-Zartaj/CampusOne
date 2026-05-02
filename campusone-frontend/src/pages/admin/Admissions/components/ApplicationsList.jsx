@@ -54,7 +54,7 @@ const ApplicationsList = ({
     <div className="space-y-4">
       {/* Search, Filter, and Refresh */}
       <div className="flex gap-3 items-end flex-wrap">
-        <div className="flex-1 min-w-[250px] relative">
+        <div className="flex-1 min-w-62.5 relative">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"

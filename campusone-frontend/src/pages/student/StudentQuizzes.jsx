@@ -314,7 +314,7 @@ const ResultScreen = ({ attemptId, onClose }) => {
   const pct = data.totalMarks > 0 ? ((data.totalScore / data.totalMarks) * 100).toFixed(1) : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 p-6">
       <div className="max-w-3xl mx-auto">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center mb-6">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-3" />
@@ -379,7 +379,7 @@ const ResultScreen = ({ attemptId, onClose }) => {
 
 // ─── Pre-Quiz Confirmation Screen ──────────────────────────────────────────
 const PreQuizScreen = ({ quiz, onStart, onCancel }) => (
-  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+  <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-50 to-slate-100 p-6">
     <div className="max-w-xl w-full bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
       <h1 className="text-2xl font-bold text-slate-800 m-0">{quiz.title}</h1>
       <p className="text-sm text-slate-500 mt-1">{quiz.offering?.course?.code} · {quiz.offering?.course?.title}</p>
@@ -463,7 +463,7 @@ const StudentQuizzes = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 p-6">
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
           <HelpCircle className="w-8 h-8 text-blue-600" />

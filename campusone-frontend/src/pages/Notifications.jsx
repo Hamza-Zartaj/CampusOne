@@ -118,7 +118,7 @@ const Notifications = () => {
   const types = [...new Set(notifications.map((n) => n.type))];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 p-6">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
           <Bell className="w-8 h-8 text-blue-600" />
@@ -179,7 +179,7 @@ const Notifications = () => {
                   !n.isRead ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200'
                 }`}
               >
-                <div className="text-3xl flex-shrink-0 leading-none">{ICON[n.type] || '🔔'}</div>
+                <div className="text-3xl shrink-0 leading-none">{ICON[n.type] || '🔔'}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">

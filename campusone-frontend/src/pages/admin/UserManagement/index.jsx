@@ -79,8 +79,8 @@ const UserManagement = () => {
 
   if (loading) {
     return (
-      <div className="p-8 max-w-[1400px] mx-auto max-md:p-4">
-        <div className="flex justify-center items-center min-h-[400px] text-lg text-slate-500">
+      <div className="p-8 max-w-350 mx-auto max-md:p-4">
+        <div className="flex justify-center items-center min-h-100 text-lg text-slate-500">
           Loading...
         </div>
       </div>
@@ -88,7 +88,7 @@ const UserManagement = () => {
   }
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto max-md:p-4">
+    <div className="p-8 max-w-350 mx-auto max-md:p-4">
       {/* Page Header */}
       <PageHeader
         onCreateUser={() => {

@@ -13,7 +13,7 @@ const StatsCard = ({ stat, isSelected, onClick }) => {
     >
       <div className="absolute top-0 left-0 right-0 h-1" style={{ background: stat.gradient }}></div>
       <div
-        className="absolute top-0 right-0 w-[120px] h-[120px] opacity-5 rounded-full translate-x-[30%] -translate-y-[30%]"
+        className="absolute top-0 right-0 w-30 h-30 opacity-5 rounded-full translate-x-[30%] -translate-y-[30%]"
         style={{ background: stat.gradient }}
       ></div>
       <div className="mb-3">
@@ -24,7 +24,7 @@ const StatsCard = ({ stat, isSelected, onClick }) => {
           <Icon size={24} />
         </div>
       </div>
-      <div className="relative z-[1]">
+      <div className="relative z-1">
         <p className="text-[0.85rem] text-slate-500 m-0 mb-1 font-medium">{stat.label}</p>
         <div className="flex items-center justify-between">
           <h2 className="text-3xl font-bold text-slate-800 m-0">{stat.value}</h2>

@@ -77,7 +77,7 @@ const ApplicationsManagement = () => {
   };
 
   return (
-    <div className="p-8 max-w-[1200px] mx-auto max-md:p-4">
+    <div className="p-8 max-w-300 mx-auto max-md:p-4">
       {/* Header */}
       <div className="mb-8">
         <button

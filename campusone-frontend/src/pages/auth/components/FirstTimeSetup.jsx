@@ -219,7 +219,7 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-cyan-500 p-6 text-white">
+        <div className="bg-linear-to-r from-blue-600 to-cyan-500 p-6 text-white">
           <h2 className="text-2xl font-bold mb-2">
             {step === 1 ? 'First Time Setup'
               : step === 2 ? 'Set Your Email'
@@ -365,7 +365,7 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-3 px-6 rounded-lg hover:from-blue-700 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                className="w-full bg-linear-to-r from-blue-600 to-cyan-500 text-white font-semibold py-3 px-6 rounded-lg hover:from-blue-700 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center">
@@ -428,7 +428,7 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-3 rounded-lg hover:from-blue-700 hover:to-cyan-600 disabled:opacity-50 shadow-lg"
+                  className="flex-1 bg-linear-to-r from-blue-600 to-cyan-500 text-white font-semibold py-3 rounded-lg hover:from-blue-700 hover:to-cyan-600 disabled:opacity-50 shadow-lg"
                 >
                   {isLoading ? 'Saving…' : 'Save & Continue'}
                 </button>

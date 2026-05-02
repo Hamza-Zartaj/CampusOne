@@ -112,14 +112,14 @@ const NotificationBell = () => {
       >
         <Bell size={22} />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+          <span className="absolute top-1 right-1 min-w-4.5 h-4.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute top-[calc(100%+8px)] right-0 bg-white rounded-xl shadow-lg w-[380px] max-h-[500px] overflow-hidden z-[100] flex flex-col">
+        <div className="absolute top-[calc(100%+8px)] right-0 bg-white rounded-xl shadow-lg w-95 max-h-125 overflow-hidden z-100 flex flex-col">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h3 className="text-base font-semibold text-slate-800 m-0">Notifications</h3>
@@ -152,7 +152,7 @@ const NotificationBell = () => {
                     !n.isRead ? 'bg-blue-50/50' : ''
                   }`}
                 >
-                  <div className="text-2xl flex-shrink-0 leading-none">{ICON[n.type] || '🔔'}</div>
+                  <div className="text-2xl shrink-0 leading-none">{ICON[n.type] || '🔔'}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <p className={`text-sm m-0 ${!n.isRead ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
@@ -169,7 +169,7 @@ const NotificationBell = () => {
                     {n.body && <p className="text-xs text-slate-600 mt-1 m-0 line-clamp-2">{n.body}</p>}
                     <p className="text-[11px] text-slate-400 mt-1 m-0">{fmtRelative(n.createdAt)}</p>
                   </div>
-                  {!n.isRead && <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2" />}
+                  {!n.isRead && <div className="w-2 h-2 bg-blue-500 rounded-full shrink-0 mt-2" />}
                 </div>
               ))
             )}
