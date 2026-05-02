@@ -1,4 +1,5 @@
 import express from 'express';
+import multer from 'multer';
 import {
   register,
   login,
@@ -22,11 +23,21 @@ import {
   changePassword,
   sendVerificationOTP,
   recoverSuperAdmin,
-  updateMyEmail
+  updateMyEmail,
+  uploadProfilePicture
 } from '../controllers/authController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
+
+const profilePicUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files are allowed'));
+  },
+});
 
 // Public routes
 router.post('/login', login);
@@ -74,5 +85,8 @@ router.post('/send-verification-otp', sendVerificationOTP);
 
 // Update own email (first-time = no OTP; with email-2FA = OTP required)
 router.put('/my-email', updateMyEmail);
+
+// Upload profile picture (image file in 'image' field)
+router.post('/profile-picture', profilePicUpload.single('image'), uploadProfilePicture);
 
 export default router;
