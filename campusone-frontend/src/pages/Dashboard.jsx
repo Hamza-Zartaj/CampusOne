@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users, GraduationCap, Briefcase, Shield, FileText, Building2,
-  BookOpen, Layers, MessageSquare, Activity, TrendingUp, ArrowRight,
+  BookOpen, Layers, Activity, TrendingUp, ArrowRight,
   Megaphone, AlertCircle, Loader2, ChevronRight,
 } from 'lucide-react';
 import { dashboardAPI } from '../utils/api';
@@ -73,9 +73,6 @@ const Dashboard = () => {
           )}
           {hasPermission('manage_offerings') && (
             <StatCard icon={Layers} label="Active Offerings" value={stats.activeOfferings} sub="Course sections" color="bg-purple-500" link="/admin/offerings" />
-          )}
-          {hasPermission('view_reports') && (
-            <StatCard icon={MessageSquare} label="Open Q&A" value={stats.openQna} sub="Threads needing replies" color="bg-cyan-500" />
           )}
         </div>
 

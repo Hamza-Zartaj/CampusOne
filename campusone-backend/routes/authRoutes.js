@@ -24,7 +24,8 @@ import {
   sendVerificationOTP,
   recoverSuperAdmin,
   updateMyEmail,
-  uploadProfilePicture
+  uploadProfilePicture,
+  removeProfilePicture
 } from '../controllers/authController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -88,5 +89,6 @@ router.put('/my-email', updateMyEmail);
 
 // Upload profile picture (image file in 'image' field)
 router.post('/profile-picture', profilePicUpload.single('image'), uploadProfilePicture);
+router.delete('/profile-picture', removeProfilePicture);
 
 export default router;

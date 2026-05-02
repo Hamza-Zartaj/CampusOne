@@ -118,6 +118,9 @@ export const authAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+
+  removeProfilePicture: () =>
+    api.delete('/auth/profile-picture'),
 };
 
 // User Management endpoints
