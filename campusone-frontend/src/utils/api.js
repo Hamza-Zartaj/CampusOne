@@ -107,6 +107,9 @@ export const authAPI = {
 
   recoverSuperAdmin: (username, recoveryKey) =>
     api.post('/auth/recover-super-admin', { username, recoveryKey }),
+
+  updateMyEmail: (newEmail, otp) =>
+    api.put('/auth/my-email', otp ? { newEmail, otp } : { newEmail }),
 };
 
 // User Management endpoints

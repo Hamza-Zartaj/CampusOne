@@ -5,12 +5,14 @@ import TwoFactorMethodSelection from './TwoFactorMethodSelection';
 import TwoFactorSetupVerification from './TwoFactorSetupVerification';
 
 export default function FirstTimeSetup({ user, token, onComplete }) {
-  const [step, setStep] = useState(1); // 1: password change, 2: 2FA method selection, 3: 2FA setup
+  // Steps: 1=password, 2=email, 3=2FA method, 4=2FA verify
+  const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
+  const [newEmail, setNewEmail] = useState(user?.email || '');
   const [showPasswords, setShowPasswords] = useState({
     current: false,
     new: false,
@@ -65,7 +67,7 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
         },
       });
 
-      // Move to 2FA setup step
+      // Move to email-change step
       setStep(2);
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to change password';
@@ -80,6 +82,38 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleUpdateEmail = async (e) => {
+    e.preventDefault();
+    const trimmed = newEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      // Skip the API call if the email hasn't changed (e.g. user kept the seeded one)
+      if (trimmed.toLowerCase() !== (user?.email || '').toLowerCase()) {
+        await authAPI.updateMyEmail(trimmed);
+        toast.success('Email updated');
+        // Reflect in localStorage so subsequent screens show the new email
+        try {
+          const stored = JSON.parse(localStorage.getItem('user') || '{}');
+          stored.email = trimmed.toLowerCase();
+          localStorage.setItem('user', JSON.stringify(stored));
+        } catch {}
+      }
+      setStep(3);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update email');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSkipEmail = () => {
+    setStep(3);
   };
 
   const handleEnable2FA = async (method) => {
@@ -112,7 +146,7 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
           },
         });
       }
-      setStep(3);
+      setStep(4);
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to setup 2FA';
       toast.error(errorMessage);
@@ -178,7 +212,7 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
   const handleBackTo2FAMethod = () => {
     setVerificationCode('');
     setTwoFactorData(null);
-    setStep(2);
+    setStep(3);
   };
 
   return (
@@ -187,12 +221,17 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-cyan-500 p-6 text-white">
           <h2 className="text-2xl font-bold mb-2">
-            {step === 1 ? 'First Time Setup' : step === 2 ? 'Choose 2FA Method' : 'Enable Two-Factor Authentication'}
+            {step === 1 ? 'First Time Setup'
+              : step === 2 ? 'Set Your Email'
+              : step === 3 ? 'Choose 2FA Method'
+              : 'Enable Two-Factor Authentication'}
           </h2>
           <p className="text-blue-100 text-sm">
-            {step === 1 
+            {step === 1
               ? 'Please change your password to secure your account'
               : step === 2
+              ? 'The default email is auto-generated — set your real email now'
+              : step === 3
               ? 'Select your preferred authentication method'
               : 'Complete the setup to secure your account'}
           </p>
@@ -342,6 +381,60 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
               </button>
             </form>
           ) : step === 2 ? (
+            // Email Update Step
+            <form onSubmit={handleUpdateEmail} className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-2">
+                <div className="flex items-start">
+                  <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <div>
+                    <h3 className="font-semibold text-blue-800 text-sm mb-1">Real email needed</h3>
+                    <p className="text-blue-700 text-sm">
+                      Your account was created with a placeholder email. Set your real email so you can receive
+                      notifications, OTPs, and password resets.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="newEmail" className="block text-sm font-semibold text-slate-700 mb-2">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  id="newEmail"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="you@example.com"
+                  required
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Currently: <span className="font-mono">{user?.email}</span>
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleSkipEmail}
+                  disabled={isLoading}
+                  className="flex-1 bg-slate-100 text-slate-700 font-semibold py-3 rounded-lg hover:bg-slate-200 transition-all disabled:opacity-50"
+                >
+                  Skip for now
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-3 rounded-lg hover:from-blue-700 hover:to-cyan-600 disabled:opacity-50 shadow-lg"
+                >
+                  {isLoading ? 'Saving…' : 'Save & Continue'}
+                </button>
+              </div>
+            </form>
+          ) : step === 3 ? (
             // 2FA Method Selection Step
             <TwoFactorMethodSelection
               isLoading={isLoading}
@@ -349,7 +442,7 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
               onSkip={handleSkip2FA}
             />
           ) : (
-            // 2FA Verification Setup (step 3)
+            // 2FA Verification Setup (step 4)
             <TwoFactorSetupVerification
               twoFactorMethod={twoFactorMethod}
               twoFactorData={twoFactorData}

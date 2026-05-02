@@ -21,7 +21,8 @@ import {
   resetPassword,
   changePassword,
   sendVerificationOTP,
-  recoverSuperAdmin
+  recoverSuperAdmin,
+  updateMyEmail
 } from '../controllers/authController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -70,5 +71,8 @@ router.post('/change-password', changePassword);
 
 // Send verification OTP for security operations
 router.post('/send-verification-otp', sendVerificationOTP);
+
+// Update own email (first-time = no OTP; with email-2FA = OTP required)
+router.put('/my-email', updateMyEmail);
 
 export default router;

@@ -33,6 +33,9 @@ const Profile = () => {
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showManage2FA, setShowManage2FA] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Email-change OTP flow (only triggered when user has email-2FA enabled)
+  const [emailOtpModal, setEmailOtpModal] = useState({ open: false, otp: '', sending: false, verifying: false });
   
   const [editForm, setEditForm] = useState({
     name: '',
@@ -126,17 +129,31 @@ const Profile = () => {
     }));
   };
 
+  const emailChanged = () =>
+    editForm.email && user?.email && editForm.email.trim().toLowerCase() !== user.email.toLowerCase();
+
+  const requiresOtpForEmail = () =>
+    !!(user?.twoFactorEnabled && user?.twoFactorMethod === 'email');
+
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      
-      // Prepare update data
-      const updateData = {
-        name: editForm.name,
-        email: editForm.email,
-      };
 
-      // Add role-specific updates directly to updateData (not nested)
+      // 1) Email change with email-2FA → requires OTP. Open the OTP modal,
+      // send the code, and stop here. The modal completion will retry save.
+      if (emailChanged() && requiresOtpForEmail()) {
+        await openEmailOtpModal();
+        setIsSaving(false);
+        return;
+      }
+
+      // 2) Email change with no 2FA-email → call dedicated self-service endpoint
+      if (emailChanged()) {
+        await authAPI.updateMyEmail(editForm.email.trim());
+      }
+
+      // 3) Other fields (name + role-specific) — keep existing behaviour
+      const updateData = { name: editForm.name };
       switch (user.role) {
         case 'student':
           updateData.phone = editForm.phone;
@@ -153,19 +170,64 @@ const Profile = () => {
           updateData.researchInterests = editForm.researchInterests?.split(',').map(s => s.trim()).filter(Boolean);
           break;
       }
-
       await userAPI.updateUser(user.id, updateData);
-      
+
       toast.success('Profile updated successfully');
       setIsEditMode(false);
-      
-      // Refresh profile data
       await fetchUserProfile();
     } catch (error) {
       console.error('Error updating profile:', error);
       toast.error(error.response?.data?.message || 'Failed to update profile');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const openEmailOtpModal = async () => {
+    setEmailOtpModal({ open: true, otp: '', sending: true, verifying: false });
+    try {
+      await authAPI.sendVerificationOTP();
+      toast.success(`OTP sent to ${user.email}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send OTP');
+    } finally {
+      setEmailOtpModal((m) => ({ ...m, sending: false }));
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    if (!emailOtpModal.otp) return;
+    setEmailOtpModal((m) => ({ ...m, verifying: true }));
+    try {
+      await authAPI.updateMyEmail(editForm.email.trim(), emailOtpModal.otp);
+      toast.success('Email updated');
+
+      // Now save the rest of the profile fields (name + role-specific)
+      const updateData = { name: editForm.name };
+      switch (user.role) {
+        case 'student':
+          updateData.phone = editForm.phone;
+          updateData.dateOfBirth = editForm.dateOfBirth;
+          updateData.address = editForm.address;
+          updateData.guardianContact = editForm.guardianContact;
+          break;
+        case 'teacher':
+          updateData.phone = editForm.phone;
+          updateData.officeRoom = editForm.officeRoom;
+          updateData.officeHours = editForm.officeHours;
+          updateData.qualification = editForm.qualification;
+          updateData.specialization = editForm.specialization?.split(',').map(s => s.trim()).filter(Boolean);
+          updateData.researchInterests = editForm.researchInterests?.split(',').map(s => s.trim()).filter(Boolean);
+          break;
+      }
+      await userAPI.updateUser(user.id, updateData);
+
+      setEmailOtpModal({ open: false, otp: '', sending: false, verifying: false });
+      setIsEditMode(false);
+      await fetchUserProfile();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Invalid or expired OTP');
+      setEmailOtpModal((m) => ({ ...m, verifying: false }));
     }
   };
 
@@ -857,6 +919,54 @@ const Profile = () => {
           onClose={() => setShowManage2FA(false)}
           onUpdated={fetchUserProfile}
         />
+      )}
+
+      {emailOtpModal.open && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 m-0">Verify Email Change</h3>
+                <p className="text-sm text-slate-500 m-0 mt-1">
+                  Enter the OTP sent to <span className="font-mono">{user?.email}</span> to change
+                  your email to <span className="font-mono">{editForm.email}</span>.
+                </p>
+              </div>
+              <button
+                onClick={() => setEmailOtpModal({ open: false, otp: '', sending: false, verifying: false })}
+                className="text-slate-400 hover:text-slate-600 text-2xl leading-none"
+              >×</button>
+            </div>
+
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={emailOtpModal.otp}
+              onChange={(e) => setEmailOtpModal((m) => ({ ...m, otp: e.target.value.replace(/\D/g, '') }))}
+              className="w-full px-4 py-3 mt-2 bg-slate-50 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest font-mono"
+              placeholder="000000"
+              autoFocus
+            />
+
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={openEmailOtpModal}
+                disabled={emailOtpModal.sending}
+                className="flex-1 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 disabled:opacity-50"
+              >
+                {emailOtpModal.sending ? 'Sending…' : 'Resend OTP'}
+              </button>
+              <button
+                onClick={handleVerifyEmailOtp}
+                disabled={emailOtpModal.verifying || emailOtpModal.otp.length !== 6}
+                className="flex-1 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50"
+              >
+                {emailOtpModal.verifying ? 'Verifying…' : 'Verify & Change'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
