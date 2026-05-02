@@ -428,6 +428,17 @@ export const qnaAPI = {
   deleteReply: (replyId) => api.delete(`/qna/replies/${replyId}`),
 };
 
+// Reports API
+export const reportsAPI = {
+  overview: () => api.get('/reports/overview'),
+  enrollmentByProgram: () => api.get('/reports/enrollment-by-program'),
+  gradeDistribution: (termId) => api.get('/reports/grade-distribution', { params: termId ? { termId } : {} }),
+  coursePerformance: (termId) => api.get('/reports/course-performance', { params: termId ? { termId } : {} }),
+  termTrends: () => api.get('/reports/term-trends'),
+  admissionFunnel: () => api.get('/reports/admission-funnel'),
+  attendanceSummary: (termId) => api.get('/reports/attendance-summary', { params: termId ? { termId } : {} }),
+};
+
 // Leave Management API
 export const leaveAPI = {
   // Student

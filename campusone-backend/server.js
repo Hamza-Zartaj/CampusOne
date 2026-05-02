@@ -30,6 +30,7 @@ import qnaRoutes from './routes/qnaRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import leaveRoutes from './routes/leaveRoutes.js';
+import reportsRoutes from './routes/reportsRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -102,6 +103,7 @@ app.use('/api/qna', qnaRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/leave', leaveRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // 404 Handler - Route not found
 app.use((req, res, next) => {

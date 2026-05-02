@@ -1,66 +1,69 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  BarChart3,
-  TrendingUp,
-  Users,
-  BookOpen,
-  GraduationCap,
-  Download,
-  Filter,
-  Calendar,
-  ArrowUpRight,
-  ArrowDownRight,
-  PieChart,
-  Activity,
+  BarChart3, TrendingUp, Users, BookOpen, GraduationCap, Download,
+  PieChart, Activity, AlertCircle,
 } from 'lucide-react';
-
-const enrollmentByProgram = [
-  { program: 'BS Computer Science', code: 'BSCS', students: 245, capacity: 300, color: '#3b82f6' },
-  { program: 'BS Electrical Engineering', code: 'BSEE', students: 189, capacity: 250, color: '#06b6d4' },
-  { program: 'BS Business Admin', code: 'BSBA', students: 210, capacity: 250, color: '#10b981' },
-  { program: 'BS Mathematics', code: 'BSMA', students: 78, capacity: 100, color: '#f59e0b' },
-  { program: 'BS Physics', code: 'BSPH', students: 56, capacity: 80, color: '#8b5cf6' },
-  { program: 'MS Computer Science', code: 'MSCS', students: 45, capacity: 60, color: '#ec4899' },
-];
-
-const courseStats = [
-  { course: 'CS101 - Intro to Programming', enrolled: 120, avgGrade: 'B+', passRate: 92 },
-  { course: 'CS201 - Data Structures', enrolled: 95, avgGrade: 'B', passRate: 85 },
-  { course: 'EE101 - Circuit Analysis', enrolled: 88, avgGrade: 'B-', passRate: 78 },
-  { course: 'BA201 - Marketing Mgmt', enrolled: 110, avgGrade: 'B+', passRate: 91 },
-  { course: 'MA101 - Calculus I', enrolled: 150, avgGrade: 'C+', passRate: 72 },
-  { course: 'CS301 - Algorithms', enrolled: 75, avgGrade: 'B-', passRate: 80 },
-  { course: 'PH101 - Mechanics', enrolled: 65, avgGrade: 'B', passRate: 83 },
-];
-
-const semesterTrends = [
-  { semester: 'Fall 2024', enrolled: 780, graduated: 120, gpa: 3.12 },
-  { semester: 'Spring 2025', enrolled: 810, graduated: 95, gpa: 3.18 },
-  { semester: 'Fall 2025', enrolled: 845, graduated: 130, gpa: 3.22 },
-  { semester: 'Spring 2026', enrolled: 823, graduated: null, gpa: null },
-];
-
-const recentAdmissions = [
-  { month: 'Sep 2025', applied: 450, accepted: 310, enrolled: 275 },
-  { month: 'Oct 2025', applied: 120, accepted: 85, enrolled: 72 },
-  { month: 'Nov 2025', applied: 60, accepted: 40, enrolled: 35 },
-  { month: 'Jan 2026', applied: 380, accepted: 260, enrolled: 230 },
-  { month: 'Feb 2026', applied: 210, accepted: 140, enrolled: null },
-];
+import toast from 'react-hot-toast';
+import { reportsAPI, termAPI } from '../../utils/api';
 
 const Reports = () => {
-  const [selectedPeriod, setSelectedPeriod] = useState('current');
+  const [terms, setTerms] = useState([]);
+  const [selectedTerm, setSelectedTerm] = useState('');
+  const [overview, setOverview] = useState(null);
+  const [enrollmentByProgram, setEnrollmentByProgram] = useState([]);
+  const [termTrends, setTermTrends] = useState([]);
+  const [admissionFunnel, setAdmissionFunnel] = useState([]);
+  const [coursePerformance, setCoursePerformance] = useState([]);
+  const [gradeDist, setGradeDist] = useState([]);
+  const [attendance, setAttendance] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    termAPI.getAll()
+      .then((r) => {
+        const list = r.data.data || [];
+        setTerms(list);
+        const active = list.find((t) => t.isActive);
+        setSelectedTerm(active?.id || '');
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      reportsAPI.overview(),
+      reportsAPI.enrollmentByProgram(),
+      reportsAPI.termTrends(),
+      reportsAPI.admissionFunnel(),
+      reportsAPI.coursePerformance(selectedTerm),
+      reportsAPI.gradeDistribution(selectedTerm),
+      reportsAPI.attendanceSummary(selectedTerm),
+    ])
+      .then(([ov, ep, tt, af, cp, gd, at]) => {
+        setOverview(ov.data.data);
+        setEnrollmentByProgram(ep.data.data || []);
+        setTermTrends(tt.data.data || []);
+        setAdmissionFunnel(af.data.data || []);
+        setCoursePerformance(cp.data.data || []);
+        setGradeDist(gd.data.data || []);
+        setAttendance(at.data.data);
+      })
+      .catch((err) => toast.error(err.response?.data?.message || 'Failed to load reports'))
+      .finally(() => setLoading(false));
+  }, [selectedTerm]);
 
   const stats = [
-    { icon: Users, label: 'Total Students', value: '823', change: '+2.6%', up: true, color: '#3b82f6' },
-    { icon: BookOpen, label: 'Active Courses', value: '124', change: '+8.7%', up: true, color: '#06b6d4' },
-    { icon: GraduationCap, label: 'Graduation Rate', value: '87%', change: '+1.2%', up: true, color: '#10b981' },
-    { icon: TrendingUp, label: 'Avg CGPA', value: '3.22', change: '-0.04', up: false, color: '#f59e0b' },
+    { icon: Users, label: 'Total Students',     value: overview?.totalStudents ?? '—',                color: '#3b82f6' },
+    { icon: BookOpen, label: 'Active Offerings', value: overview?.activeOfferings ?? '—',             color: '#06b6d4' },
+    { icon: GraduationCap, label: 'Graduation Rate', value: overview ? `${overview.graduationRate}%` : '—', color: '#10b981' },
+    { icon: TrendingUp, label: 'Avg CGPA',       value: overview?.avgCGPA ?? '—',                     color: '#f59e0b' },
   ];
+
+  const maxGradeCount = Math.max(1, ...gradeDist.map((g) => g.count));
 
   return (
     <div className="max-w-[1400px] mx-auto">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6 max-sm:flex-col max-sm:items-start max-sm:gap-3">
         <div>
           <h1 className="text-[28px] font-bold text-slate-800 m-0 max-md:text-2xl">Reports & Analytics</h1>
@@ -68,15 +71,19 @@ const Reports = () => {
         </div>
         <div className="flex items-center gap-3">
           <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
+            value={selectedTerm}
+            onChange={(e) => setSelectedTerm(e.target.value)}
             className="py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] bg-white focus:outline-none focus:border-blue-500"
           >
-            <option value="current">Spring 2026</option>
-            <option value="fall2025">Fall 2025</option>
-            <option value="spring2025">Spring 2025</option>
+            <option value="">All Terms</option>
+            {terms.map((t) => (
+              <option key={t.id} value={t.id}>{t.code} {t.isActive ? '(active)' : ''}</option>
+            ))}
           </select>
-          <button className="inline-flex items-center gap-2 py-2.5 px-5 border-none rounded-lg text-[0.95rem] font-medium cursor-pointer transition-all bg-blue-600 text-white hover:bg-blue-700">
+          <button
+            onClick={() => toast('Export coming soon', { icon: 'ℹ️' })}
+            className="inline-flex items-center gap-2 py-2.5 px-5 border-none rounded-lg text-[0.95rem] font-medium cursor-pointer transition-all bg-blue-600 text-white hover:bg-blue-700"
+          >
             <Download size={18} /> Export
           </button>
         </div>
@@ -92,17 +99,15 @@ const Reports = () => {
             </div>
             <div className="flex-1">
               <p className="text-sm text-slate-500 m-0 mb-1 font-medium">{stat.label}</p>
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-[28px] font-bold text-slate-800 m-0">{stat.value}</h3>
-                <span className={`text-xs font-medium flex items-center gap-0.5 ${stat.up ? 'text-green-600' : 'text-red-500'}`}>
-                  {stat.up ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                  {stat.change}
-                </span>
-              </div>
+              <h3 className="text-[28px] font-bold text-slate-800 m-0">{stat.value}</h3>
             </div>
           </div>
         ))}
       </div>
+
+      {loading && (
+        <div className="bg-white rounded-2xl shadow-sm p-10 text-center text-slate-400 text-sm mb-6">Loading reports…</div>
+      )}
 
       {/* Enrollment by Program */}
       <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
@@ -115,61 +120,72 @@ const Reports = () => {
           </div>
         </div>
 
-        <div className="space-y-4">
-          {enrollmentByProgram.map((prog, i) => (
-            <div key={i} className="flex items-center gap-4">
-              <div className="w-24 text-sm font-medium text-slate-600 shrink-0">{prog.code}</div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-slate-700">{prog.program}</span>
-                  <span className="text-sm font-medium text-slate-600">{prog.students}/{prog.capacity}</span>
+        {enrollmentByProgram.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-6">No programs.</p>
+        ) : (
+          <div className="space-y-4">
+            {enrollmentByProgram.map((prog, i) => {
+              const pct = Math.round((prog.students / prog.capacity) * 100);
+              return (
+                <div key={i} className="flex items-center gap-4">
+                  <div className="w-24 text-sm font-medium text-slate-600 shrink-0">{prog.code}</div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm text-slate-700">{prog.program}</span>
+                      <span className="text-sm font-medium text-slate-600">{prog.students} students</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2.5">
+                      <div
+                        className="h-2.5 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, pct)}%`, backgroundColor: prog.color }}
+                      />
+                    </div>
+                  </div>
+                  <div className="w-14 text-right text-sm font-semibold" style={{ color: prog.color }}>
+                    {pct}%
+                  </div>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-2.5">
-                  <div
-                    className="h-2.5 rounded-full transition-all duration-500"
-                    style={{ width: `${(prog.students / prog.capacity) * 100}%`, backgroundColor: prog.color }}
-                  />
-                </div>
-              </div>
-              <div className="w-14 text-right text-sm font-semibold" style={{ color: prog.color }}>
-                {Math.round((prog.students / prog.capacity) * 100)}%
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-6 mb-6 max-lg:grid-cols-1">
-        {/* Semester Trends */}
+        {/* Term Trends */}
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600">
               <Activity size={20} />
             </div>
-            <h2 className="text-lg font-bold text-slate-800 m-0">Semester Trends</h2>
+            <h2 className="text-lg font-bold text-slate-800 m-0">Term Trends</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Semester</th>
-                  <th className="text-right py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Enrolled</th>
-                  <th className="text-right py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Graduated</th>
-                  <th className="text-right py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg GPA</th>
-                </tr>
-              </thead>
-              <tbody>
-                {semesterTrends.map((s, i) => (
-                  <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3 px-2 text-sm font-medium text-slate-700">{s.semester}</td>
-                    <td className="py-3 px-2 text-sm text-right text-slate-600">{s.enrolled}</td>
-                    <td className="py-3 px-2 text-sm text-right text-slate-600">{s.graduated ?? <span className="text-slate-400 italic">In progress</span>}</td>
-                    <td className="py-3 px-2 text-sm text-right font-medium text-slate-700">{s.gpa?.toFixed(2) ?? <span className="text-slate-400 italic">—</span>}</td>
+          {termTrends.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6">No terms.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    <th className="text-left py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Term</th>
+                    <th className="text-right py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Enrolled</th>
+                    <th className="text-right py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Completed</th>
+                    <th className="text-right py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg GPA</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {termTrends.map((s, i) => (
+                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 px-2 text-sm font-medium text-slate-700">{s.code}</td>
+                      <td className="py-3 px-2 text-sm text-right text-slate-600">{s.enrolled}</td>
+                      <td className="py-3 px-2 text-sm text-right text-slate-600">{s.completed ?? <span className="text-slate-400 italic">In progress</span>}</td>
+                      <td className="py-3 px-2 text-sm text-right font-medium text-slate-700">{s.gpa?.toFixed(2) ?? <span className="text-slate-400 italic">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Admission Funnel */}
@@ -180,32 +196,100 @@ const Reports = () => {
             </div>
             <h2 className="text-lg font-bold text-slate-800 m-0">Admission Funnel</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Month</th>
-                  <th className="text-right py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Applied</th>
-                  <th className="text-right py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Accepted</th>
-                  <th className="text-right py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Enrolled</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentAdmissions.map((a, i) => (
-                  <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3 px-2 text-sm font-medium text-slate-700">{a.month}</td>
-                    <td className="py-3 px-2 text-sm text-right text-slate-600">{a.applied}</td>
-                    <td className="py-3 px-2 text-sm text-right text-slate-600">{a.accepted}</td>
-                    <td className="py-3 px-2 text-sm text-right text-slate-600">{a.enrolled ?? <span className="text-slate-400 italic">Pending</span>}</td>
+          {admissionFunnel.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6">No admissions data.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    <th className="text-left py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Month</th>
+                    <th className="text-right py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Applied</th>
+                    <th className="text-right py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Accepted</th>
+                    <th className="text-right py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Enrolled</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {admissionFunnel.map((a, i) => (
+                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 px-2 text-sm font-medium text-slate-700">{a.month}</td>
+                      <td className="py-3 px-2 text-sm text-right text-slate-600">{a.applied}</td>
+                      <td className="py-3 px-2 text-sm text-right text-slate-600">{a.accepted}</td>
+                      <td className="py-3 px-2 text-sm text-right text-slate-600">{a.enrolled || 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Course Performance Table */}
+      {/* Grade Distribution + Attendance Summary */}
+      <div className="grid grid-cols-2 gap-6 mb-6 max-lg:grid-cols-1">
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+              <BarChart3 size={20} />
+            </div>
+            <h2 className="text-lg font-bold text-slate-800 m-0">Grade Distribution</h2>
+          </div>
+          {gradeDist.every((g) => g.count === 0) ? (
+            <p className="text-sm text-slate-400 text-center py-6">No grades recorded yet.</p>
+          ) : (
+            <div className="grid grid-cols-7 gap-2">
+              {gradeDist.map((g, i) => (
+                <div key={i} className="flex flex-col items-center gap-1">
+                  <div className="w-full bg-slate-100 rounded-md flex items-end" style={{ height: 80 }}>
+                    <div
+                      className="w-full bg-indigo-500 rounded-md transition-all"
+                      style={{ height: `${(g.count / maxGradeCount) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-bold text-slate-700">{g.grade}</span>
+                  <span className="text-[10px] text-slate-500">{g.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600">
+              <AlertCircle size={20} />
+            </div>
+            <h2 className="text-lg font-bold text-slate-800 m-0">Attendance Summary</h2>
+          </div>
+          {!attendance || attendance.total === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6">No attendance recorded yet.</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600">Present rate</span>
+                <span className="text-2xl font-bold text-emerald-600">{attendance.presentRate}%</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-emerald-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-emerald-700 font-medium m-0">Present</p>
+                  <p className="text-xl font-bold text-emerald-800 m-0 mt-1">{attendance.PRESENT}</p>
+                </div>
+                <div className="bg-amber-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-amber-700 font-medium m-0">Late</p>
+                  <p className="text-xl font-bold text-amber-800 m-0 mt-1">{attendance.LATE}</p>
+                </div>
+                <div className="bg-red-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-red-700 font-medium m-0">Absent</p>
+                  <p className="text-xl font-bold text-red-800 m-0 mt-1">{attendance.ABSENT}</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 text-center">{attendance.total} total records</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Course Performance */}
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
@@ -215,42 +299,48 @@ const Reports = () => {
             <h2 className="text-lg font-bold text-slate-800 m-0">Course Performance</h2>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-100">
-                <th className="text-left py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Course</th>
-                <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Enrolled</th>
-                <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg Grade</th>
-                <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Pass Rate</th>
-              </tr>
-            </thead>
-            <tbody>
-              {courseStats.map((c, i) => (
-                <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                  <td className="py-3 px-3 text-sm font-medium text-slate-700">{c.course}</td>
-                  <td className="py-3 px-3 text-sm text-right text-slate-600">{c.enrolled}</td>
-                  <td className="py-3 px-3 text-sm text-right">
-                    <span className="inline-block px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700">{c.avgGrade}</span>
-                  </td>
-                  <td className="py-3 px-3 text-sm text-right">
-                    <div className="inline-flex items-center gap-2">
-                      <div className="w-20 bg-slate-100 rounded-full h-1.5">
-                        <div
-                          className={`h-1.5 rounded-full ${c.passRate >= 85 ? 'bg-green-500' : c.passRate >= 75 ? 'bg-amber-500' : 'bg-red-500'}`}
-                          style={{ width: `${c.passRate}%` }}
-                        />
-                      </div>
-                      <span className={`font-medium ${c.passRate >= 85 ? 'text-green-600' : c.passRate >= 75 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {c.passRate}%
-                      </span>
-                    </div>
-                  </td>
+        {coursePerformance.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-6">No course data for this term.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Course</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sec</th>
+                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Enrolled</th>
+                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg Grade</th>
+                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Pass Rate</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {coursePerformance.map((c, i) => (
+                  <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3 px-3 text-sm font-medium text-slate-700">{c.course}</td>
+                    <td className="py-3 px-3 text-sm text-slate-500">{c.section}</td>
+                    <td className="py-3 px-3 text-sm text-right text-slate-600">{c.enrolled}</td>
+                    <td className="py-3 px-3 text-sm text-right">
+                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700">{c.avgGrade}</span>
+                    </td>
+                    <td className="py-3 px-3 text-sm text-right">
+                      <div className="inline-flex items-center gap-2">
+                        <div className="w-20 bg-slate-100 rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full ${c.passRate >= 85 ? 'bg-green-500' : c.passRate >= 75 ? 'bg-amber-500' : 'bg-red-500'}`}
+                            style={{ width: `${c.passRate}%` }}
+                          />
+                        </div>
+                        <span className={`font-medium ${c.passRate >= 85 ? 'text-green-600' : c.passRate >= 75 ? 'text-amber-600' : 'text-red-600'}`}>
+                          {c.passRate}%
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
