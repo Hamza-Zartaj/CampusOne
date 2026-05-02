@@ -36,7 +36,7 @@ const EditUserModal = ({
               </strong>
             </p>
             <p className="text-sm text-slate-600 m-0">
-              User ID: <strong className="text-slate-800">{editingUser._id}</strong>
+              User ID: <strong className="text-slate-800">{editingUser.id}</strong>
             </p>
           </div>
 

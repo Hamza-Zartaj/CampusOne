@@ -39,11 +39,11 @@ const ApplicationDetail = ({
     setProcessing(true);
     try {
       if (actionType === 'accept') {
-        await onAccept(application._id);
+        await onAccept(application.id);
       } else if (actionType === 'reject') {
-        await onReject(application._id, reason);
+        await onReject(application.id, reason);
       } else if (actionType === 'review') {
-        await onReview(application._id, reason);
+        await onReview(application.id, reason);
       }
       setModalOpen(false);
       onClose();
@@ -146,7 +146,7 @@ const ApplicationDetail = ({
           <div>
             <h2 className="text-2xl font-bold text-slate-800 m-0">Application Details</h2>
             <p className="text-sm text-slate-500 mt-1">
-              ID: {application._id?.substring(0, 12)}...
+              ID: {application.id?.substring(0, 12)}...
             </p>
           </div>
           <button

@@ -198,7 +198,7 @@ const AdmissionApplication = () => {
 
       const response = await admissionAPI.submitApplication(cleanedFormData);
       
-      const applicationId = response.data.data.applicationId || response.data.data._id;
+      const applicationId = response.data.data.applicationId || response.data.data.id;
       const appNumber = response.data.data.applicationNumber;
       setApplicationNumber(appNumber);
 
