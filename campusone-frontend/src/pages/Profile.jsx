@@ -9,6 +9,7 @@ import {
   Save, 
   X, 
   Camera,
+  Trash2,
   Lock,
   Shield,
   AlertCircle,
@@ -39,8 +40,29 @@ const Profile = () => {
 
   const fileInputRef = useRef(null);
   const [uploadingPic, setUploadingPic] = useState(false);
+  const [removingPic, setRemovingPic] = useState(false);
 
   const handlePickProfilePicture = () => fileInputRef.current?.click();
+
+  const handleRemoveProfilePicture = async () => {
+    if (!user?.profilePicture) return;
+    if (!window.confirm('Remove your profile picture?')) return;
+    setRemovingPic(true);
+    try {
+      await authAPI.removeProfilePicture();
+      toast.success('Profile picture removed');
+      try {
+        const stored = JSON.parse(localStorage.getItem('user') || '{}');
+        stored.profilePicture = null;
+        localStorage.setItem('user', JSON.stringify(stored));
+      } catch {}
+      await fetchUserProfile();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to remove picture');
+    } finally {
+      setRemovingPic(false);
+    }
+  };
 
   const handleProfilePictureSelected = async (e) => {
     const file = e.target.files?.[0];
@@ -364,8 +386,8 @@ const Profile = () => {
                       <button
                         type="button"
                         onClick={handlePickProfilePicture}
-                        disabled={uploadingPic}
-                        title="Upload or take a picture"
+                        disabled={uploadingPic || removingPic}
+                        title={user?.profilePicture ? 'Replace picture' : 'Upload or take a picture'}
                         className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors shadow"
                       >
                         {uploadingPic ? (
@@ -374,6 +396,21 @@ const Profile = () => {
                           <Camera className="w-4 h-4" />
                         )}
                       </button>
+                      {user?.profilePicture && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveProfilePicture}
+                          disabled={uploadingPic || removingPic}
+                          title="Remove picture"
+                          className="absolute bottom-0 left-0 bg-red-600 text-white p-2 rounded-full hover:bg-red-700 disabled:opacity-50 transition-colors shadow"
+                        >
+                          {removingPic ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      )}
                       <input
                         type="file"
                         ref={fileInputRef}

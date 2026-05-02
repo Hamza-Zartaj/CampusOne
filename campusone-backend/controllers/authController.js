@@ -1776,6 +1776,32 @@ export const uploadProfilePicture = async (req, res) => {
 };
 
 /**
+ * @desc    Remove the current user's profile picture (deletes the file from
+ *          Supabase storage and clears User.profilePicture).
+ * @route   DELETE /api/auth/profile-picture
+ * @access  Private
+ */
+export const removeProfilePicture = async (req, res) => {
+  try {
+    if (!req.user.profilePicture) {
+      return res.status(400).json({ success: false, message: 'No profile picture to remove' });
+    }
+
+    const oldPath = pathFromUrl(req.user.profilePicture, PROFILE_BUCKET);
+    if (oldPath) await deleteFromStorage(PROFILE_BUCKET, oldPath);
+
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { profilePicture: null },
+    });
+
+    res.status(200).json({ success: true, message: 'Profile picture removed' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error removing profile picture', error: error.message });
+  }
+};
+
+/**
  * @desc    Update current user's email address.
  *          - During first-time login → no verification (default email is fake).
  *          - Otherwise, if user has email-based 2FA → require a valid OTP
@@ -1992,5 +2018,6 @@ export default {
   sendVerificationOTP,
   recoverSuperAdmin,
   updateMyEmail,
-  uploadProfilePicture
+  uploadProfilePicture,
+  removeProfilePicture
 };
