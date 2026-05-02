@@ -33,7 +33,7 @@ export const getAllTeachers = async (req, res) => {
     const teachersWithUserInfo = teachers
       .filter(t => t.user) // Only include teachers with valid users
       .map(t => ({
-        _id: t.id,
+        id: t.id,
         teacherId: t.id,
         userId: t.userId,
         name: t.user.name,
@@ -95,7 +95,7 @@ export const getTeacherById = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        _id: teacher.id,
+        id: teacher.id,
         teacherId: teacher.id,
         userId: teacher.user.id,
         name: teacher.user.name,
@@ -144,7 +144,7 @@ export const getTeacherByUserId = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        _id: teacher.id,
+        id: teacher.id,
         teacherId: teacher.id,
         userId: teacher.user.id,
         name: teacher.user.name,
@@ -203,7 +203,7 @@ export const getTeacherProfile = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        _id: teacher.id,
+        id: teacher.id,
         teacherId: teacher.id,
         userId: teacher.user.id,
         name: teacher.user.name,
@@ -286,7 +286,7 @@ export const updateTeacherProfile = async (req, res) => {
       success: true,
       message: 'Teacher profile updated successfully',
       data: {
-        _id: updated.id,
+        id: updated.id,
         teacherId: updated.id,
         userId: updated.user.id,
         name: updated.user.name,

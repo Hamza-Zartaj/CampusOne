@@ -146,7 +146,7 @@ export const submitApplication = async (req, res) => {
       success: true,
       message: 'Application submitted successfully',
       data: {
-        _id: application.id,
+        id: application.id,
         applicationNumber: application.applicationNumber,
         status: application.applicationStatus
       }

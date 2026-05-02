@@ -70,7 +70,7 @@ const UserTable = ({
             <tbody>
               {filteredUsers.map((user) => (
                 <tr
-                  key={user._id}
+                  key={user.id}
                   className={`border-b transition-colors ${
                     user.isActive ? 'border-gray-100 hover:bg-slate-50' : 'border-gray-200 bg-gray-50 hover:bg-gray-100 opacity-75'
                   }`}

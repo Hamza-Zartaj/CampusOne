@@ -14,7 +14,7 @@ import { announcementAPI } from '../../utils/api';
 // Dummy data for development/demo
 const dummyCourseOfferings = [
   {
-    _id: '1',
+    id: '1',
     course: {
       courseCode: 'CS101',
       courseName: 'Introduction to Computer Science',
@@ -30,7 +30,7 @@ const dummyCourseOfferings = [
     resultsLocked: false
   },
   {
-    _id: '2',
+    id: '2',
     course: {
       courseCode: 'CS201',
       courseName: 'Data Structures & Algorithms',
@@ -49,7 +49,7 @@ const dummyCourseOfferings = [
 
 const dummyAnnouncements = [
   {
-    _id: '1',
+    id: '1',
     title: 'Important: Assignment Deadline Extended',
     content: 'Due to popular request, we have extended the assignment deadline to next Friday. Please make sure to submit your work by then.',
     priority: 'high',
@@ -58,7 +58,7 @@ const dummyAnnouncements = [
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
   },
   {
-    _id: '2',
+    id: '2',
     title: 'Midterm Preparation Tips',
     content: 'Here are some tips to help you prepare for the midterm exam. Focus on chapters 1-5 from the textbook.',
     priority: 'medium',
@@ -220,7 +220,7 @@ const TeacherAnnouncement = () => {
                   >
                     <option value="">Choose a course</option>
                     {courseOfferings.map((offering) => (
-                      <option key={offering._id} value={offering._id}>
+                      <option key={offering.id} value={offering.id}>
                         {offering.course?.courseCode} - {offering.course?.courseName || 'Unknown Course'}
                       </option>
                     ))}

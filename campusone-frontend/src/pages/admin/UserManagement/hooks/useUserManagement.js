@@ -392,7 +392,7 @@ export const useUserManagement = () => {
         updateData.permissions = editForm.permissions;
       }
       
-      const response = await userAPI.updateUser(editingUser._id, updateData);
+      const response = await userAPI.updateUser(editingUser.id, updateData);
       
       if (response.data.success) {
         setSuccess(`User updated successfully!`);
@@ -413,10 +413,10 @@ export const useUserManagement = () => {
     
     try {
       if (user.isActive) {
-        await userAPI.deactivateUser(user._id);
+        await userAPI.deactivateUser(user.id);
         setSuccess(`${user.name}'s account has been deactivated`);
       } else {
-        await userAPI.activateUser(user._id);
+        await userAPI.activateUser(user.id);
         setSuccess(`${user.name}'s account has been activated`);
       }
       
@@ -440,7 +440,7 @@ export const useUserManagement = () => {
     setSuccess('');
     
     try {
-      await userAPI.deleteUser(deletingUser._id);
+      await userAPI.deleteUser(deletingUser.id);
       setSuccess(`${deletingUser.name} has been permanently deleted from the system`);
       setShowDeleteModal(false);
       setDeletingUser(null);
@@ -466,7 +466,7 @@ export const useUserManagement = () => {
     setSuccess('');
     
     try {
-      await userAPI.unlockUser(resettingUser._id);
+      await userAPI.unlockUser(resettingUser.id);
       setSuccess(`${resettingUser.name}'s account has been unlocked`);
       setShowResetModal(false);
       

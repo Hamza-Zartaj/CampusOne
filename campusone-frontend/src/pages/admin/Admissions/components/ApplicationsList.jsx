@@ -109,7 +109,7 @@ const ApplicationsList = ({
         <div className="space-y-3">
           {sortedApps.map((app) => (
             <ApplicationCard
-              key={app._id}
+              key={app.id}
               application={app}
               onClick={() => setSelectedApp(app)}
             />

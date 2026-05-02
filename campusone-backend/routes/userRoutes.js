@@ -20,7 +20,7 @@ import {
   validateRegistration,
   validateUserUpdate,
   validatePagination,
-  validateObjectId,
+  validateId,
   validateEmail,
   validatePassword,
   sanitizeInput
@@ -79,7 +79,7 @@ router.post(
 router.get('/', authorizePermission('manage_users'), validatePagination, getAllUsers);
 
 // Get single user by ID
-router.get('/:id', authorizePermission('manage_users'), validateObjectId('id'), getUserById);
+router.get('/:id', authorizePermission('manage_users'), validateId('id'), getUserById);
 
 // Create new user
 // Super Admin can create anyone (including admins)
@@ -98,22 +98,22 @@ router.post(
 router.put(
   '/:id',
   authorizePermission('manage_users'),
-  validateObjectId('id'),
+  validateId('id'),
   sanitizeInput,
   validateUserUpdate,
   updateUser
 );
 
 // Deactivate user account
-router.put('/:id/deactivate', authorizePermission('manage_users'), validateObjectId('id'), deactivateUser);
+router.put('/:id/deactivate', authorizePermission('manage_users'), validateId('id'), deactivateUser);
 
 // Activate user account
-router.put('/:id/activate', authorizePermission('manage_users'), validateObjectId('id'), activateUser);
+router.put('/:id/activate', authorizePermission('manage_users'), validateId('id'), activateUser);
 
 // Unlock user account
-router.put('/:id/unlock', authorizePermission('manage_users'), validateObjectId('id'), unlockAccount);
+router.put('/:id/unlock', authorizePermission('manage_users'), validateId('id'), unlockAccount);
 
 // Delete user (soft delete)
-router.delete('/:id', authorizePermission('manage_users'), validateObjectId('id'), deleteUser);
+router.delete('/:id', authorizePermission('manage_users'), validateId('id'), deleteUser);
 
 export default router;
