@@ -23,6 +23,9 @@ import CourseManagement from './pages/admin/academic/CourseManagement';
 import TermManagement from './pages/admin/academic/TermManagement';
 import CourseOfferingManagement from './pages/admin/academic/CourseOfferingManagement';
 import EnrollmentManagement from './pages/admin/academic/EnrollmentManagement';
+import ScheduleConfigPage from './pages/admin/schedule/ScheduleConfigPage';
+import RoomManagement from './pages/admin/schedule/RoomManagement';
+import HolidayManagement from './pages/admin/schedule/HolidayManagement';
 
 // Teacher Pages
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
@@ -92,6 +95,9 @@ function App() {
           <Route path="/admin/academic/terms" element={<TermManagement />} />
           <Route path="/admin/academic/offerings" element={<CourseOfferingManagement />} />
           <Route path="/admin/academic/enrollments" element={<EnrollmentManagement />} />
+          <Route path="/admin/schedule/config" element={<ScheduleConfigPage />} />
+          <Route path="/admin/schedule/rooms" element={<RoomManagement />} />
+          <Route path="/admin/schedule/holidays" element={<HolidayManagement />} />
           <Route path="/admin/audit-logs" element={<AuditLogs />} />
           <Route path="/admin/ta-oversight" element={<TAOversight />} />
 

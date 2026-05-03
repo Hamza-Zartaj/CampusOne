@@ -23,6 +23,9 @@ import {
   ShieldCheck,
   CalendarOff,
   GraduationCap as GradCapIcon,
+  Settings2,
+  DoorOpen,
+  CalendarX,
 } from 'lucide-react';
 
 const NAV_LABEL_CLASS = 'text-[10px] font-semibold uppercase tracking-wider text-slate-400 px-6 pt-4 pb-1 select-none';
@@ -56,6 +59,10 @@ const Sidebar = ({ isOpen }) => {
     { path: '/admin/academic/offerings', icon: Layers, label: 'Offerings', perm: 'manage_offerings' },
     { path: '/admin/academic/enrollments', icon: ClipboardList, label: 'Enrollments', perm: 'manage_offerings' },
     { path: '/admin/ta-oversight', icon: GradCapIcon, label: 'TA Oversight', perm: 'manage_offerings' },
+    { label: null, group: 'Schedule', anyPerm: ['manage_academic'] },
+    { path: '/admin/schedule/config', icon: Settings2, label: 'Master Schedule', perm: 'manage_academic' },
+    { path: '/admin/schedule/rooms', icon: DoorOpen, label: 'Rooms', perm: 'manage_academic' },
+    { path: '/admin/schedule/holidays', icon: CalendarX, label: 'Holidays', perm: 'manage_academic' },
     { label: null, group: 'System', anyPerm: ['view_audit_logs'] },
     { path: '/admin/audit-logs', icon: ShieldCheck, label: 'Audit Logs', perm: 'view_audit_logs' },
   ];

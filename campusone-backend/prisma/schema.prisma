@@ -397,6 +397,8 @@ model Course {
   prerequisites    Course[]  @relation("CoursePrereq")
   prerequisiteFor  Course[]  @relation("CoursePrereq")
 
+  sessionType     SessionType @default(LECTURE)
+
   curriculumLinks CurriculumCourse[]
   offerings       CourseOffering[]
 
@@ -447,7 +449,6 @@ model CourseOffering {
   teacherId    String
   section      String
   capacity     Int      @default(40)
-  schedule     Json     @default("[]")
 
   course       Course   @relation(fields: [courseId], references: [id])
   term         Term     @relation(fields: [termId], references: [id])
@@ -460,6 +461,7 @@ model CourseOffering {
   leaveApplications LeaveApplication[]
   fines        Fine[]
   taAssignments TAAssignment[]
+  sessions     ClassSession[]
 
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
@@ -874,4 +876,90 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
+}
+
+// ============ SCHEDULING ============
+
+enum SessionType {
+  LECTURE
+  LAB
+  PROJECT
+}
+
+enum RoomType {
+  LECTURE
+  LAB
+  SEMINAR
+}
+
+enum DayOfWeek {
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+  SUN
+}
+
+model ScheduleConfig {
+  id                       String  @id @default("default")
+  lectureDurationMin       Int     @default(90)
+  breakDurationMin         Int     @default(15)
+  dayStartTime             String  @default("09:00")
+  workingDays              Json    @default("[\"MON\",\"TUE\",\"WED\",\"THU\",\"FRI\",\"SAT\"]")
+  regularLecturesPerDay    Int     @default(4)
+  maxTeacherLecturesPerDay Int     @default(3)
+  defaultSessionsPerCourse Int     @default(2)
+  dayOverrides             Json    @default("{\"FRI\":{\"lecturesPerDay\":3,\"jummahAfterSlot\":2,\"jummahMin\":60}}")
+  updatedAt                DateTime @updatedAt
+}
+
+model Room {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String?
+  type      RoomType
+  capacity  Int      @default(40)
+  building  String?
+  floor     Int?
+  isActive  Boolean  @default(true)
+
+  sessions  ClassSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type, isActive])
+  @@index([building, floor])
+}
+
+model ClassSession {
+  id         String         @id @default(cuid())
+  offeringId String
+  dayOfWeek  DayOfWeek
+  slotIndex  Int
+  roomId     String
+
+  offering   CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  room       Room           @relation(fields: [roomId], references: [id])
+
+  createdAt  DateTime       @default(now())
+
+  @@unique([offeringId, dayOfWeek, slotIndex])
+  @@index([roomId, dayOfWeek, slotIndex])
+  @@index([offeringId])
+}
+
+model Holiday {
+  id           String   @id @default(cuid())
+  date         DateTime @db.Date
+  name         String
+  isRecurring  Boolean  @default(false)
+  termId       String?
+
+  createdAt    DateTime @default(now())
+
+  @@unique([date, name])
+  @@index([termId])
 }

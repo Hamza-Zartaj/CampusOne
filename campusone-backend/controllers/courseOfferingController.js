@@ -1,9 +1,10 @@
 import prisma from '../prisma/client.js';
 
 const offeringInclude = {
-  course: { select: { id: true, code: true, title: true, creditHours: true } },
+  course: { select: { id: true, code: true, title: true, creditHours: true, sessionType: true } },
   term: { select: { id: true, code: true, season: true, academicYear: true } },
   teacher: { select: { id: true, designation: true, user: { select: { name: true, email: true } } } },
+  sessions: { include: { room: true }, orderBy: [{ dayOfWeek: 'asc' }, { slotIndex: 'asc' }] },
   _count: { select: { enrollments: true } },
 };
 
@@ -107,7 +108,7 @@ export const getOfferingStudents = async (req, res) => {
 // POST /api/offerings
 export const createOffering = async (req, res) => {
   try {
-    const { courseId, termId, teacherId, section, capacity, schedule } = req.body;
+    const { courseId, termId, teacherId, section, capacity } = req.body;
     if (!courseId || !termId || !teacherId || !section) {
       return res.status(400).json({ success: false, message: 'courseId, termId, teacherId, section are required' });
     }
@@ -118,7 +119,7 @@ export const createOffering = async (req, res) => {
     if (existing) return res.status(409).json({ success: false, message: 'An offering for this course/term/section already exists' });
 
     const offering = await prisma.courseOffering.create({
-      data: { courseId, termId, teacherId, section: section.toUpperCase(), capacity: capacity ? +capacity : 40, schedule: schedule || [] },
+      data: { courseId, termId, teacherId, section: section.toUpperCase(), capacity: capacity ? +capacity : 40 },
       include: offeringInclude,
     });
     res.status(201).json({ success: true, data: offering });
@@ -130,13 +131,12 @@ export const createOffering = async (req, res) => {
 // PUT /api/offerings/:id
 export const updateOffering = async (req, res) => {
   try {
-    const { teacherId, capacity, schedule, isActive } = req.body;
+    const { teacherId, capacity, isActive } = req.body;
     const offering = await prisma.courseOffering.update({
       where: { id: req.params.id },
       data: {
         teacherId,
         capacity: capacity !== undefined ? +capacity : undefined,
-        schedule: schedule !== undefined ? schedule : undefined,
         isActive,
       },
       include: offeringInclude,
