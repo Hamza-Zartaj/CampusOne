@@ -7,6 +7,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
+import { clearAllApiCache } from '../utils/api';
 
 const Header = ({ toggleSidebar }) => {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ const Header = ({ toggleSidebar }) => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    clearAllApiCache();
     navigate('/login');
   };
 

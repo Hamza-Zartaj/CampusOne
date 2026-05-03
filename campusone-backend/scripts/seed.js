@@ -374,11 +374,6 @@ async function main() {
   const teacherKeys = Object.keys(T);
 
   const makeOffering = async (courseCode, termCode, section) => {
-    const days = randInt(0, 1) === 0 ? ['MON', 'WED'] : ['TUE', 'THU'];
-    const start = `${randInt(8, 14)}:${pick(['00', '30'])}`;
-    const endHr = parseInt(start.split(':')[0]) + 1;
-    const end = `${endHr}:${start.split(':')[1] === '00' ? '30' : '00'}`;
-    const room = `CS-${randInt(101, 410)}`;
     const teacher = T[teacherKeys[teacherCursor++ % teacherKeys.length]];
 
     return prisma.courseOffering.upsert({
@@ -387,7 +382,6 @@ async function main() {
       create: {
         courseId: C[courseCode].id, termId: TM[termCode].id, teacherId: teacher.id,
         section, capacity: 35,
-        schedule: [{ day: days[0], start, end, room }, { day: days[1], start, end, room }],
       },
     });
   };
@@ -448,7 +442,13 @@ async function main() {
       for (const sec of b.sections) {
         const sectionCode = `${b.label}${sec}`;
         const sectionStudents = students[b.batch][sec];
-        for (const stu of sectionStudents) {
+        // Top ~30% of senior batches (FA22, FA23, FA24) are flagged "high achievers"
+        // → guarantees them A/A+ grades and CGPA ≥ 3.5 (TA-eligible pool).
+        const highAchieverCutoff = ['FA22', 'FA23', 'FA24'].includes(b.batch)
+          ? Math.ceil(sectionStudents.length * 0.30)
+          : 0;
+        sectionStudents.forEach((stu, idx) => {
+          const isHighAchiever = idx < highAchieverCutoff;
           for (const c of coursesThisSem) {
             const off = offerings[`${b.batch}-${sectionCode}-${termCode}-${c.code}`];
             if (!off) continue;
@@ -456,13 +456,21 @@ async function main() {
             if (isCurrent) {
               enrollData.push({ studentId: stu.id, offeringId: off.id, status: 'ENROLLED' });
             } else {
-              const assign = randInt(15, 30);
-              const mid = randInt(15, 30);
-              const final = randInt(15, 40);
-              const total = assign + mid + final;
-              // ~5% failure rate
-              const failed = rand() < 0.05;
-              const score = failed ? randInt(20, 39) : total;
+              let assign, mid, final, score, failed = false;
+              if (isHighAchiever) {
+                // Mostly A/A+ scores (85-100), occasional A- (80-84)
+                assign = randInt(25, 30);
+                mid    = randInt(25, 30);
+                final  = randInt(33, 40);
+                score  = Math.min(100, assign + mid + final);
+              } else {
+                assign = randInt(15, 30);
+                mid    = randInt(15, 30);
+                final  = randInt(15, 40);
+                const total = assign + mid + final;
+                failed = rand() < 0.05;
+                score = failed ? randInt(20, 39) : total;
+              }
               const letter = gradeForScore(score);
               enrollData.push({
                 studentId: stu.id, offeringId: off.id,
@@ -476,7 +484,7 @@ async function main() {
               }
             }
           }
-        }
+        });
       }
     }
   }
@@ -770,9 +778,10 @@ async function main() {
     if (t) teacherUserIdByOffering[off.id] = t.userId;
   }
 
-  const approvedTargets = candidates.slice(0, 6);
-  const pendingTargets  = candidates.slice(6, 9);
-  const rejectedTargets = candidates.slice(9, 10);
+  console.log(`     ${candidates.length} TA-eligible students found`);
+  const approvedTargets = candidates.slice(0, Math.min(10, Math.floor(candidates.length * 0.5)));
+  const pendingTargets  = candidates.slice(approvedTargets.length, approvedTargets.length + 5);
+  const rejectedTargets = candidates.slice(approvedTargets.length + pendingTargets.length, approvedTargets.length + pendingTargets.length + 2);
 
   for (const c of approvedTargets) {
     taAssignmentData.push({
@@ -841,6 +850,185 @@ async function main() {
     }
   }
   await safeCreateMany('notification', notificationData, 'notifications');
+
+  // ── SCHEDULE: config + rooms + holidays + ClassSessions ────────
+  console.log('  ⏳ Schedule config + rooms + holidays…');
+
+  await prisma.scheduleConfig.upsert({
+    where: { id: 'default' },
+    update: {},
+    create: { id: 'default' },
+  });
+
+  const ROOMS = [
+    // Commerce Block ground (110-119)
+    { code: 'R110', type: 'LECTURE', building: 'Commerce Block', floor: 0, capacity: 40 },
+    { code: 'R111', type: 'LECTURE', building: 'Commerce Block', floor: 0, capacity: 40 },
+    { code: 'R112', type: 'LECTURE', building: 'Commerce Block', floor: 0, capacity: 40 },
+    { code: 'R113', type: 'SEMINAR', building: 'Commerce Block', floor: 0, capacity: 60, name: 'Seminar Hall A' },
+    // Commerce Block 1st floor (120-129)
+    { code: 'R120', type: 'LECTURE', building: 'Commerce Block', floor: 1, capacity: 40 },
+    { code: 'R121', type: 'LECTURE', building: 'Commerce Block', floor: 1, capacity: 40 },
+    { code: 'R125', type: 'LECTURE', building: 'Commerce Block', floor: 1, capacity: 50 },
+    { code: 'R126', type: 'LECTURE', building: 'Commerce Block', floor: 1, capacity: 40 },
+    // Commerce Block 2nd floor (130-139)
+    { code: 'R130', type: 'LECTURE', building: 'Commerce Block', floor: 2, capacity: 40 },
+    { code: 'R131', type: 'LECTURE', building: 'Commerce Block', floor: 2, capacity: 40 },
+    // Science Block ground (10-19)
+    { code: 'R10', type: 'LECTURE', building: 'Science Block', floor: 0, capacity: 40 },
+    { code: 'R11', type: 'LAB', building: 'Science Block', floor: 0, capacity: 30, name: 'Programming Lab' },
+    { code: 'R12', type: 'LAB', building: 'Science Block', floor: 0, capacity: 30, name: 'Networking Lab' },
+    // Science Block 1st (20-29)
+    { code: 'R20', type: 'LECTURE', building: 'Science Block', floor: 1, capacity: 40 },
+    { code: 'R21', type: 'LAB', building: 'Science Block', floor: 1, capacity: 30, name: 'Database Lab' },
+    // Science Block 2nd (30-39)
+    { code: 'R30', type: 'LECTURE', building: 'Science Block', floor: 2, capacity: 40 },
+    { code: 'R31', type: 'LAB', building: 'Science Block', floor: 2, capacity: 30, name: 'Mobile Dev Lab' },
+  ];
+  for (const r of ROOMS) {
+    await prisma.room.upsert({ where: { code: r.code }, update: {}, create: r });
+  }
+  console.log(`     ✓ ${ROOMS.length} rooms`);
+
+  const HOLIDAYS = [
+    { date: '2026-03-23', name: 'Pakistan Day', isRecurring: true },
+    { date: '2026-05-01', name: 'Labour Day', isRecurring: true },
+    { date: '2026-08-14', name: 'Independence Day', isRecurring: true },
+  ];
+  for (const h of HOLIDAYS) {
+    try {
+      await prisma.holiday.create({
+        data: { date: new Date(h.date), name: h.name, isRecurring: h.isRecurring },
+      });
+    } catch (e) { if (e.code !== 'P2002') throw e; }
+  }
+  console.log(`     ✓ ${HOLIDAYS.length} holidays`);
+
+  // Tag courses with sessionType (LAB if title contains "lab", PROJECT for FYP/thesis)
+  const allCourses = await prisma.course.findMany();
+  let labCount = 0, projectCount = 0;
+  for (const c of allCourses) {
+    const t = c.title.toLowerCase();
+    let sessionType = 'LECTURE';
+    if (t.includes('lab')) { sessionType = 'LAB'; labCount++; }
+    else if (t.includes('final year project') || t.includes('fyp') || t.includes('thesis')) { sessionType = 'PROJECT'; projectCount++; }
+    await prisma.course.update({ where: { id: c.id }, data: { sessionType } });
+  }
+  console.log(`     ✓ Tagged courses: ${labCount} LAB, ${projectCount} PROJECT, rest LECTURE`);
+
+  // Generate ClassSessions for the active term (SP26) — 2 sessions per non-PROJECT offering
+  console.log('  ⏳ Generating timetable for active term…');
+  const sp26 = await prisma.term.findFirst({ where: { isActive: true } });
+  if (!sp26) {
+    console.log('     ⚠  no active term, skipping ClassSession generation');
+  } else {
+    const allRooms = await prisma.room.findMany({ where: { isActive: true } });
+    const lectureRooms = allRooms.filter((r) => r.type !== 'LAB');
+    const labRooms     = allRooms.filter((r) => r.type === 'LAB');
+
+    const config = await prisma.scheduleConfig.findUnique({ where: { id: 'default' } });
+    const overrides = config.dayOverrides || {};
+    const workingDays = config.workingDays || ['MON','TUE','WED','THU','FRI','SAT'];
+    const slotsByDay = {};
+    for (const d of workingDays) {
+      const lec = overrides[d]?.lecturesPerDay ?? config.regularLecturesPerDay;
+      slotsByDay[d] = Array.from({ length: lec }, (_, i) => i + 1);
+    }
+
+    // Group offerings by (course, term) so we can stagger sections to avoid overlap
+    const sp26Offerings = await prisma.courseOffering.findMany({
+      where: { termId: sp26.id },
+      include: { course: { select: { id: true, code: true, sessionType: true } } },
+    });
+
+    // Constraint state
+    const roomBusy     = {};   // `${day}-${slot}` → Set<roomId>
+    const teacherBusy  = {};   // `${day}-${slot}` → Set<teacherId>
+    const courseSlots  = {};   // courseId        → Set<`${day}-${slot}`>
+    const teacherDay   = {};   // `${teacherId}-${day}` → count
+
+    const cellKey = (d, s) => `${d}-${s}`;
+    const isFree = (off, d, s, room) => {
+      const k = cellKey(d, s);
+      if ((roomBusy[k] || new Set()).has(room.id)) return false;
+      if ((teacherBusy[k] || new Set()).has(off.teacherId)) return false;
+      if ((courseSlots[off.course.id] || new Set()).has(k)) return false;
+      if ((teacherDay[`${off.teacherId}-${d}`] || 0) >= config.maxTeacherLecturesPerDay) return false;
+      return true;
+    };
+    const claim = (off, d, s, room) => {
+      const k = cellKey(d, s);
+      if (!roomBusy[k]) roomBusy[k] = new Set();
+      if (!teacherBusy[k]) teacherBusy[k] = new Set();
+      if (!courseSlots[off.course.id]) courseSlots[off.course.id] = new Set();
+      roomBusy[k].add(room.id);
+      teacherBusy[k].add(off.teacherId);
+      courseSlots[off.course.id].add(k);
+      teacherDay[`${off.teacherId}-${d}`] = (teacherDay[`${off.teacherId}-${d}`] || 0) + 1;
+    };
+
+    const sessionsToCreate = [];
+    let scheduledCount = 0, skippedCount = 0;
+    // Process LAB offerings first (fewer rooms = harder), then sort by section so A→B→C
+    sp26Offerings.sort((a, b) => {
+      if (a.course.sessionType !== b.course.sessionType) {
+        if (a.course.sessionType === 'LAB') return -1;
+        if (b.course.sessionType === 'LAB') return 1;
+      }
+      return a.section.localeCompare(b.section);
+    });
+
+    for (const off of sp26Offerings) {
+      if (off.course.sessionType === 'PROJECT') continue;
+      const pool = off.course.sessionType === 'LAB' ? labRooms : lectureRooms;
+      const picked = [];
+
+      for (const day of workingDays) {
+        if (picked.length >= 2) break;
+        if (picked.find((p) => p.dayOfWeek === day)) continue; // prefer different days
+        for (const slot of slotsByDay[day]) {
+          let chosen = null;
+          for (const room of pool) {
+            if (isFree(off, day, slot, room)) { chosen = room; break; }
+          }
+          if (chosen) {
+            claim(off, day, slot, chosen);
+            picked.push({ offeringId: off.id, dayOfWeek: day, slotIndex: slot, roomId: chosen.id });
+            break;
+          }
+        }
+      }
+      // Fallback: allow same-day if 2 distinct days couldn't be found
+      if (picked.length < 2) {
+        for (const day of workingDays) {
+          if (picked.length >= 2) break;
+          for (const slot of slotsByDay[day]) {
+            if (picked.find((p) => p.dayOfWeek === day && p.slotIndex === slot)) continue;
+            let chosen = null;
+            for (const room of pool) {
+              if (isFree(off, day, slot, room)) { chosen = room; break; }
+            }
+            if (chosen) {
+              claim(off, day, slot, chosen);
+              picked.push({ offeringId: off.id, dayOfWeek: day, slotIndex: slot, roomId: chosen.id });
+            }
+          }
+        }
+      }
+
+      if (picked.length === 2) {
+        sessionsToCreate.push(...picked);
+        scheduledCount++;
+      } else {
+        skippedCount++;
+      }
+    }
+
+    if (sessionsToCreate.length > 0) {
+      await prisma.classSession.createMany({ data: sessionsToCreate, skipDuplicates: true });
+    }
+    console.log(`     ✓ ${scheduledCount} offerings scheduled, ${skippedCount} could not fit`);
+  }
 
   // ── DONE ──────────────────────────────────────────────────────
   console.log('\n✅  Seed complete!\n');

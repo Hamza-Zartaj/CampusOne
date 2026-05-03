@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { attachCacheInterceptors, clearAllApiCache } from './apiCache';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -9,6 +10,10 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Attach the GET-cache layer (transparent — components don't need to change).
+attachCacheInterceptors(api);
+export { clearAllApiCache };
 
 // Add token to requests if it exists
 api.interceptors.request.use(
@@ -42,6 +47,7 @@ api.interceptors.response.use(
         // Truly unauthorized (expired/invalid token) — clear session and redirect
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        clearAllApiCache();
         window.location.href = '/login';
       }
     }

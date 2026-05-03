@@ -9,13 +9,22 @@ import { auditLog } from '../utils/auditLogger.js';
  */
 export const sendAnnouncement = async (req, res) => {
   try {
-    const { title, content, priority, targetAudience } = req.body;
+    const { title, content, priority, targetAudience, filters } = req.body;
     const userId = req.user.id;
 
     // Validation
     if (!title || !content) {
       return res.status(400).json({ error: 'Title and content are required' });
     }
+
+    // Normalise filters (only persist non-empty values)
+    const f = filters || {};
+    const cleanFilters = {};
+    if (Array.isArray(f.departmentIds) && f.departmentIds.length) cleanFilters.departmentIds = f.departmentIds;
+    if (Array.isArray(f.programIds) && f.programIds.length)       cleanFilters.programIds = f.programIds;
+    if (Array.isArray(f.batches) && f.batches.length)             cleanFilters.batches = f.batches;
+    if (Array.isArray(f.semesters) && f.semesters.length)         cleanFilters.semesters = f.semesters.map(Number);
+    const hasFilters = Object.keys(cleanFilters).length > 0;
 
     // Create announcement
     const announcement = await prisma.announcement.create({
@@ -24,36 +33,61 @@ export const sendAnnouncement = async (req, res) => {
         content,
         priority: priority || 'medium',
         createdBy: userId,
-        targetAudience
-      }
+        targetAudience: hasFilters ? 'filtered' : targetAudience,
+        audienceFilters: hasFilters ? { ...cleanFilters, baseAudience: targetAudience } : null,
+      },
     });
 
-    // Get recipients based on targetAudience
+    // Get recipients based on targetAudience + optional filters
     let recipients = [];
 
+    // Build student-side filter once (re-used for "students" and "all")
+    const buildStudentWhere = () => {
+      const where = { role: 'student', isActive: true };
+      if (hasFilters) {
+        where.student = {};
+        if (cleanFilters.departmentIds) where.student.departmentId = { in: cleanFilters.departmentIds };
+        if (cleanFilters.programIds)    where.student.programId    = { in: cleanFilters.programIds };
+        if (cleanFilters.batches)       where.student.batch        = { in: cleanFilters.batches };
+        if (cleanFilters.semesters)     where.student.currentSemester = { in: cleanFilters.semesters };
+      }
+      return where;
+    };
+
+    const buildTeacherWhere = () => {
+      const where = { role: { in: ['teacher', 'admin'] }, isActive: true };
+      if (hasFilters && cleanFilters.departmentIds) {
+        where.OR = [
+          { teacher: { departmentId: { in: cleanFilters.departmentIds } } },
+          { admin:   { departmentId: { in: cleanFilters.departmentIds } } },
+        ];
+      }
+      return where;
+    };
+
     if (targetAudience === 'all') {
-      // All users (admins, teachers, students)
-      recipients = await prisma.user.findMany({
-        where: { isActive: true },
-        select: { id: true, email: true, name: true }
-      });
+      if (hasFilters) {
+        // Apply filters to both halves
+        const [students, staff] = await Promise.all([
+          prisma.user.findMany({ where: buildStudentWhere(), select: { id: true, email: true, name: true } }),
+          prisma.user.findMany({ where: buildTeacherWhere(), select: { id: true, email: true, name: true } }),
+        ]);
+        recipients = [...students, ...staff];
+      } else {
+        recipients = await prisma.user.findMany({
+          where: { isActive: true },
+          select: { id: true, email: true, name: true },
+        });
+      }
     } else if (targetAudience === 'teachers') {
-      // All teachers and admins
       recipients = await prisma.user.findMany({
-        where: {
-          role: { in: ['teacher', 'admin'] },
-          isActive: true
-        },
-        select: { id: true, email: true, name: true }
+        where: buildTeacherWhere(),
+        select: { id: true, email: true, name: true },
       });
     } else if (targetAudience === 'students') {
-      // All students
       recipients = await prisma.user.findMany({
-        where: {
-          role: 'student',
-          isActive: true
-        },
-        select: { id: true, email: true, name: true }
+        where: buildStudentWhere(),
+        select: { id: true, email: true, name: true },
       });
     }
 
@@ -235,20 +269,22 @@ export const getMyAnnouncements = async (req, res) => {
 
     // Find offerings relevant to the user (for "course"-targeted announcements)
     let relevantOfferingIds = [];
+    let studentProfile = null;
+    let teacherProfile = null;
     if (userRole === 'student') {
-      const student = await prisma.student.findUnique({ where: { userId } });
-      if (student) {
+      studentProfile = await prisma.student.findUnique({ where: { userId } });
+      if (studentProfile) {
         const enrollments = await prisma.enrollment.findMany({
-          where: { studentId: student.id, status: 'ENROLLED' },
+          where: { studentId: studentProfile.id, status: 'ENROLLED' },
           select: { offeringId: true },
         });
         relevantOfferingIds = enrollments.map((e) => e.offeringId);
       }
     } else if (userRole === 'teacher') {
-      const teacher = await prisma.teacher.findUnique({ where: { userId } });
-      if (teacher) {
+      teacherProfile = await prisma.teacher.findUnique({ where: { userId } });
+      if (teacherProfile) {
         const offerings = await prisma.courseOffering.findMany({
-          where: { teacherId: teacher.id },
+          where: { teacherId: teacherProfile.id },
           select: { id: true },
         });
         relevantOfferingIds = offerings.map((o) => o.id);
@@ -263,13 +299,33 @@ export const getMyAnnouncements = async (req, res) => {
     if (relevantOfferingIds.length > 0) {
       orClauses.push({ targetAudience: 'course', offeringId: { in: relevantOfferingIds } });
     }
+    // Filtered announcements: include if user matches any of the saved filter criteria.
+    orClauses.push({ targetAudience: 'filtered' });
 
     const baseAnnouncements = await prisma.announcement.findMany({
       where: { OR: orClauses },
       orderBy: { createdAt: 'desc' },
     });
 
-    let allAnnouncements = [...baseAnnouncements];
+    // Apply audienceFilters in JS for the 'filtered' rows
+    let allAnnouncements = baseAnnouncements.filter((a) => {
+      if (a.targetAudience !== 'filtered') return true;
+      const f = a.audienceFilters || {};
+      const baseAud = f.baseAudience;
+      // Audience-base check
+      if (baseAud === 'students' && userRole !== 'student') return false;
+      if (baseAud === 'teachers' && userRole === 'student') return false;
+      // Field checks (only relevant to students for now)
+      if (userRole === 'student' && studentProfile) {
+        if (Array.isArray(f.departmentIds) && f.departmentIds.length && !f.departmentIds.includes(studentProfile.departmentId)) return false;
+        if (Array.isArray(f.programIds)    && f.programIds.length    && !f.programIds.includes(studentProfile.programId))       return false;
+        if (Array.isArray(f.batches)       && f.batches.length       && !f.batches.includes(studentProfile.batch))               return false;
+        if (Array.isArray(f.semesters)     && f.semesters.length     && !f.semesters.includes(studentProfile.currentSemester))   return false;
+      } else if (userRole === 'teacher' && teacherProfile) {
+        if (Array.isArray(f.departmentIds) && f.departmentIds.length && !f.departmentIds.includes(teacherProfile.departmentId)) return false;
+      }
+      return true;
+    });
 
     // Remove duplicates by id
     const uniqueAnnouncements = Array.from(

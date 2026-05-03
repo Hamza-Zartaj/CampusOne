@@ -171,7 +171,8 @@ model Announcement {
   title           String
   content         String
   priority        String    @default("medium") // "low", "medium", "high"
-  targetAudience  String?   // "all", "teachers", "students", "course"
+  targetAudience  String?   // "all", "teachers", "students", "course", "filtered"
+  audienceFilters Json?     // { departmentIds, programIds, batches, semesters, role }
   offeringId      String?   // set when targetAudience = "course"
   createdBy       String
 

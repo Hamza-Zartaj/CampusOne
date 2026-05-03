@@ -12,7 +12,7 @@ import {
   Clock,
   ArrowRight,
 } from 'lucide-react';
-import { announcementAPI } from '../../utils/api';
+import { announcementAPI, departmentAPI, programAPI } from '../../utils/api';
 
 const inputClass =
   'w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] transition-all focus:outline-none focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/10';
@@ -47,10 +47,39 @@ const AnnouncementManagement = () => {
   const [audience, setAudience] = useState('all');
   const [sending, setSending] = useState(false);
 
+  // Filter metadata + selections
+  const [departments, setDepartments] = useState([]);
+  const [programs, setPrograms] = useState([]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterDepartments, setFilterDepartments] = useState([]);
+  const [filterPrograms, setFilterPrograms] = useState([]);
+  const [filterBatches, setFilterBatches] = useState([]);
+  const [filterSemesters, setFilterSemesters] = useState([]);
+
+  const ALL_BATCHES = ['FA22', 'FA23', 'FA24', 'FA25'];
+  const ALL_SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8];
+
   // Load data
   useEffect(() => {
     loadAnnouncements();
+    loadFilterMeta();
   }, []);
+
+  const loadFilterMeta = async () => {
+    try {
+      const [d, p] = await Promise.all([departmentAPI.getAll(), programAPI.getAll()]);
+      setDepartments(d.data.data || []);
+      setPrograms(p.data.data || []);
+    } catch {}
+  };
+
+  const toggle = (arr, setArr, val) => {
+    setArr(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
+  };
+
+  const resetFilters = () => {
+    setFilterDepartments([]); setFilterPrograms([]); setFilterBatches([]); setFilterSemesters([]);
+  };
 
   const loadAnnouncements = async () => {
     try {
@@ -83,11 +112,18 @@ const AnnouncementManagement = () => {
       setSending(true);
       setError('');
 
+      const filters = {};
+      if (filterDepartments.length) filters.departmentIds = filterDepartments;
+      if (filterPrograms.length)    filters.programIds    = filterPrograms;
+      if (filterBatches.length)     filters.batches       = filterBatches;
+      if (filterSemesters.length)   filters.semesters     = filterSemesters;
+
       const data = {
         title: title.trim(),
         content: content.trim(),
         priority,
         targetAudience: audience,
+        filters: Object.keys(filters).length ? filters : undefined,
       };
 
       const res = await announcementAPI.sendAnnouncement(data);
@@ -97,6 +133,8 @@ const AnnouncementManagement = () => {
       setContent('');
       setPriority('medium');
       setAudience('all');
+      resetFilters();
+      setShowFilters(false);
 
       // Reload announcements
       loadAnnouncements();
@@ -131,17 +169,34 @@ const AnnouncementManagement = () => {
       all: Users,
       teachers: Briefcase,
       students: GraduationCap,
+      filtered: Users,
+      course: GraduationCap,
     };
     return icons[audience] || Users;
   };
 
-  const getAudienceLabel = (audience) => {
-    const labels = {
-      all: 'All Users',
-      teachers: 'Teachers & Admins',
-      students: 'All Students',
-    };
-    return labels[audience] || audience;
+  const getAudienceLabel = (announcement) => {
+    if (typeof announcement === 'string') {
+      const labels = {
+        all: 'All Users',
+        teachers: 'Teachers & Admins',
+        students: 'All Students',
+        course: 'Course Students',
+        filtered: 'Filtered Group',
+      };
+      return labels[announcement] || announcement;
+    }
+    if (announcement.targetAudience !== 'filtered') {
+      return getAudienceLabel(announcement.targetAudience);
+    }
+    const f = announcement.audienceFilters || {};
+    const parts = [];
+    if (f.baseAudience) parts.push(f.baseAudience === 'students' ? 'Students' : f.baseAudience === 'teachers' ? 'Staff' : 'All');
+    if (f.batches?.length) parts.push(`batch ${f.batches.join(', ')}`);
+    if (f.semesters?.length) parts.push(`sem ${f.semesters.join(', ')}`);
+    if (f.programIds?.length) parts.push(`${f.programIds.length} prog`);
+    if (f.departmentIds?.length) parts.push(`${f.departmentIds.length} dept`);
+    return parts.join(' · ') || 'Filtered Group';
   };
 
   return (
@@ -232,6 +287,105 @@ const AnnouncementManagement = () => {
                   </select>
                 </div>
 
+                {/* Advanced filters */}
+                <div className="border-t border-gray-100 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters((v) => !v)}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                  >
+                    {showFilters ? '▾' : '▸'} Advanced filters
+                    {(filterDepartments.length + filterPrograms.length + filterBatches.length + filterSemesters.length) > 0 && (
+                      <span className="ml-2 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[11px] font-semibold">
+                        {filterDepartments.length + filterPrograms.length + filterBatches.length + filterSemesters.length} active
+                      </span>
+                    )}
+                  </button>
+                  {showFilters && (
+                    <div className="mt-3 space-y-3 bg-slate-50 rounded-lg p-3">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-700 mb-1.5">Departments</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {departments.map((d) => (
+                            <button
+                              key={d.id}
+                              type="button"
+                              onClick={() => toggle(filterDepartments, setFilterDepartments, d.id)}
+                              className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
+                                filterDepartments.includes(d.id)
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >{d.code}</button>
+                          ))}
+                          {departments.length === 0 && <span className="text-xs text-slate-400">No departments</span>}
+                        </div>
+                      </div>
+                      {audience !== 'teachers' && (
+                        <>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-700 mb-1.5">Programs</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {programs.map((p) => (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  onClick={() => toggle(filterPrograms, setFilterPrograms, p.id)}
+                                  className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
+                                    filterPrograms.includes(p.id)
+                                      ? 'bg-blue-600 text-white border-blue-600'
+                                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                  }`}
+                                >{p.programCode}</button>
+                              ))}
+                              {programs.length === 0 && <span className="text-xs text-slate-400">No programs</span>}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-700 mb-1.5">Batches</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {ALL_BATCHES.map((b) => (
+                                <button
+                                  key={b}
+                                  type="button"
+                                  onClick={() => toggle(filterBatches, setFilterBatches, b)}
+                                  className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
+                                    filterBatches.includes(b)
+                                      ? 'bg-blue-600 text-white border-blue-600'
+                                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                  }`}
+                                >{b}</button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-700 mb-1.5">Current Semester</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {ALL_SEMESTERS.map((s) => (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => toggle(filterSemesters, setFilterSemesters, s)}
+                                  className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
+                                    filterSemesters.includes(s)
+                                      ? 'bg-blue-600 text-white border-blue-600'
+                                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                  }`}
+                                >Sem {s}</button>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      {(filterDepartments.length + filterPrograms.length + filterBatches.length + filterSemesters.length) > 0 && (
+                        <button type="button" onClick={resetFilters} className="text-xs text-slate-500 hover:text-slate-700">
+                          Clear filters
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <button type="submit" className={btnPrimaryClass} disabled={sending}>
                   {sending ? (
                     <>
@@ -290,7 +444,7 @@ const AnnouncementManagement = () => {
                             <div className="flex items-center gap-4 mt-3">
                               <div className="flex items-center gap-1 text-xs text-slate-500">
                                 <AudienceIcon className="w-4 h-4" />
-                                <span>{getAudienceLabel(announcement.targetAudience)}</span>
+                                <span>{getAudienceLabel(announcement)}</span>
                               </div>
                               <div className="flex items-center gap-1 text-xs text-slate-500">
                                 <Clock className="w-4 h-4" />
