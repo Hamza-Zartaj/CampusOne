@@ -43,9 +43,10 @@ const EmptyRow = ({ msg }) => (
   <div className="px-5 py-6 text-center text-sm text-slate-400">{msg}</div>
 );
 
-const MarkTable = ({ kind, course, marks }) => {
+const MarkTable = ({ kind, course, marks, marksReleased }) => {
   if (marks.length === 0) return <EmptyRow msg={`No ${KIND_LABEL[kind].toLowerCase()} entries yet.`} />;
   const showFile = kind === 'ASSIGNMENT' || kind === 'PROJECT_PRESENTATION' || kind === 'LAB_WORK';
+  const showSubmission = kind === 'ASSIGNMENT';
   const isMidOrFinal = kind === 'MID' || kind === 'FINAL';
 
   return (
@@ -61,6 +62,7 @@ const MarkTable = ({ kind, course, marks }) => {
           <th className="text-right px-4 py-2.5 font-semibold">Total</th>
           <th className="text-right px-4 py-2.5 font-semibold">Obtained</th>
           {showFile && <th className="text-center px-4 py-2.5 font-semibold">File</th>}
+          {showSubmission && <th className="text-center px-4 py-2.5 font-semibold">My Submission</th>}
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-100">
@@ -74,7 +76,9 @@ const MarkTable = ({ kind, course, marks }) => {
             <td className="px-4 py-2.5 text-slate-700 truncate max-w-60">{m.title || '—'}</td>
             <td className="px-4 py-2.5 text-right text-slate-700">{m.totalMarks}</td>
             <td className="px-4 py-2.5 text-right">
-              {m.obtainedMarks != null ? (
+              {!marksReleased ? (
+                <span className="text-xs text-slate-400" title="Marks not yet released">🔒</span>
+              ) : m.obtainedMarks != null ? (
                 <span className="font-semibold text-slate-800">{m.obtainedMarks}</span>
               ) : (
                 <span className="text-xs text-slate-400">—</span>
@@ -85,6 +89,15 @@ const MarkTable = ({ kind, course, marks }) => {
                 {m.fileUrl ? (
                   <a href={m.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs">
                     <Download size={13} />{m.fileName || 'file'}
+                  </a>
+                ) : <span className="text-xs text-slate-400">—</span>}
+              </td>
+            )}
+            {showSubmission && (
+              <td className="px-4 py-2.5 text-center">
+                {m.submissionFileUrl ? (
+                  <a href={m.submissionFileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700 text-xs">
+                    <Download size={13} />{m.submissionFileName || 'submission'}
                   </a>
                 ) : <span className="text-xs text-slate-400">—</span>}
               </td>
@@ -317,13 +330,61 @@ const MyCourses = () => {
             </Section>
           )}
 
+          {/* Grade Breakdown summary (all components incl. PARTICIPATION) */}
+          {detail.runningGrade.breakdown?.length > 0 && (
+            <Section icon={Award} title="Grade Breakdown" count={null}>
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="text-left px-4 py-2.5 font-semibold">Component</th>
+                    <th className="text-right px-4 py-2.5 font-semibold">Weight</th>
+                    <th className="text-right px-4 py-2.5 font-semibold">Graded</th>
+                    <th className="text-right px-4 py-2.5 font-semibold">Earned %</th>
+                    <th className="text-right px-4 py-2.5 font-semibold">Contribution</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {detail.runningGrade.breakdown.map((b) => (
+                    <tr key={b.kind} className="hover:bg-slate-50">
+                      <td className="px-4 py-2.5 text-slate-700">
+                        {b.label || KIND_LABEL[b.kind]}
+                        {!b.marksReleased && <span className="ml-2 text-[10px] text-amber-600 font-semibold">HIDDEN</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-slate-700">{b.weightPercent}%</td>
+                      <td className="px-4 py-2.5 text-right text-slate-600 text-xs">{b.gradedCount}/{b.totalCount}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        {!b.marksReleased ? <span className="text-slate-400">🔒</span> :
+                          b.earnedPercent != null ? <span className="font-semibold text-slate-800">{b.earnedPercent}%</span> :
+                          <span className="text-slate-400">—</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        {!b.marksReleased ? <span className="text-slate-400">—</span> :
+                          b.contribution != null ? <span className="font-semibold text-blue-700">{b.contribution}%</span> :
+                          <span className="text-slate-400">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-blue-50 font-semibold">
+                    <td className="px-4 py-2.5 text-slate-800">Running Total</td>
+                    <td className="px-4 py-2.5 text-right text-slate-700">{detail.runningGrade.gradedWeight}% in</td>
+                    <td></td>
+                    <td className="px-4 py-2.5 text-right text-slate-800">
+                      {detail.runningGrade.earnedPercent != null ? `${detail.runningGrade.earnedPercent}%` : '—'}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </Section>
+          )}
+
           {/* Grade-component sections, in template order */}
           {orderedComponents.map((cmp) => {
             const Icon = KIND_ICON[cmp.kind] || ClipboardList;
             const marks = marksByKind[cmp.kind] || [];
             return (
               <Section key={cmp.kind} icon={Icon} title={`${KIND_LABEL[cmp.kind]} (${cmp.weightPercent}%)`} count={marks.length}>
-                <MarkTable kind={cmp.kind} course={courseHeader} marks={marks} />
+                <MarkTable kind={cmp.kind} course={courseHeader} marks={marks} marksReleased={cmp.marksReleased !== false} />
               </Section>
             );
           })}

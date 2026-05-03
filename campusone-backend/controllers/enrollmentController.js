@@ -1,4 +1,5 @@
 import prisma from '../prisma/client.js';
+import xlsx from 'xlsx';
 
 // Grade point map for CGPA calculation
 const GRADE_POINTS = {
@@ -378,6 +379,112 @@ export const getStudentCGPA = async (req, res) => {
     const cgpa = computeCGPA(enrollments);
     const completedCredits = enrollments.reduce((s, e) => s + e.offering.course.creditHours, 0);
     res.json({ success: true, data: { cgpa, completedCredits, courseCount: enrollments.length } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// GET /api/enrollments/bulk-import/template — admin downloads XLSX template
+export const bulkImportTemplate = async (_req, res) => {
+  try {
+    const wb = xlsx.utils.book_new();
+    const ws = xlsx.utils.json_to_sheet([
+      { studentId: 'CS-2023-001' },
+      { studentId: 'CS-2023-002' },
+    ]);
+    xlsx.utils.book_append_sheet(wb, ws, 'Enrollments');
+    const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=enrollment_bulk_template.xlsx');
+    res.send(buf);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// POST /api/enrollments/bulk-import — admin uploads XLSX with `studentId` column for one offering
+export const bulkImport = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+    const offeringId = req.body.offeringId;
+    if (!offeringId) return res.status(400).json({ success: false, message: 'offeringId is required' });
+
+    const offering = await prisma.courseOffering.findUnique({
+      where: { id: offeringId },
+      include: {
+        course: { include: { prerequisites: { select: { id: true } } } },
+        _count: { select: { enrollments: { where: { status: 'ENROLLED' } } } },
+      },
+    });
+    if (!offering || !offering.isActive) {
+      return res.status(404).json({ success: false, message: 'Offering not found or inactive' });
+    }
+    const remainingCapacity = offering.capacity - offering._count.enrollments;
+
+    const wb = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = xlsx.utils.sheet_to_json(sheet);
+
+    const studentIds = rows.map((r) => String(r.studentId || r.StudentID || '').trim()).filter(Boolean);
+    if (studentIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'No studentId rows found' });
+    }
+
+    const students = await prisma.student.findMany({
+      where: { studentId: { in: studentIds } },
+      select: { id: true, studentId: true },
+    });
+    const byCode = new Map(students.map((s) => [s.studentId, s.id]));
+
+    const existing = await prisma.enrollment.findMany({
+      where: { offeringId, studentId: { in: students.map((s) => s.id) } },
+      select: { studentId: true, status: true },
+    });
+    const existingMap = new Map(existing.map((e) => [e.studentId, e.status]));
+
+    const prereqIds = offering.course.prerequisites.map((p) => p.id);
+
+    const results = { enrolled: 0, skipped: 0, errors: [] };
+    let willAdd = 0;
+    for (const code of studentIds) {
+      const sid = byCode.get(code);
+      if (!sid) { results.errors.push({ studentId: code, reason: 'Student not found' }); continue; }
+      const status = existingMap.get(sid);
+      if (status === 'ENROLLED') { results.skipped++; continue; }
+      if (willAdd >= remainingCapacity) {
+        results.errors.push({ studentId: code, reason: 'Capacity reached' });
+        continue;
+      }
+      // Prereq check
+      if (prereqIds.length > 0) {
+        const completed = await prisma.enrollment.findMany({
+          where: { studentId: sid, status: 'COMPLETED' },
+          select: { offering: { select: { courseId: true } } },
+        });
+        const completedSet = new Set(completed.map((c) => c.offering.courseId));
+        const missing = prereqIds.filter((pid) => !completedSet.has(pid));
+        if (missing.length > 0) {
+          results.errors.push({ studentId: code, reason: 'Prerequisites not satisfied' });
+          continue;
+        }
+      }
+      try {
+        if (status) {
+          await prisma.enrollment.update({
+            where: { studentId_offeringId: { studentId: sid, offeringId } },
+            data: { status: 'ENROLLED', droppedAt: null, enrolledAt: new Date() },
+          });
+        } else {
+          await prisma.enrollment.create({ data: { studentId: sid, offeringId } });
+        }
+        results.enrolled++;
+        willAdd++;
+      } catch (e) {
+        results.errors.push({ studentId: code, reason: e.message });
+      }
+    }
+
+    res.json({ success: true, ...results, total: studentIds.length });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

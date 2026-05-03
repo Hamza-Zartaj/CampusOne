@@ -63,25 +63,72 @@ export const courseDetail = async (req, res) => {
     }
     att.percentage = att.total ? Math.round(((att.present + att.late) / att.total) * 100) : null;
 
-    // Compute running grade — weighted % over graded portion
+    // Compute running grade — weighted % over graded *and released* portion
     const components = enrollment.offering.course.gradeComponents;
-    const myMarks = enrollment.markComponents;
+    const releasedKinds = new Set(components.filter((c) => c.marksReleased).map((c) => c.kind));
+
+    // Redact obtainedMarks for unreleased components before sending to student
+    const myMarks = enrollment.markComponents.map((m) => ({
+      ...m,
+      obtainedMarks: releasedKinds.has(m.kind) ? m.obtainedMarks : null,
+    }));
+
+    // Attach submission file (URL/name) to ASSIGNMENT mark rows so students can
+    // re-download what they submitted.
+    const subByAssignment = new Map(
+      assignments.flatMap((a) => (a.submissions || []).map((s) => [a.id, s])),
+    );
+    // We need to match assignment marks to assignments. The MarkComponent rows
+    // for ASSIGNMENT kind are indexed 1..count by orderIndex; we match by index
+    // against assignments sorted by createdAt.
+    const sortedAssignments = [...assignments].sort(
+      (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+    );
+    for (const m of myMarks) {
+      if (m.kind !== 'ASSIGNMENT') continue;
+      const a = sortedAssignments[m.index - 1];
+      if (!a) continue;
+      const sub = subByAssignment.get(a.id);
+      if (sub?.attachmentUrl) {
+        m.submissionFileUrl = sub.attachmentUrl;
+        // Derive a friendly filename from the URL (last path segment, decoded).
+        try {
+          const segs = new URL(sub.attachmentUrl).pathname.split('/');
+          m.submissionFileName = decodeURIComponent(segs[segs.length - 1]) || 'submission';
+        } catch {
+          m.submissionFileName = 'submission';
+        }
+      }
+    }
+
     let runningEarned = 0;
     let runningPossible = 0;
+    const breakdown = [];
     for (const cmp of components) {
-      const mine = myMarks.filter((m) => m.kind === cmp.kind);
+      const mine = enrollment.markComponents.filter((m) => m.kind === cmp.kind);
       const graded = mine.filter((m) => m.obtainedMarks != null);
-      if (graded.length === 0) continue;
-      let pct;
-      if (cmp.aggregation === 'AVERAGE') {
-        const sumObtained = graded.reduce((s, m) => s + m.obtainedMarks, 0);
-        const sumTotal = graded.reduce((s, m) => s + m.totalMarks, 0);
-        pct = sumTotal > 0 ? sumObtained / sumTotal : 0;
-      } else {
-        pct = graded[0].totalMarks > 0 ? graded[0].obtainedMarks / graded[0].totalMarks : 0;
+      let pct = null;
+      if (cmp.marksReleased && graded.length > 0) {
+        if (cmp.aggregation === 'AVERAGE') {
+          const sumObtained = graded.reduce((s, m) => s + m.obtainedMarks, 0);
+          const sumTotal = graded.reduce((s, m) => s + m.totalMarks, 0);
+          pct = sumTotal > 0 ? sumObtained / sumTotal : 0;
+        } else {
+          pct = graded[0].totalMarks > 0 ? graded[0].obtainedMarks / graded[0].totalMarks : 0;
+        }
+        runningEarned += pct * cmp.weightPercent;
+        runningPossible += cmp.weightPercent;
       }
-      runningEarned += pct * cmp.weightPercent;
-      runningPossible += cmp.weightPercent;
+      breakdown.push({
+        kind: cmp.kind,
+        label: cmp.label,
+        weightPercent: cmp.weightPercent,
+        marksReleased: cmp.marksReleased,
+        gradedCount: graded.length,
+        totalCount: cmp.count,
+        earnedPercent: pct != null ? +(pct * 100).toFixed(2) : null,
+        contribution: pct != null ? +(pct * cmp.weightPercent).toFixed(2) : null,
+      });
     }
     const runningPercent = runningPossible > 0 ? +(runningEarned / runningPossible * 100).toFixed(2) : null;
 
@@ -102,6 +149,7 @@ export const courseDetail = async (req, res) => {
         runningGrade: {
           earnedPercent: runningPercent,
           gradedWeight: runningPossible,
+          breakdown,
         },
       },
     });

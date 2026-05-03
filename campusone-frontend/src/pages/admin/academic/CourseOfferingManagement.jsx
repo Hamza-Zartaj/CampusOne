@@ -526,9 +526,21 @@ const CourseOfferingManagement = () => {
                       )}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className={`${(o._count?.enrollments ?? 0) >= o.capacity ? 'text-red-600 font-semibold' : 'text-slate-600'}`}>
-                        {o._count?.enrollments ?? 0}/{o.capacity}
-                      </span>
+                      {(() => {
+                        const filled = o._count?.enrollments ?? 0;
+                        const ratio = filled / (o.capacity || 1);
+                        const cls = ratio > 1
+                          ? 'bg-red-50 text-red-700 border-red-200 font-semibold'
+                          : ratio >= 0.9
+                          ? 'bg-amber-50 text-amber-700 border-amber-200 font-semibold'
+                          : 'bg-slate-50 text-slate-600 border-slate-200';
+                        const tag = ratio > 1 ? ' ⚠ over' : ratio >= 0.9 ? ' ⚠' : '';
+                        return (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${cls}`}>
+                            {filled}/{o.capacity}{tag}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2 justify-end">

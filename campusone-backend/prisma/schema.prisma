@@ -991,6 +991,7 @@ model CourseGradeComponent {
   weightPercent    Float                             // % of final grade
   aggregation      String        @default("AVERAGE") // AVERAGE | SINGLE
   orderIndex       Int           @default(0)         // display order
+  marksReleased    Boolean       @default(true)      // when false, students can't see obtainedMarks for this component
 
   course           Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
