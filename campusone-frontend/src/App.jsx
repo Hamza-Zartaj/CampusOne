@@ -59,6 +59,14 @@ import Transcript from './pages/student/academic/Transcript';
 import CourseRegistration from './pages/student/academic/CourseRegistration';
 import MyTimetable from './pages/student/academic/MyTimetable';
 
+function RoleBasedRedirect() {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const role = user.role;
+  if (role === 'TEACHER') return <Navigate to="/teacher/dashboard" replace />;
+  if (role === 'STUDENT') return <Navigate to="/student/dashboard" replace />;
+  return <Navigate to="/admin/dashboard" replace />;
+}
+
 function App() {
   return (
     <Router>
@@ -79,7 +87,7 @@ function App() {
         
         {/* Protected Dashboard Routes */}
         <Route element={<DashboardLayout />}>
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<RoleBasedRedirect />} />
           <Route path="/profile" element={<Profile />} />
 
           {/* Admin Routes */}

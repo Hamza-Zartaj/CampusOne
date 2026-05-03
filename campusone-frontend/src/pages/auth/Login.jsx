@@ -111,8 +111,11 @@ export default function Login() {
         // Clear form
         setFormData({ username: '', password: '' });
         
-        // Navigate to dashboard immediately
-        navigate('/dashboard');
+        // Navigate to role-specific dashboard
+        const role = data.data.user.role;
+        if (role === 'TEACHER') navigate('/teacher/dashboard');
+        else if (role === 'STUDENT') navigate('/student/dashboard');
+        else navigate('/admin/dashboard');
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -172,9 +175,12 @@ export default function Login() {
       // Clear form
       setFormData({ username: '', password: '' });
       
-      // Navigate to dashboard
+      // Navigate to role-specific dashboard
+      const role = userData.user.role;
       setTimeout(() => {
-        navigate('/dashboard');
+        if (role === 'TEACHER') navigate('/teacher/dashboard');
+        else if (role === 'STUDENT') navigate('/student/dashboard');
+        else navigate('/admin/dashboard');
       }, 1000);
     }
   };
@@ -183,9 +189,13 @@ export default function Login() {
     setShow2FAVerification(false);
     setFormData({ username: '', password: '' });
     
-    // Navigate to dashboard
+    // Navigate to role-specific dashboard
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = storedUser.role;
     setTimeout(() => {
-      navigate('/dashboard');
+      if (role === 'TEACHER') navigate('/teacher/dashboard');
+      else if (role === 'STUDENT') navigate('/student/dashboard');
+      else navigate('/admin/dashboard');
     }, 1000);
   };
 
