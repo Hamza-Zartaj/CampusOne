@@ -74,8 +74,7 @@ const MyOfferings = () => {
             return (
               <div
                 key={o.id}
-                className="bg-white rounded-xl border p-5 flex items-start justify-between gap-4 hover:border-blue-300 transition-colors cursor-pointer"
-                onClick={() => navigate(`/teacher/offerings/${o.id}/marks`)}
+                className="bg-white rounded-xl border p-5 flex items-start justify-between gap-4 hover:border-blue-300 transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -99,7 +98,7 @@ const MyOfferings = () => {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex flex-col items-end gap-2 shrink-0">
                   <div className="text-right">
                     <div className="flex items-center gap-1 text-slate-700 font-semibold">
                       <Users size={14} className="text-slate-400" />
@@ -107,7 +106,16 @@ const MyOfferings = () => {
                     </div>
                     <div className="text-xs text-slate-500">enrolled</div>
                   </div>
-                  <ChevronRight size={18} className="text-slate-300" />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => navigate(`/teacher/offerings/${o.id}/lectures`)}
+                      className="text-xs py-1.5 px-3 rounded-lg border border-gray-200 bg-white text-slate-700 hover:bg-slate-50"
+                    >Lectures</button>
+                    <button
+                      onClick={() => navigate(`/teacher/offerings/${o.id}/marks`)}
+                      className="text-xs py-1.5 px-3 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    >Marks</button>
+                  </div>
                 </div>
               </div>
             );

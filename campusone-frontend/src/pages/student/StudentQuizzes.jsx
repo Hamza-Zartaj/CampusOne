@@ -422,9 +422,18 @@ const StudentQuizzes = () => {
   const [session, setSession] = useState(null);     // { attemptId, quiz, questions, ... }
   const [resultId, setResultId] = useState(null);
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     setLoading(true);
-    quizAPI.getMy().then((r) => setQuizzes(r.data.data)).catch(() => toast.error('Failed to load quizzes')).finally(() => setLoading(false));
+    try {
+      // Only show ACTIVE quizzes (not yet attempted, not yet expired). Completed quizzes live inside My Courses.
+      const { studentAPI } = await import('../../utils/api');
+      const r = await studentAPI.activeQuizzes();
+      setQuizzes(r.data.data);
+    } catch {
+      toast.error('Failed to load quizzes');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);

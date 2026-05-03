@@ -124,7 +124,9 @@ const StudentAssignments = () => {
 
   const loadAssignments = async () => {
     try {
-      const r = await assignmentAPI.getMy();
+      // Only show ACTIVE items (ungraded / not yet submitted). Graded items live inside My Courses.
+      const { studentAPI } = await import('../../utils/api');
+      const r = await studentAPI.activeAssignments();
       setAssignments(r.data.data);
     } catch {
       toast.error('Failed to load assignments');

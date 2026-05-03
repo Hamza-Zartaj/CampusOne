@@ -402,6 +402,7 @@ model Course {
 
   curriculumLinks CurriculumCourse[]
   offerings       CourseOffering[]
+  gradeComponents CourseGradeComponent[]
 
   isActive        Boolean    @default(true)
   createdAt       DateTime   @default(now())
@@ -463,6 +464,7 @@ model CourseOffering {
   fines        Fine[]
   taAssignments TAAssignment[]
   sessions     ClassSession[]
+  lectures     Lecture[]
 
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
@@ -488,6 +490,7 @@ model Enrollment {
 
   student         Student        @relation(fields: [studentId], references: [id])
   offering        CourseOffering @relation(fields: [offeringId], references: [id])
+  markComponents  MarkComponent[]
 
   enrolledAt      DateTime       @default(now())
   droppedAt       DateTime?
@@ -963,4 +966,80 @@ model Holiday {
 
   @@unique([date, name])
   @@index([termId])
+}
+
+// ============ COURSE GRADE STRUCTURE ============
+
+enum ComponentKind {
+  ASSIGNMENT
+  QUIZ
+  MID
+  FINAL
+  PROJECT_PRESENTATION
+  PARTICIPATION
+  LAB_WORK
+}
+
+// Per-course grade configuration. Defines what mark components exist in this course.
+model CourseGradeComponent {
+  id               String        @id @default(cuid())
+  courseId         String
+  kind             ComponentKind
+  label            String                            // display name e.g. "Assignment", "Lab Work"
+  count            Int                               // e.g. 4 assignments
+  totalPerInstance Float                             // total marks per single instance
+  weightPercent    Float                             // % of final grade
+  aggregation      String        @default("AVERAGE") // AVERAGE | SINGLE
+  orderIndex       Int           @default(0)         // display order
+
+  course           Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@unique([courseId, kind])
+  @@index([courseId])
+}
+
+// Per-student per-component score entry.
+model MarkComponent {
+  id            String        @id @default(cuid())
+  enrollmentId  String
+  kind          ComponentKind
+  index         Int           @default(1)            // 1..count
+  title         String?                              // teacher-set ("HW2: Recursion")
+  date          DateTime?     @db.Date
+  totalMarks    Float
+  obtainedMarks Float?                               // null until graded
+  fileUrl       String?                              // teacher attachment (Supabase)
+  fileName      String?
+
+  enrollment    Enrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([enrollmentId, kind, index])
+  @@index([enrollmentId])
+  @@index([kind])
+}
+
+// ============ LECTURES ============
+
+model Lecture {
+  id           String   @id @default(cuid())
+  offeringId   String
+  date         DateTime @db.Date
+  title        String
+  description  String?
+  materialUrl  String?           // Supabase Storage URL
+  materialName String?           // original filename
+  createdBy    String            // teacher userId
+
+  offering     CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([offeringId, date])
 }

@@ -1,5 +1,12 @@
 {
+  "name": "campusone",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --names \"backend,frontend\" -c \"blue,green\" \"cd campusone-backend && npm run dev\" \"cd campusone-frontend && npm run dev\""
+  },
   "devDependencies": {
-    "supabase": "^2.98.0"
+    "supabase": "^2.98.0",
+    "concurrently": "^9.1.2"
   }
 }

@@ -510,4 +510,35 @@ export const holidayAPI = {
   delete: (id) => api.delete(`/holidays/${id}`),
 };
 
+// Grade-component API (course-level config)
+export const gradeComponentAPI = {
+  getTemplates:   () => api.get('/courses/templates'),
+  listForCourse:  (courseId) => api.get(`/courses/${courseId}/grade-components`),
+  replace:        (courseId, components) => api.post(`/courses/${courseId}/grade-components`, { components }),
+  applyTemplate:  (courseId) => api.post(`/courses/${courseId}/grade-components/apply-template`),
+};
+
+// Mark-component API (per-student per-component scores)
+export const markComponentAPI = {
+  listForOffering: (offeringId) => api.get(`/offerings/${offeringId}/mark-components`),
+  init:            (offeringId) => api.post(`/offerings/${offeringId}/mark-components/init`),
+  update:          (id, data)   => api.put(`/mark-components/${id}`, data),
+};
+
+// Lecture API
+export const lectureAPI = {
+  list:    (offeringId) => api.get('/lectures', { params: { offeringId } }),
+  create:  (formData)   => api.post('/lectures', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  update:  (id, formData) => api.put(`/lectures/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  delete:  (id) => api.delete(`/lectures/${id}`),
+};
+
+// Student-scoped API (course-centric view)
+export const studentAPI = {
+  myCourses:         () => api.get('/students/me/courses'),
+  courseDetail:      (offeringId) => api.get(`/students/me/course-detail/${offeringId}`),
+  activeAssignments: () => api.get('/students/me/active-assignments'),
+  activeQuizzes:     () => api.get('/students/me/active-quizzes'),
+};
+
 export default api;

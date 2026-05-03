@@ -103,13 +103,11 @@ const Sidebar = ({ isOpen }) => {
     { path: '/student/courses', icon: BookOpen, label: 'My Courses' },
     { path: '/student/registration', icon: PenLine, label: 'Registration' },
     { path: '/student/timetable', icon: CalendarDays, label: 'Timetable' },
-    { path: '/student/grades', icon: Award, label: 'My Grades' },
     { path: '/student/transcript', icon: ScrollText, label: 'Transcript' },
     ...(hasActiveTA
       ? [{ label: null, group: 'TA Duties' }, { path: '/student/ta', icon: GradCapIcon, label: 'My TA Assignments' }]
       : []),
-    { label: null, group: 'Other' },
-    { path: '/student/attendance', icon: UserCheck, label: 'Attendance' },
+    { label: null, group: 'To Do' },
     { path: '/student/assignments', icon: ClipboardList, label: 'Assignments' },
     { path: '/student/quizzes', icon: FileText, label: 'Quizzes' },
     { path: '/student/qna', icon: MessageSquare, label: 'Q&A Forum' },
