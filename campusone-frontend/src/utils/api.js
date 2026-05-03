@@ -479,4 +479,29 @@ export const attendanceAPI = {
   getMy: () => api.get('/attendance/my'),
 };
 
+// Schedule API
+export const scheduleAPI = {
+  getConfig: () => api.get('/schedule/config'),
+  updateConfig: (data) => api.put('/schedule/config', data),
+  getSlots: () => api.get('/schedule/slots'),
+  getAvailability: (params) => api.get('/schedule/availability', { params }),
+  getOfferingSessions: (offeringId) => api.get(`/offerings/${offeringId}/sessions`),
+  setOfferingSessions: (offeringId, sessions) => api.post(`/offerings/${offeringId}/sessions`, { sessions }),
+};
+
+// Room API
+export const roomAPI = {
+  getAll: (params = {}) => api.get('/rooms', { params }),
+  create: (data) => api.post('/rooms', data),
+  update: (id, data) => api.put(`/rooms/${id}`, data),
+  delete: (id) => api.delete(`/rooms/${id}`),
+};
+
+// Holiday API
+export const holidayAPI = {
+  getAll: (params = {}) => api.get('/holidays', { params }),
+  create: (data) => api.post('/holidays', data),
+  delete: (id) => api.delete(`/holidays/${id}`),
+};
+
 export default api;
