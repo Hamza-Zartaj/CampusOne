@@ -310,6 +310,7 @@ export const termAPI = {
   create: (data) => api.post('/terms', data),
   update: (id, data) => api.put(`/terms/${id}`, data),
   activate: (id) => api.put(`/terms/${id}/activate`),
+  getBatches: (id) => api.get(`/terms/${id}/batches`),
 };
 
 // Course API
