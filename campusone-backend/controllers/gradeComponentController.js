@@ -57,6 +57,42 @@ export const replaceForCourse = async (req, res) => {
   }
 };
 
+// PUT /api/offerings/:offeringId/grade-components/:kind/release
+// Teacher of the offering (or admin) toggles marksReleased for a given component kind.
+export const setReleased = async (req, res) => {
+  try {
+    const { offeringId, kind } = req.params;
+    const { released } = req.body;
+    if (typeof released !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'released boolean required' });
+    }
+
+    const offering = await prisma.courseOffering.findUnique({
+      where: { id: offeringId },
+      select: { courseId: true, teacherId: true },
+    });
+    if (!offering) return res.status(404).json({ success: false, message: 'Offering not found' });
+
+    if (req.user.role !== 'admin') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+      if (!teacher || teacher.id !== offering.teacherId) {
+        return res.status(403).json({ success: false, message: 'Not your offering' });
+      }
+    }
+
+    const updated = await prisma.courseGradeComponent.updateMany({
+      where: { courseId: offering.courseId, kind },
+      data: { marksReleased: released },
+    });
+    if (updated.count === 0) {
+      return res.status(404).json({ success: false, message: 'Component not found' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // POST /api/courses/:id/grade-components/apply-template
 export const applyTemplate = async (req, res) => {
   try {

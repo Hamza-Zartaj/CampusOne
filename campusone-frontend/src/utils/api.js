@@ -353,6 +353,13 @@ export const enrollmentAPI = {
   getTranscript: (studentId) => api.get(`/enrollments/students/${studentId}/transcript`),
   getCGPA: (studentId) => api.get(`/enrollments/students/${studentId}/cgpa`),
   getCurrent: (studentId) => api.get(`/enrollments/students/${studentId}/current`),
+  bulkImportTemplate: () => api.get('/enrollments/bulk-import/template', { responseType: 'blob' }),
+  bulkImport: (offeringId, file) => {
+    const fd = new FormData();
+    fd.append('offeringId', offeringId);
+    fd.append('file', file);
+    return api.post('/enrollments/bulk-import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
 };
 
 // Semester Incharge API
@@ -523,6 +530,8 @@ export const markComponentAPI = {
   listForOffering: (offeringId) => api.get(`/offerings/${offeringId}/mark-components`),
   init:            (offeringId) => api.post(`/offerings/${offeringId}/mark-components/init`),
   update:          (id, data)   => api.put(`/mark-components/${id}`, data),
+  setReleased:     (offeringId, kind, released) =>
+    api.put(`/offerings/${offeringId}/grade-components/${kind}/release`, { released }),
 };
 
 // Lecture API

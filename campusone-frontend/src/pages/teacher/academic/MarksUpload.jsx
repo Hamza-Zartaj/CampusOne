@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Save, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { markComponentAPI } from '../../../utils/api';
@@ -19,6 +19,28 @@ const MarksUpload = () => {
   const [saving, setSaving] = useState({});
   const [edits, setEdits] = useState({});
   const [initing, setIniting] = useState(false);
+  const [releaseLoading, setReleaseLoading] = useState({});
+
+  const toggleRelease = async (kind, released) => {
+    setReleaseLoading((p) => ({ ...p, [kind]: true }));
+    try {
+      await markComponentAPI.setReleased(offeringId, kind, released);
+      setData((prev) => ({
+        ...prev,
+        course: {
+          ...prev.course,
+          gradeComponents: prev.course.gradeComponents.map((c) =>
+            c.kind === kind ? { ...c, marksReleased: released } : c,
+          ),
+        },
+      }));
+      toast.success(released ? 'Released to students' : 'Hidden from students');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed');
+    } finally {
+      setReleaseLoading((p) => { const { [kind]: _, ...rest } = p; return rest; });
+    }
+  };
 
   useEffect(() => { load(); }, [offeringId]);
 
@@ -119,13 +141,40 @@ const MarksUpload = () => {
           <button onClick={load} className="inline-flex items-center gap-1.5 py-2 px-3 rounded-lg text-sm border border-gray-200 bg-white text-slate-600 hover:bg-slate-50">
             <RefreshCw size={14} />Reload
           </button>
-          {!allEnrollmentsHaveCells && (
-            <button onClick={init} disabled={initing} className="inline-flex items-center gap-1.5 py-2 px-3 rounded-lg text-sm border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50">
-              <Sparkles size={14} />{initing ? 'Initializing…' : 'Initialize cells'}
-            </button>
-          )}
+          <button onClick={init} disabled={initing} title="Create missing mark cells (idempotent — safe to run after editing components)"
+            className="inline-flex items-center gap-1.5 py-2 px-3 rounded-lg text-sm border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50">
+            <Sparkles size={14} />{initing ? 'Initializing…' : (allEnrollmentsHaveCells ? 'Re-init cells' : 'Initialize cells')}
+          </button>
         </div>
       </div>
+
+      {/* Release toggles per component kind */}
+      {data.course?.gradeComponents?.length > 0 && (
+        <div className="bg-white rounded-xl border p-4 mb-5">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+            Marks visibility to students
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {data.course.gradeComponents.slice().sort((a, b) => a.orderIndex - b.orderIndex).map((cmp) => (
+              <button
+                key={cmp.kind}
+                onClick={() => toggleRelease(cmp.kind, !cmp.marksReleased)}
+                disabled={releaseLoading[cmp.kind]}
+                className={`inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium border transition-colors ${
+                  cmp.marksReleased
+                    ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+                    : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
+                } disabled:opacity-50`}
+                title={cmp.marksReleased ? 'Visible to students — click to hide' : 'Hidden — click to release'}
+              >
+                {cmp.marksReleased ? <Eye size={12} /> : <EyeOff size={12} />}
+                {cmp.label} ({cmp.weightPercent}%)
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-2">Hidden components show as &quot;—&quot; on the student portal until released.</p>
+        </div>
+      )}
 
       {data.enrollments.length === 0 ? (
         <div className="text-center py-12 text-slate-400 bg-white rounded-xl border">No enrolled students.</div>

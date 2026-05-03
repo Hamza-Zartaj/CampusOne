@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ClipboardList, Plus, Trash2, Search, ArrowRightLeft, X } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ClipboardList, Plus, Trash2, ArrowRightLeft, X, Upload, Download, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { enrollmentAPI, offeringAPI, termAPI, userAPI } from '../../../utils/api';
 
@@ -25,6 +25,10 @@ const EnrollmentManagement = () => {
   const [transferTarget, setTransferTarget] = useState(null);
   const [transferOfferingId, setTransferOfferingId] = useState('');
   const [transferring, setTransferring] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkFile, setBulkFile] = useState(null);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
 
   useEffect(() => { loadMeta(); }, []);
   useEffect(() => { if (filterOffering) loadEnrollments(); }, [filterOffering]);
@@ -126,6 +130,48 @@ const EnrollmentManagement = () => {
       ).filter((o) => o.id !== transferTarget.offeringId)
     : [];
 
+  const downloadBulkTemplate = async () => {
+    try {
+      const res = await enrollmentAPI.bulkImportTemplate();
+      const url = window.URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'enrollment_bulk_template.xlsx';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Failed to download template');
+    }
+  };
+
+  const handleBulkImport = async (e) => {
+    e.preventDefault();
+    if (!filterOffering) return toast.error('Pick an offering first');
+    if (!bulkFile) return toast.error('Select an Excel file');
+    setBulkUploading(true);
+    setBulkResult(null);
+    try {
+      const r = await enrollmentAPI.bulkImport(filterOffering, bulkFile);
+      setBulkResult(r.data);
+      toast.success(`${r.data.enrolled} enrolled, ${r.data.skipped} skipped, ${r.data.errors?.length || 0} errors`);
+      loadEnrollments();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed');
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
+  const currentOffering = useMemo(
+    () => offerings.find((o) => o.id === filterOffering),
+    [offerings, filterOffering],
+  );
+  const capacityRatio = currentOffering
+    ? (currentOffering._count?.enrollments ?? enrollments.length) / (currentOffering.capacity || 1)
+    : 0;
+  const overCapacity = capacityRatio > 1;
+  const nearCapacity = capacityRatio >= 0.9 && !overCapacity;
+
   const handleDrop = async (enrollment) => {
     if (!confirm(`Drop ${enrollment.student?.user?.name} from this course?`)) return;
     try {
@@ -147,18 +193,45 @@ const EnrollmentManagement = () => {
             <p className="text-sm text-slate-500">Enroll and drop students from course offerings</p>
           </div>
         </div>
-        <button onClick={() => { setShowForm(true); setForm({ studentSearch: '', studentId: '', offeringId: filterOffering }); }} className={btnPrimary}><Plus size={16} />Enroll Student</button>
+        <div className="flex items-center gap-2">
+          <button onClick={downloadBulkTemplate} className={btnSecondary}>
+            <Download size={14} />Template
+          </button>
+          <button
+            onClick={() => { setShowBulk(true); setBulkFile(null); setBulkResult(null); }}
+            disabled={!filterOffering}
+            className={btnSecondary + ' disabled:opacity-50'}
+          >
+            <Upload size={14} />Bulk Import
+          </button>
+          <button onClick={() => { setShowForm(true); setForm({ studentSearch: '', studentId: '', offeringId: filterOffering }); }} className={btnPrimary}><Plus size={16} />Enroll Student</button>
+        </div>
       </div>
 
-      <div className="flex gap-3 mb-5">
+      <div className="flex gap-3 mb-5 items-center">
         <select className="py-2 px-3 border border-gray-200 rounded-lg text-sm" value={filterTerm} onChange={(e) => handleTermChange(e.target.value)}>
           <option value="">Select Term</option>
           {terms.map((t) => <option key={t.id} value={t.id}>{t.code} {t.isActive ? '(active)' : ''}</option>)}
         </select>
         <select className="py-2 px-3 border border-gray-200 rounded-lg text-sm flex-1" value={filterOffering} onChange={(e) => setFilterOffering(e.target.value)} disabled={!filterTerm}>
           <option value="">Select Offering</option>
-          {offerings.map((o) => <option key={o.id} value={o.id}>{o.course?.code} – {o.course?.title} (Sec {o.section})</option>)}
+          {offerings.map((o) => {
+            const filled = o._count?.enrollments ?? 0;
+            const ratio = filled / (o.capacity || 1);
+            const tag = ratio > 1 ? ' ⚠ OVER' : ratio >= 0.9 ? ' ⚠' : '';
+            return <option key={o.id} value={o.id}>{o.course?.code} – {o.course?.title} (Sec {o.section}) [{filled}/{o.capacity}{tag}]</option>;
+          })}
         </select>
+        {currentOffering && (
+          <span className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+            overCapacity ? 'bg-red-50 text-red-700 border-red-200' :
+            nearCapacity ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                           'bg-green-50 text-green-700 border-green-200'
+          }`}>
+            {(overCapacity || nearCapacity) && <AlertTriangle size={12} />}
+            {(currentOffering._count?.enrollments ?? enrollments.length)} / {currentOffering.capacity}
+          </span>
+        )}
       </div>
 
       {showForm && (
@@ -197,6 +270,55 @@ const EnrollmentManagement = () => {
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)} className={btnSecondary}>Cancel</button>
                 <button type="submit" disabled={saving || !form.studentId} className={btnPrimary}>{saving ? 'Enrolling…' : 'Enroll'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showBulk && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="font-semibold text-slate-800">Bulk Import Enrollments</h2>
+              <button onClick={() => setShowBulk(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleBulkImport} className="p-6 space-y-4">
+              <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600 space-y-1">
+                <p className="m-0">Upload an .xlsx file with a <code className="font-mono">studentId</code> column (e.g. <code className="font-mono">CS-2023-001</code>).</p>
+                <p className="m-0">Target offering: <b>{currentOffering?.course?.code} — Sec {currentOffering?.section}</b></p>
+                <p className="m-0">Available capacity: <b>{(currentOffering?.capacity || 0) - (currentOffering?._count?.enrollments ?? enrollments.length)}</b> seats</p>
+              </div>
+              <div>
+                <label className={labelClass}>Excel File *</label>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={(e) => setBulkFile(e.target.files[0])}
+                  className="w-full text-sm"
+                  required
+                />
+              </div>
+              {bulkResult && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs space-y-1">
+                  <div className="flex justify-between"><span>Total rows</span><b>{bulkResult.total}</b></div>
+                  <div className="flex justify-between text-green-700"><span>Enrolled</span><b>{bulkResult.enrolled}</b></div>
+                  <div className="flex justify-between text-amber-700"><span>Already enrolled (skipped)</span><b>{bulkResult.skipped}</b></div>
+                  <div className="flex justify-between text-red-700"><span>Errors</span><b>{bulkResult.errors?.length || 0}</b></div>
+                  {bulkResult.errors?.length > 0 && (
+                    <ul className="mt-1 max-h-32 overflow-y-auto border-t border-slate-200 pt-1">
+                      {bulkResult.errors.map((er, i) => (
+                        <li key={i} className="text-red-600">{er.studentId}: {er.reason}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowBulk(false)} className={btnSecondary}>Close</button>
+                <button type="submit" disabled={bulkUploading || !bulkFile} className={btnPrimary}>
+                  {bulkUploading ? 'Importing…' : 'Import'}
+                </button>
               </div>
             </form>
           </div>

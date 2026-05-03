@@ -1,8 +1,13 @@
 import express from 'express';
+import multer from 'multer';
 import { protect, authorize, authorizePermission } from '../middleware/auth.js';
 import * as ctrl from '../controllers/enrollmentController.js';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+router.get('/bulk-import/template', protect, authorizePermission('manage_offerings'), ctrl.bulkImportTemplate);
+router.post('/bulk-import', protect, authorizePermission('manage_offerings'), upload.single('file'), ctrl.bulkImport);
 
 router.get('/', protect, authorize('admin', 'teacher'), ctrl.getEnrollments);
 router.get('/:id', protect, ctrl.getEnrollmentById);
