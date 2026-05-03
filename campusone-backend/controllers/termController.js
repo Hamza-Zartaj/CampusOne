@@ -99,6 +99,17 @@ export const updateTerm = async (req, res) => {
 // PUT /api/terms/:id/activate  — set as the active term (deactivates all others)
 export const activateTerm = async (req, res) => {
   try {
+    const target = await prisma.term.findUnique({ where: { id: req.params.id } });
+    if (!target) return res.status(404).json({ success: false, message: 'Term not found' });
+
+    const now = new Date();
+    if (new Date(target.endDate) < now) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot activate "${target.code}" — this term ended on ${new Date(target.endDate).toLocaleDateString()}.`,
+      });
+    }
+
     await prisma.$transaction([
       prisma.term.updateMany({ data: { isActive: false } }),
       prisma.term.update({ where: { id: req.params.id }, data: { isActive: true } }),
@@ -106,6 +117,69 @@ export const activateTerm = async (req, res) => {
     res.json({ success: true, message: 'Term activated' });
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ success: false, message: 'Term not found' });
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// GET /api/terms/:id/batches  — group enrolled students by batch × program
+export const getTermBatches = async (req, res) => {
+  try {
+    const term = await prisma.term.findUnique({ where: { id: req.params.id } });
+    if (!term) return res.status(404).json({ success: false, message: 'Term not found' });
+
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        offering: { termId: req.params.id },
+        status: { in: ['ENROLLED', 'COMPLETED'] },
+      },
+      select: {
+        studentId: true,
+        offeringId: true,
+        student: {
+          select: {
+            batch: true,
+            currentSemester: true,
+            program: { select: { id: true, programCode: true, name: true } },
+            department: { select: { id: true, code: true, name: true } },
+          },
+        },
+      },
+    });
+
+    const grouped = new Map();
+    for (const e of enrollments) {
+      const key = `${e.student.batch}|${e.student.program.id}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          batch: e.student.batch,
+          program: e.student.program,
+          department: e.student.department,
+          semester: e.student.currentSemester,
+          studentIds: new Set(),
+          offeringIds: new Set(),
+        });
+      }
+      const g = grouped.get(key);
+      g.studentIds.add(e.studentId);
+      g.offeringIds.add(e.offeringId);
+    }
+
+    const data = Array.from(grouped.values())
+      .map((g) => ({
+        batch: g.batch,
+        program: g.program,
+        department: g.department,
+        semester: g.semester,
+        studentCount: g.studentIds.size,
+        offeringCount: g.offeringIds.size,
+      }))
+      .sort((a, b) => {
+        if (a.batch !== b.batch) return b.batch.localeCompare(a.batch); // newest batch first
+        return a.program.programCode.localeCompare(b.program.programCode);
+      });
+
+    res.json({ success: true, count: data.length, data });
+  } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
