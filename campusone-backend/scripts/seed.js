@@ -916,6 +916,85 @@ async function main() {
   }
   console.log(`     ✓ Tagged courses: ${labCount} LAB, ${projectCount} PROJECT, rest LECTURE`);
 
+  // Apply default grade-component template to every course based on its sessionType.
+  console.log('  ⏳ Applying grade templates…');
+  const { TEMPLATES } = await import('../utils/gradeTemplates.js');
+  const taggedCourses = await prisma.course.findMany({ select: { id: true, sessionType: true } });
+  let templatedCount = 0;
+  for (const c of taggedCourses) {
+    const tmpl = TEMPLATES[c.sessionType] || TEMPLATES.LECTURE;
+    for (const row of tmpl) {
+      await prisma.courseGradeComponent.upsert({
+        where: { courseId_kind: { courseId: c.id, kind: row.kind } },
+        update: {},
+        create: { courseId: c.id, ...row },
+      });
+    }
+    templatedCount++;
+  }
+  console.log(`     ✓ Applied templates to ${templatedCount} courses`);
+
+  // Generate per-component MarkComponent rows for every enrollment.
+  //   - COMPLETED enrollments → all components graded (synthetic obtainedMarks driven by enrollment.totalMarks if present)
+  //   - ENROLLED (active term) → some components graded so the running grade has data; rest stay null
+  console.log('  ⏳ Generating MarkComponent rows for enrollments…');
+  const allEnrollments = await prisma.enrollment.findMany({
+    select: {
+      id: true, status: true, totalMarks: true,
+      offering: { select: { course: { select: { id: true, sessionType: true } } } },
+    },
+  });
+  const componentsByCourse = {};
+  const allCgc = await prisma.courseGradeComponent.findMany();
+  for (const c of allCgc) {
+    if (!componentsByCourse[c.courseId]) componentsByCourse[c.courseId] = [];
+    componentsByCourse[c.courseId].push(c);
+  }
+
+  const mcRows = [];
+  for (const enr of allEnrollments) {
+    const courseId = enr.offering.course.id;
+    const components = componentsByCourse[courseId] || [];
+    if (components.length === 0) continue;
+
+    // Determine per-component obtainedMarks based on enrollment.status + totalMarks
+    const pctTarget = enr.status === 'COMPLETED' && enr.totalMarks != null
+      ? Math.max(0.4, Math.min(1, enr.totalMarks / 100))     // map raw score to 0..1
+      : null;
+
+    for (const cmp of components) {
+      for (let i = 1; i <= cmp.count; i++) {
+        let obtained = null;
+        if (enr.status === 'COMPLETED' && pctTarget != null) {
+          // Add small random jitter ±5% per component
+          const jitter = (rand() - 0.5) * 0.10;
+          const pct = Math.max(0, Math.min(1, pctTarget + jitter));
+          obtained = +(pct * cmp.totalPerInstance).toFixed(1);
+        } else if (enr.status === 'ENROLLED') {
+          // Half the lecture components have a grade so running-grade preview is populated; rest pending
+          if (rand() < 0.5 && (cmp.kind === 'ASSIGNMENT' || cmp.kind === 'QUIZ' || cmp.kind === 'PARTICIPATION')) {
+            obtained = +(((rand() * 0.4) + 0.5) * cmp.totalPerInstance).toFixed(1); // 50%–90%
+          }
+        }
+        mcRows.push({
+          enrollmentId: enr.id,
+          kind: cmp.kind,
+          index: i,
+          totalMarks: cmp.totalPerInstance,
+          obtainedMarks: obtained,
+        });
+      }
+    }
+  }
+  // createMany in chunks of 1000 to avoid statement size limits
+  let mcInserted = 0;
+  for (let i = 0; i < mcRows.length; i += 1000) {
+    const chunk = mcRows.slice(i, i + 1000);
+    const r = await prisma.markComponent.createMany({ data: chunk, skipDuplicates: true });
+    mcInserted += r.count;
+  }
+  console.log(`     ✓ Generated ${mcInserted} MarkComponent rows`);
+
   // Generate ClassSessions for the active term (SP26) — 2 sessions per non-PROJECT offering
   console.log('  ⏳ Generating timetable for active term…');
   const sp26 = await prisma.term.findFirst({ where: { isActive: true } });

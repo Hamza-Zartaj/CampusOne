@@ -1,7 +1,155 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Plus, Edit, Trash2, Link, Unlink } from 'lucide-react';
+import { BookOpen, Plus, Edit, Trash2, Link, Unlink, Sliders, X, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { courseAPI, departmentAPI } from '../../../utils/api';
+import { courseAPI, departmentAPI, gradeComponentAPI } from '../../../utils/api';
+
+const KIND_OPTIONS = ['ASSIGNMENT', 'QUIZ', 'MID', 'FINAL', 'PROJECT_PRESENTATION', 'PARTICIPATION', 'LAB_WORK'];
+
+const GradeComponentEditor = ({ course, onClose }) => {
+  const [components, setComponents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await gradeComponentAPI.listForCourse(course.id);
+        setComponents(r.data.data || []);
+      } catch {
+        toast.error('Failed to load components');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [course.id]);
+
+  const updateRow = (idx, field, value) => {
+    setComponents((prev) => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c));
+  };
+  const removeRow = (idx) => setComponents((prev) => prev.filter((_, i) => i !== idx));
+  const addRow = () => setComponents((prev) => [...prev, {
+    kind: 'ASSIGNMENT', label: 'Assignment', count: 1, totalPerInstance: 100, weightPercent: 0, aggregation: 'AVERAGE', orderIndex: prev.length,
+  }]);
+
+  const resetTemplate = async () => {
+    if (!confirm(`Reset to default ${course.sessionType} template? This will replace current components.`)) return;
+    try {
+      const r = await gradeComponentAPI.applyTemplate(course.id);
+      setComponents(r.data.data || []);
+      toast.success('Template applied');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed');
+    }
+  };
+
+  const totalWeight = components.reduce((s, c) => s + Number(c.weightPercent || 0), 0);
+  const weightOk = Math.abs(totalWeight - 100) < 0.01;
+
+  const save = async () => {
+    if (!weightOk) { toast.error(`Weights must sum to 100 (got ${totalWeight})`); return; }
+    setSaving(true);
+    try {
+      await gradeComponentAPI.replace(course.id, components);
+      toast.success('Saved');
+      onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b">
+          <div>
+            <h2 className="font-semibold text-slate-800">Grade Components — {course.code}</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{course.title} · {course.sessionType}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+        </div>
+
+        <div className="p-5 overflow-y-auto flex-1">
+          {loading ? (
+            <div className="text-center py-12 text-slate-400">Loading…</div>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <button type="button" onClick={resetTemplate} className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium border border-gray-200 bg-white text-slate-600 hover:bg-slate-50">
+                  <RotateCcw size={13} />Reset to {course.sessionType} template
+                </button>
+                <button type="button" onClick={addRow} className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100">
+                  <Plus size={13} />Add row
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="text-left px-2 py-2 font-semibold">Kind</th>
+                      <th className="text-left px-2 py-2 font-semibold">Label</th>
+                      <th className="text-right px-2 py-2 font-semibold">Count</th>
+                      <th className="text-right px-2 py-2 font-semibold">Total / each</th>
+                      <th className="text-right px-2 py-2 font-semibold">Weight %</th>
+                      <th className="text-left px-2 py-2 font-semibold">Aggregation</th>
+                      <th className="px-2 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {components.map((c, i) => (
+                      <tr key={i}>
+                        <td className="px-2 py-1.5">
+                          <select value={c.kind} onChange={(e) => updateRow(i, 'kind', e.target.value)} className="py-1 px-2 border border-slate-200 rounded text-xs">
+                            {KIND_OPTIONS.map((k) => <option key={k}>{k}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input type="text" value={c.label} onChange={(e) => updateRow(i, 'label', e.target.value)} className="w-full py-1 px-2 border border-slate-200 rounded text-xs" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input type="number" value={c.count} onChange={(e) => updateRow(i, 'count', +e.target.value)} className="w-16 py-1 px-2 border border-slate-200 rounded text-xs text-right" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input type="number" step="0.5" value={c.totalPerInstance} onChange={(e) => updateRow(i, 'totalPerInstance', +e.target.value)} className="w-20 py-1 px-2 border border-slate-200 rounded text-xs text-right" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input type="number" step="0.5" value={c.weightPercent} onChange={(e) => updateRow(i, 'weightPercent', +e.target.value)} className="w-20 py-1 px-2 border border-slate-200 rounded text-xs text-right" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <select value={c.aggregation} onChange={(e) => updateRow(i, 'aggregation', e.target.value)} className="py-1 px-2 border border-slate-200 rounded text-xs">
+                            <option value="AVERAGE">AVERAGE</option>
+                            <option value="SINGLE">SINGLE</option>
+                          </select>
+                        </td>
+                        <td className="px-2 py-1.5 text-right">
+                          <button onClick={() => removeRow(i)} className="p-1 rounded text-red-500 hover:bg-red-50"><Trash2 size={13} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className={`mt-4 p-3 rounded-lg text-sm ${weightOk ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                Total weight: <span className="font-bold">{totalWeight.toFixed(1)}%</span>
+                {!weightOk && <> — must equal 100%</>}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 p-5 border-t">
+          <button onClick={onClose} className="inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-medium border border-gray-200 bg-white text-slate-700 hover:bg-slate-50">Cancel</button>
+          <button onClick={save} disabled={!weightOk || saving} className="inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const inputClass = 'w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10';
 const labelClass = 'block text-sm font-medium text-slate-700 mb-1.5';
@@ -21,6 +169,7 @@ const CourseManagement = () => {
   const [saving, setSaving] = useState(false);
   const [filterDept, setFilterDept] = useState('');
   const [search, setSearch] = useState('');
+  const [gradesFor, setGradesFor] = useState(null);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -204,6 +353,7 @@ const CourseManagement = () => {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex gap-2 justify-end">
+                      <button onClick={() => setGradesFor(c)} className={btnGhost} title="Grade Components"><Sliders size={13} /></button>
                       <button onClick={() => openEdit(c)} className={btnGhost}><Edit size={13} /></button>
                       {c.isActive && <button onClick={() => handleDelete(c)} className="p-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50"><Trash2 size={13} /></button>}
                     </div>
@@ -214,6 +364,8 @@ const CourseManagement = () => {
           </table>
         </div>
       )}
+
+      {gradesFor && <GradeComponentEditor course={gradesFor} onClose={() => setGradesFor(null)} />}
     </div>
   );
 };

@@ -41,6 +41,7 @@ import TeacherTAApplications from './pages/teacher/TeacherTAApplications';
 // Teacher Academic Pages
 import MyOfferings from './pages/teacher/academic/MyOfferings';
 import MarksUpload from './pages/teacher/academic/MarksUpload';
+import TeacherLectures from './pages/teacher/academic/TeacherLectures';
 
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
@@ -119,6 +120,7 @@ function App() {
           <Route path="/teacher/notification" element={<TeacherNotification />} />
           <Route path="/teacher/offerings" element={<MyOfferings />} />
           <Route path="/teacher/offerings/:offeringId/marks" element={<MarksUpload />} />
+          <Route path="/teacher/offerings/:offeringId/lectures" element={<TeacherLectures />} />
           <Route path="/teacher/leave-applications" element={<TeacherLeaveApplications />} />
           <Route path="/teacher/ta-applications" element={<TeacherTAApplications />} />
 

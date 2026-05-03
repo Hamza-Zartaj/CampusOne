@@ -35,6 +35,9 @@ import taRoutes from './routes/taRoutes.js';
 import scheduleRoutes from './routes/scheduleRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
 import holidayRoutes from './routes/holidayRoutes.js';
+import lectureRoutes from './routes/lectureRoutes.js';
+import markComponentRoutes from './routes/markComponentRoutes.js';
+import studentRoutes from './routes/studentRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -112,6 +115,9 @@ app.use('/api/ta', taRoutes);
 app.use('/api/schedule', scheduleRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/holidays', holidayRoutes);
+app.use('/api/lectures', lectureRoutes);
+app.use('/api/mark-components', markComponentRoutes);
+app.use('/api/students', studentRoutes);
 
 // 404 Handler - Route not found
 app.use((req, res, next) => {
