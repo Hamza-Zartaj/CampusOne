@@ -1,13 +1,5 @@
 import prisma from '../prisma/client.js';
-
-// Letter → grade points (mirror enrollmentController logic)
-const GRADE_POINTS = {
-  A_PLUS: 4.0, A: 4.0, A_MINUS: 3.7,
-  B_PLUS: 3.3, B: 3.0, B_MINUS: 2.7,
-  C_PLUS: 2.3, C: 2.0, C_MINUS: 1.7,
-  D_PLUS: 1.3, D: 1.0,
-  F: 0.0,
-};
+import { computeGradePointAverage } from '../utils/grading.js';
 
 // ─── ADMIN DASHBOARD ─────────────────────────────────────────────────────────
 export const getAdminDashboard = async (req, res) => {
@@ -259,24 +251,18 @@ export const getStudentDashboard = async (req, res) => {
     const currentOfferingIds = currentEnrollments.map((e) => e.offeringId);
     const totalCredits = currentEnrollments.reduce((s, e) => s + (e.offering?.course?.creditHours || 0), 0);
 
-    // CGPA — across ALL completed enrollments
+    // CGPA — use the same countable-grade logic as transcript generation.
     const completedEnrollments = await prisma.enrollment.findMany({
       where: {
         studentId: student.id,
-        status: 'COMPLETED',
-        gradeLetter: { not: null },
+        gradePoints: { not: null },
       },
       include: { offering: { select: { course: { select: { creditHours: true } } } } },
     });
-    let totalGradePoints = 0;
-    let totalCreditHours = 0;
-    completedEnrollments.forEach((e) => {
-      const credits = e.offering?.course?.creditHours || 0;
-      const points = GRADE_POINTS[e.gradeLetter] ?? 0;
-      totalGradePoints += points * credits;
-      totalCreditHours += credits;
-    });
-    const cgpa = totalCreditHours > 0 ? (totalGradePoints / totalCreditHours).toFixed(2) : null;
+    const cgpa = computeGradePointAverage(
+      completedEnrollments,
+      (enrollment) => enrollment.offering?.course?.creditHours || 0,
+    );
 
     const [
       pendingAssignments,
@@ -413,7 +399,7 @@ export const getStudentDashboard = async (req, res) => {
         stats: {
           enrolledCourses: currentEnrollments.length,
           totalCredits,
-          cgpa,
+          cgpa: cgpa != null ? cgpa.toFixed(2) : null,
           pendingAssignmentsCount: pendingAssignments.length,
           dueSoonCount: dueSoon,
           overdueCount: overdue,

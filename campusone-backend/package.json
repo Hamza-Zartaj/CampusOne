@@ -11,6 +11,7 @@
     "db:push": "prisma db push",
     "db:reset": "prisma db push --force-reset --accept-data-loss && node scripts/createSuperAdmin.js && node scripts/seed.js",
     "db:seed": "node scripts/seed.js",
+    "db:miniseed": "node scripts/miniSeed.js",
     "db:superadmin": "node scripts/createSuperAdmin.js",
     "db:studio": "prisma studio"
   },
