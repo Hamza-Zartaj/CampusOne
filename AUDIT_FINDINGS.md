@@ -6,6 +6,64 @@
 
 ---
 
+## Verification Review (May 4, 2026)
+
+This section reflects a read-only check of the current codebase on **May 4, 2026**. No code was changed during this review.
+
+**Review basis:**
+- Static source review only
+- Backend controllers, routes, middleware, services, Prisma schema, and affected frontend files were checked
+- Race conditions and performance concerns were evaluated from code paths and constraints, not from load testing
+
+### Resolved in Current Codebase
+
+- [x] **#10 Missing Unique Constraint on TAAssignment**
+- [x] **#11 N+1 Query in Reports Overview** *(the audited query shape is no longer present in `getOverview()`)*
+- [x] **#15 Missing Offering Access Check in getMyAnnouncements**
+- [x] **#16 Attendance Marker Type Vulnerability**
+- [x] **#18 Student Can Transition Own Assignment Enrollment**
+- [x] **#20 Missing CreatedBy Validation in Announcement Delete**
+- [x] **#23 Missing Validator on Term Active Flag**
+- [x] **#24 Sidebar Conditional Rendering Race**
+- [x] **#25 Off-by-One in Report Grade Distribution** *(the current implementation groups stored `gradeLetter` values directly rather than bucketing by GPA thresholds)*
+
+### Partially Resolved
+
+- [ ] **#27 Missing Error Message Context**
+	Some paths now return specific auth and validation errors, but several frontend/backend flows still collapse failures into generic messages.
+- [ ] **#30 Missing Timestamp on Audit Changes**
+	`AuditLog.createdAt` exists, but there is still no explicit higher-precision timestamp column definition.
+
+### Still Unresolved
+
+- [ ] **#1 TA Self-Grading Vulnerability**
+- [ ] **#2 Race Condition in TA Approval (Max Active Cap Bypass)**
+- [ ] **#3 Fine Idempotency Race Condition**
+- [ ] **#4 Section Transfer Data Loss**
+- [ ] **#5 Hard-Coded API Base URL**
+- [ ] **#6 Announcement Orphan Risk (No FK Constraint)**
+- [ ] **#7 Stale TA Assignments Count Toward Cap**
+- [ ] **#8 Quota Band Mismatch**
+- [ ] **#9 LeaveApplication Date Type (String, Not DateTime)**
+- [ ] **#12 No Validation: TA Permission Combination**
+- [ ] **#13 AuditLog Race Condition (Fire-and-Forget)**
+- [ ] **#14 No Validation on Announcement Priority**
+- [ ] **#17 QNA TA Access Without Enrollment**
+- [ ] **#19 Grade Submission After Term Ends**
+- [ ] **#21 TA Application Review Notes Overflow**
+- [ ] **#22 Notification Delivery Timing**
+- [ ] **#26 Console Logs in Production Code**
+- [ ] **#28 Stale Cache in Sidebar TA Active List**
+- [ ] **#29 No Pagination in TAOversight Table**
+
+### Notes from This Review
+
+- Items **#11** and **#25** no longer match the current implementation described in the original audit.
+- Item **#17** remains open because the backend still allows TA access without enrollment, and the UI does not clearly label replies as TA-specific.
+- The highest-risk unresolved items remain **#1, #2, #3, #4, #7, #8, #9, and #19**.
+
+---
+
 ## 🔴 Critical (Fix Immediately)
 
 ### 1. TA Self-Grading Vulnerability
