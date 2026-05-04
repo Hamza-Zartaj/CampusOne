@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CalendarDays } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { enrollmentAPI } from '../../../utils/api';
+import { studentAPI } from '../../../utils/api';
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const DAY_LABELS = { MON: 'Monday', TUE: 'Tuesday', WED: 'Wednesday', THU: 'Thursday', FRI: 'Friday', SAT: 'Saturday' };
@@ -14,14 +14,13 @@ const MyTimetable = () => {
   const [primarySection, setPrimarySection] = useState(null);
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user?.roleData?.id) load(user.roleData.id);
+    load();
   }, []);
 
-  const load = async (studentId) => {
+  const load = async () => {
     try {
       setLoading(true);
-      const res = await enrollmentAPI.getCurrent(studentId);
+      const res = await studentAPI.myCourses();
       const enrollments = res.data.data || [];
       setTerm(res.data.term);
 
@@ -38,24 +37,23 @@ const MyTimetable = () => {
       DAYS.forEach((d) => (byDay[d] = []));
 
       enrollments.forEach((e, idx) => {
-        const schedule = Array.isArray(e.offering?.schedule) ? e.offering.schedule : [];
-        schedule.forEach((s) => {
-          if (byDay[s.day] !== undefined) {
-            byDay[s.day].push({
+        const sessions = Array.isArray(e.offering?.sessions) ? e.offering.sessions : [];
+        sessions.forEach((session) => {
+          if (byDay[session.dayOfWeek] !== undefined) {
+            byDay[session.dayOfWeek].push({
               code: e.offering?.course?.code,
               title: e.offering?.course?.title,
               section: e.offering?.section,
               teacher: e.offering?.teacher?.user?.name,
-              start: s.start,
-              end: s.end,
-              room: s.room,
+              slotIndex: session.slotIndex,
+              room: session.room?.code || session.room?.name,
               colorIdx: idx % COLORS.length,
             });
           }
         });
       });
 
-      Object.keys(byDay).forEach((d) => byDay[d].sort((a, b) => a.start.localeCompare(b.start)));
+      Object.keys(byDay).forEach((d) => byDay[d].sort((a, b) => a.slotIndex - b.slotIndex));
       setTimetable(byDay);
     } catch {
       toast.error('Failed to load timetable');
@@ -97,7 +95,7 @@ const MyTimetable = () => {
               <div className="p-4 flex flex-col gap-3">
                 {timetable[day].map((cls, i) => (
                   <div key={i} className={`flex items-start gap-4 border rounded-lg px-4 py-3 ${COLORS[cls.colorIdx]}`}>
-                    <div className="text-xs font-mono font-semibold whitespace-nowrap pt-0.5">{cls.start}<br />{cls.end}</div>
+                    <div className="text-xs font-mono font-semibold whitespace-nowrap pt-0.5">Slot {cls.slotIndex}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs font-bold">{cls.code}</span>
