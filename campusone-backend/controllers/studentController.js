@@ -1,4 +1,5 @@
 import prisma from '../prisma/client.js';
+import { buildTranscriptData } from '../utils/transcript.js';
 
 // GET /api/students/me/course-detail/:offeringId
 // Bundle endpoint for the My Courses page.
@@ -255,11 +256,25 @@ export const myCourses = async (req, res) => {
           include: {
             course: { select: { id: true, code: true, title: true, creditHours: true, sessionType: true } },
             teacher: { select: { user: { select: { name: true } } } },
+            sessions: { include: { room: true }, orderBy: [{ dayOfWeek: 'asc' }, { slotIndex: 'asc' }] },
           },
         },
       },
     });
     res.json({ success: true, data: enrollments, term: activeTerm });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// GET /api/students/me/transcript
+export const myTranscript = async (req, res) => {
+  try {
+    const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+    if (!student) return res.status(404).json({ success: false, message: 'Student profile not found' });
+
+    const transcript = await buildTranscriptData(student.id);
+    res.json({ success: true, data: transcript });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

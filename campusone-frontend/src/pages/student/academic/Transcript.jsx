@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { enrollmentAPI } from '../../../utils/api';
+import { studentAPI } from '../../../utils/api';
 
 const gradeLabel = (g) => g?.replace(/_PLUS$/, '+').replace(/_MINUS$/, '-') || '—';
 const GRADE_COLORS = { A_PLUS: 'text-green-700', A: 'text-green-700', A_MINUS: 'text-green-600', B_PLUS: 'text-blue-700', B: 'text-blue-700', B_MINUS: 'text-blue-600', C_PLUS: 'text-yellow-700', C: 'text-yellow-700', C_MINUS: 'text-yellow-600', D_PLUS: 'text-orange-700', D: 'text-orange-700', F: 'text-red-700', I: 'text-gray-600', W: 'text-gray-600' };
@@ -11,14 +11,13 @@ const Transcript = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user?.roleData?.id) load(user.roleData.id);
+    load();
   }, []);
 
-  const load = async (studentId) => {
+  const load = async () => {
     try {
       setLoading(true);
-      const res = await enrollmentAPI.getTranscript(studentId);
+      const res = await studentAPI.myTranscript();
       setTranscript(res.data.data);
     } catch {
       toast.error('Failed to load transcript');
