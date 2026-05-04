@@ -24,6 +24,7 @@ import {
   sendVerificationOTP,
   recoverSuperAdmin,
   updateMyEmail,
+  updateMyProfile,
   uploadProfilePicture,
   removeProfilePicture
 } from '../controllers/authController.js';
@@ -86,6 +87,7 @@ router.post('/send-verification-otp', sendVerificationOTP);
 
 // Update own email (first-time = no OTP; with email-2FA = OTP required)
 router.put('/my-email', updateMyEmail);
+router.put('/my-profile', updateMyProfile);
 
 // Upload profile picture (image file in 'image' field)
 router.post('/profile-picture', profilePicUpload.single('image'), uploadProfilePicture);

@@ -893,6 +893,95 @@ export const getMe = async (req, res) => {
 };
 
 /**
+ * @desc    Update the current user's own profile
+ * @route   PUT /api/auth/my-profile
+ * @access  Private
+ */
+export const updateMyProfile = async (req, res) => {
+  try {
+    const user = req.user;
+    const {
+      name,
+      phone,
+      dateOfBirth,
+      address,
+      guardianContact,
+      officeRoom,
+      officeHours,
+      qualification,
+      specialization,
+      researchInterests,
+    } = req.body;
+
+    const userUpdateData = {};
+    if (name !== undefined) userUpdateData.name = String(name).trim();
+
+    const roleUpdateData = {};
+    if (user.role === 'student') {
+      if (phone !== undefined) roleUpdateData.phone = phone;
+      if (dateOfBirth !== undefined) roleUpdateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+      if (address !== undefined) roleUpdateData.address = address;
+      if (guardianContact !== undefined) roleUpdateData.emergencyContact = guardianContact;
+    }
+
+    if (user.role === 'teacher') {
+      if (phone !== undefined) roleUpdateData.phone = phone;
+      if (officeRoom !== undefined) roleUpdateData.officeRoom = officeRoom;
+      if (officeHours !== undefined) roleUpdateData.officeHours = officeHours;
+      if (qualification !== undefined) roleUpdateData.qualification = qualification;
+      if (specialization !== undefined) roleUpdateData.specialization = specialization;
+      if (researchInterests !== undefined) roleUpdateData.researchInterests = researchInterests;
+    }
+
+    if (user.role === 'admin' && phone !== undefined) {
+      roleUpdateData.phone = phone;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (Object.keys(userUpdateData).length > 0) {
+        await tx.user.update({ where: { id: user.id }, data: userUpdateData });
+      }
+
+      if (Object.keys(roleUpdateData).length > 0) {
+        if (user.role === 'student') {
+          await tx.student.update({ where: { userId: user.id }, data: roleUpdateData });
+        } else if (user.role === 'teacher') {
+          await tx.teacher.update({ where: { userId: user.id }, data: roleUpdateData });
+        } else if (user.role === 'admin') {
+          await tx.admin.update({ where: { userId: user.id }, data: roleUpdateData });
+        }
+      }
+    });
+
+    const freshUser = await prisma.user.findUnique({ where: { id: user.id } });
+    const roleData = await getRoleSpecificData(user.id, user.role);
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        id: freshUser.id,
+        name: freshUser.name,
+        username: freshUser.username,
+        email: freshUser.email,
+        role: freshUser.role,
+        profilePicture: freshUser.profilePicture,
+        twoFactorEnabled: freshUser.twoFactorEnabled,
+        twoFactorMethod: freshUser.twoFactorMethod,
+        isActive: freshUser.isActive,
+        roleData,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error updating profile',
+      error: error.message,
+    });
+  }
+};
+
+/**
  * @desc    Complete first-time setup (change password and optionally enable 2FA)
  * @route   POST /api/auth/first-time-setup
  * @access  Private

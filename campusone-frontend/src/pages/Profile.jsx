@@ -21,7 +21,7 @@ import {
   Clock,
   Building
 } from 'lucide-react';
-import { authAPI, userAPI } from '../utils/api';
+import { authAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import ManageTwoFactorModal from '../components/ManageTwoFactorModal';
@@ -228,7 +228,7 @@ const Profile = () => {
           updateData.researchInterests = editForm.researchInterests?.split(',').map(s => s.trim()).filter(Boolean);
           break;
       }
-      await userAPI.updateUser(user.id, updateData);
+      await authAPI.updateMyProfile(updateData);
 
       toast.success('Profile updated successfully');
       setIsEditMode(false);
@@ -278,7 +278,7 @@ const Profile = () => {
           updateData.researchInterests = editForm.researchInterests?.split(',').map(s => s.trim()).filter(Boolean);
           break;
       }
-      await userAPI.updateUser(user.id, updateData);
+      await authAPI.updateMyProfile(updateData);
 
       setEmailOtpModal({ open: false, otp: '', sending: false, verifying: false });
       setIsEditMode(false);
