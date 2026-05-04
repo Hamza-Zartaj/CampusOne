@@ -60,12 +60,17 @@ import Transcript from './pages/student/academic/Transcript';
 import CourseRegistration from './pages/student/academic/CourseRegistration';
 import MyTimetable from './pages/student/academic/MyTimetable';
 
+function getDashboardPathForRole(role) {
+  const normalizedRole = String(role || '').toLowerCase();
+
+  if (normalizedRole === 'teacher') return '/teacher/dashboard';
+  if (normalizedRole === 'student') return '/student/dashboard';
+  return '/admin/dashboard';
+}
+
 function RoleBasedRedirect() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const role = user.role;
-  if (role === 'TEACHER') return <Navigate to="/teacher/dashboard" replace />;
-  if (role === 'STUDENT') return <Navigate to="/student/dashboard" replace />;
-  return <Navigate to="/admin/dashboard" replace />;
+  return <Navigate to={getDashboardPathForRole(user.role)} replace />;
 }
 
 function App() {

@@ -8,6 +8,14 @@ import ForgotPassword from './components/ForgotPassword';
 import PasswordReset from './components/PasswordReset';
 import SuperAdminRecovery from './components/SuperAdminRecovery';
 
+function getDashboardPathForRole(role) {
+  const normalizedRole = String(role || '').toLowerCase();
+
+  if (normalizedRole === 'teacher') return '/teacher/dashboard';
+  if (normalizedRole === 'student') return '/student/dashboard';
+  return '/admin/dashboard';
+}
+
 export default function Login() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -112,10 +120,7 @@ export default function Login() {
         setFormData({ username: '', password: '' });
         
         // Navigate to role-specific dashboard
-        const role = data.data.user.role;
-        if (role === 'TEACHER') navigate('/teacher/dashboard');
-        else if (role === 'STUDENT') navigate('/student/dashboard');
-        else navigate('/admin/dashboard');
+        navigate(getDashboardPathForRole(data.data.user.role));
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -176,11 +181,8 @@ export default function Login() {
       setFormData({ username: '', password: '' });
       
       // Navigate to role-specific dashboard
-      const role = userData.user.role;
       setTimeout(() => {
-        if (role === 'TEACHER') navigate('/teacher/dashboard');
-        else if (role === 'STUDENT') navigate('/student/dashboard');
-        else navigate('/admin/dashboard');
+        navigate(getDashboardPathForRole(userData.user.role));
       }, 1000);
     }
   };
@@ -191,11 +193,8 @@ export default function Login() {
     
     // Navigate to role-specific dashboard
     const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-    const role = storedUser.role;
     setTimeout(() => {
-      if (role === 'TEACHER') navigate('/teacher/dashboard');
-      else if (role === 'STUDENT') navigate('/student/dashboard');
-      else navigate('/admin/dashboard');
+      navigate(getDashboardPathForRole(storedUser.role));
     }, 1000);
   };
 
