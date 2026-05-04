@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 import { clearAllApiCache } from '../utils/api';
+import { disconnectSocket } from '../utils/socket';
 
 const Header = ({ toggleSidebar }) => {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ const Header = ({ toggleSidebar }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     clearAllApiCache();
+    disconnectSocket();
     navigate('/login');
   };
 

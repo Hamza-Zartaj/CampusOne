@@ -1,8 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import http from 'http';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { initSocket } from './services/socketService.js';
+import { startNotificationCron } from './services/notificationCron.js';
 
 // Get directory paths for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -141,7 +144,10 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = http.createServer(app);
+initSocket(server);
+startNotificationCron();
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });

@@ -48,6 +48,7 @@ api.interceptors.response.use(
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         clearAllApiCache();
+        import('./socket').then((m) => m.disconnectSocket());
         window.location.href = '/login';
       }
     }
