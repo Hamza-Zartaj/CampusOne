@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Bell, Check, Trash2, X } from 'lucide-react';
 import { notificationAPI } from '../utils/api';
+import { getSocket } from '../utils/socket';
 
 const ICON = {
   ANNOUNCEMENT: '📢',
@@ -37,7 +38,6 @@ const NotificationBell = () => {
   const role = user.role;
   const notifPath = role === 'admin' ? '/admin/notifications' : role === 'teacher' ? '/teacher/notifications' : '/student/notifications';
 
-  // Poll unread count every 60s
   const fetchUnreadCount = useCallback(async () => {
     try {
       const res = await notificationAPI.getUnreadCount();
@@ -45,11 +45,22 @@ const NotificationBell = () => {
     } catch {}
   }, []);
 
+  // Initial count + socket-driven live updates (with a 2-min safety poll for reconnect gaps)
   useEffect(() => {
     fetchUnreadCount();
-    const t = setInterval(fetchUnreadCount, 60_000);
-    return () => clearInterval(t);
-  }, [fetchUnreadCount]);
+    const socket = getSocket();
+    const onNew = () => {
+      setUnreadCount((c) => c + 1);
+      if (open) loadNotifications();
+    };
+    if (socket) socket.on('notification:new', onNew);
+    const t = setInterval(fetchUnreadCount, 120_000);
+    return () => {
+      if (socket) socket.off('notification:new', onNew);
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchUnreadCount, open]);
 
   // Load notifications when dropdown opens
   const loadNotifications = useCallback(async () => {

@@ -595,6 +595,34 @@ async function main() {
   }
   await safeCreateMany('attendance', attendanceData, 'attendance entries');
 
+  // Lectures — 3 past lectures per first 20 SP26 offerings (so MyCourses has data to render)
+  const lectureTitles = [
+    'Course Introduction & Syllabus Walkthrough',
+    'Foundational Concepts & Definitions',
+    'Core Principles — Worked Examples',
+    'Hands-on Demo & Discussion',
+    'Case Study Review',
+    'Problem-Solving Session',
+    'Mid-term Preparation Recap',
+    'Advanced Topics — Part I',
+  ];
+  const lectureData = [];
+  for (let oi = 0; oi < Math.min(20, sp26Offerings.length); oi++) {
+    const off = sp26Offerings[oi];
+    const teacher = await prisma.teacher.findUnique({ where: { id: off.teacherId }, select: { userId: true } });
+    if (!teacher) continue;
+    for (let i = 0; i < 3; i++) {
+      lectureData.push({
+        offeringId: off.id,
+        date: new Date(daysAgo((3 - i) * 7).toISOString().slice(0, 10)),
+        title: lectureTitles[(oi + i) % lectureTitles.length],
+        description: 'Auto-seeded lecture entry. Replace with real content once teacher uploads materials.',
+        createdBy: teacher.userId,
+      });
+    }
+  }
+  await safeCreateMany('lecture', lectureData, 'lectures');
+
   // Announcements
   const adminUsers = await prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } });
   const announcementTitles = [
