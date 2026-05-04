@@ -101,7 +101,6 @@ const Sidebar = ({ isOpen }) => {
     { path: '/student/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { label: null, group: 'Academic' },
     { path: '/student/courses', icon: BookOpen, label: 'My Courses' },
-    { path: '/student/registration', icon: PenLine, label: 'Registration' },
     { path: '/student/timetable', icon: CalendarDays, label: 'Timetable' },
     { path: '/student/transcript', icon: ScrollText, label: 'Transcript' },
     ...(hasActiveTA

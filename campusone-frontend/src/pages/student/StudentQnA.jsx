@@ -3,7 +3,7 @@ import {
   MessageSquare, Search, Plus, CheckCircle, Clock, Send, Trash2, Loader2,
   ArrowLeft, X,
 } from 'lucide-react';
-import { qnaAPI, enrollmentAPI } from '../../utils/api';
+import { qnaAPI, studentAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
 
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -245,22 +245,22 @@ const StudentQnA = () => {
   const [selectedThread, setSelectedThread] = useState(null);
 
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-  const studentId = currentUser?.roleData?.id;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const reqs = [qnaAPI.getThreads()];
-      if (studentId) reqs.push(enrollmentAPI.getCurrent(studentId));
-      const results = await Promise.all(reqs);
-      setThreads(results[0].data.data);
-      setEnrollments(results[1]?.data?.data || []);
+      const [threadsRes, enrollmentsRes] = await Promise.all([
+        qnaAPI.getThreads(),
+        studentAPI.myCourses(),
+      ]);
+      setThreads(threadsRes.data.data);
+      setEnrollments(enrollmentsRes.data.data || []);
     } catch (err) {
       toast.error('Failed to load Q&A');
     } finally {
       setLoading(false);
     }
-  }, [studentId]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 

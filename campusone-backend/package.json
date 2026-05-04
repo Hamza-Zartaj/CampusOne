@@ -9,7 +9,7 @@
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:push": "prisma db push",
-    "db:reset": "prisma db push --force-reset --accept-data-loss && node scripts/createSuperAdmin.js && node scripts/seed.js",
+    "db:reset": "prisma db push --force-reset --accept-data-loss && node scripts/createSuperAdmin.js && node scripts/miniSeed.js",
     "db:seed": "node scripts/seed.js",
     "db:miniseed": "node scripts/miniSeed.js",
     "db:superadmin": "node scripts/createSuperAdmin.js",
