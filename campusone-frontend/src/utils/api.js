@@ -118,6 +118,9 @@ export const authAPI = {
   updateMyEmail: (newEmail, otp) =>
     api.put('/auth/my-email', otp ? { newEmail, otp } : { newEmail }),
 
+  updateMyProfile: (data) =>
+    api.put('/auth/my-profile', data),
+
   uploadProfilePicture: (file) => {
     const fd = new FormData();
     fd.append('image', file);
