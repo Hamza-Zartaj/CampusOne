@@ -88,7 +88,7 @@ const StudentDashboard = () => {
             value={stats.enrolledCourses}
             sub={`${stats.totalCredits} credit hours`}
             color="bg-blue-500"
-            link="/student/my-courses"
+            link="/student/courses"
           />
           <StatCard
             icon={Award} label="CGPA"

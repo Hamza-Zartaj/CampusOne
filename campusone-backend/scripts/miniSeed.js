@@ -25,18 +25,18 @@ const NOW = new Date();
 
 const DEPARTMENT = {
   code: 'CSM',
-  name: 'Computer Science Mini',
+  name: 'Computer Science',
   description: 'Compact department dataset for quick local testing.',
 };
 
 const PROGRAM = {
-  code: 'BSCS-MINI',
-  name: 'BS Computer Science Mini',
-  version: '2026-MINI',
+  code: 'BSCS',
+  name: 'BS Computer Science',
+  version: '2026',
 };
 
 const TERM = {
-  code: 'SP26-MINI',
+  code: 'SP26',
   season: 'SPRING',
   academicYear: '2025-2026',
   startDate: new Date('2026-04-28T00:00:00.000Z'),
@@ -46,41 +46,41 @@ const TERM = {
 };
 
 const COURSES = [
-  { code: 'MINI-CS101', title: 'Introduction to Computing', creditHours: 3, semesterSlot: 1, type: 'CORE', sessionType: 'LECTURE' },
-  { code: 'MINI-CS101L', title: 'Introduction to Computing Lab', creditHours: 1, semesterSlot: 1, type: 'LAB', sessionType: 'LAB' },
-  { code: 'MINI-MTH101', title: 'Applied Calculus I', creditHours: 3, semesterSlot: 1, type: 'CORE', sessionType: 'LECTURE' },
-  { code: 'MINI-ENG101', title: 'Academic Writing', creditHours: 3, semesterSlot: 1, type: 'GENERAL', sessionType: 'LECTURE' },
+  { code: 'CS101', title: 'Introduction to Computing', creditHours: 3, semesterSlot: 1, type: 'CORE', sessionType: 'LECTURE' },
+  { code: 'CS101L', title: 'Introduction to Computing Lab', creditHours: 1, semesterSlot: 1, type: 'LAB', sessionType: 'LAB' },
+  { code: 'MTH101', title: 'Applied Calculus I', creditHours: 3, semesterSlot: 1, type: 'CORE', sessionType: 'LECTURE' },
+  { code: 'ENG101', title: 'Academic Writing', creditHours: 3, semesterSlot: 1, type: 'GENERAL', sessionType: 'LECTURE' },
 ];
 
 const TEACHERS = [
   {
-    username: 'mini.teacher1',
-    email: 'mini.teacher1@campusone.edu',
+    username: 'teacher1',
+    email: 'teacher1@campusone.edu',
     name: 'Dr. Sana Ahmed',
-    employeeId: 'MINI-T-001',
+    employeeId: 'T-001',
     designation: 'Assistant Professor',
   },
   {
-    username: 'mini.teacher2',
-    email: 'mini.teacher2@campusone.edu',
+    username: 'teacher2',
+    email: 'teacher2@campusone.edu',
     name: 'Mr. Bilal Khan',
-    employeeId: 'MINI-T-002',
+    employeeId: 'T-002',
     designation: 'Lecturer',
   },
 ];
 
 const STUDENTS = [
-  { username: 'mini.student1', email: 'mini.student1@campusone.edu', name: 'Ali Raza', studentId: 'MINI-CS-001' },
-  { username: 'mini.student2', email: 'mini.student2@campusone.edu', name: 'Fatima Noor', studentId: 'MINI-CS-002' },
-  { username: 'mini.student3', email: 'mini.student3@campusone.edu', name: 'Usman Tariq', studentId: 'MINI-CS-003' },
-  { username: 'mini.student4', email: 'mini.student4@campusone.edu', name: 'Hira Malik', studentId: 'MINI-CS-004' },
-  { username: 'mini.student5', email: 'mini.student5@campusone.edu', name: 'Ahmed Hassan', studentId: 'MINI-CS-005' },
+  { username: 'student1', email: 'student1@campusone.edu', name: 'Ali Raza', studentId: 'CS-001' },
+  { username: 'student2', email: 'student2@campusone.edu', name: 'Fatima Noor', studentId: 'CS-002' },
+  { username: 'student3', email: 'student3@campusone.edu', name: 'Usman Tariq', studentId: 'CS-003' },
+  { username: 'student4', email: 'student4@campusone.edu', name: 'Hira Malik', studentId: 'CS-004' },
+  { username: 'student5', email: 'student5@campusone.edu', name: 'Ahmed Hassan', studentId: 'CS-005' },
 ];
 
 const ROOMS = [
-  { code: 'MINI-R1', name: 'Mini Lecture Room 1', type: 'LECTURE', capacity: 30, building: 'Mini Block', floor: 1 },
-  { code: 'MINI-R2', name: 'Mini Lecture Room 2', type: 'LECTURE', capacity: 30, building: 'Mini Block', floor: 1 },
-  { code: 'MINI-LAB1', name: 'Mini Lab 1', type: 'LAB', capacity: 25, building: 'Mini Block', floor: 2 },
+  { code: 'R1', name: 'Lecture Room 1', type: 'LECTURE', capacity: 30, building: 'Block', floor: 1 },
+  { code: 'R2', name: 'Lecture Room 2', type: 'LECTURE', capacity: 30, building: 'Block', floor: 1 },
+  { code: 'LAB1', name: 'Lab 1', type: 'LAB', capacity: 25, building: 'Block', floor: 2 },
 ];
 
 const daysFromNow = (days) => new Date(NOW.getTime() + days * 24 * 60 * 60 * 1000);
@@ -145,10 +145,10 @@ async function main() {
         employeeId: teacherDef.employeeId,
         designation: teacherDef.designation,
         qualification: teacherDef.designation.includes('Professor') ? 'PhD' : 'MS',
-        departmentId: department.id,
-        officeRoom: 'MINI-201',
+        officeRoom: '201',
         officeHours: 'Mon-Wed 10:00-12:00',
         user: { connect: { id: user.id } },
+        department: { connect: { id: department.id } },
       },
     });
     teacherRecords.push({ ...teacherDef, user, teacher });
@@ -165,16 +165,16 @@ async function main() {
       create: {
         studentId: studentDef.studentId,
         enrollmentYear: 2026,
-        batch: 'SP26-MINI',
+        batch: 'SP26',
         currentSemester: 1,
         phone: `+9230010000${index}`,
-        address: 'Mini Seed Block, CampusOne Town',
+        address: 'Seed Block, CampusOne Town',
         emergencyContact: '+923009999999',
         dateOfBirth: new Date(`2006-0${(index % 5) + 1}-15T00:00:00.000Z`),
-        departmentId: department.id,
-        programId: program.id,
-        curriculumId: curriculum.id,
         user: { connect: { id: user.id } },
+        department: { connect: { id: department.id } },
+        program: { connect: { id: program.id } },
+        curriculum: { connect: { id: curriculum.id } },
       },
     });
     studentRecords.push({ ...studentDef, user, student });
@@ -233,10 +233,10 @@ async function main() {
   }
 
   const offeringBlueprints = [
-    { courseCode: 'MINI-CS101', section: 'M1', teacherIndex: 0, sessions: [{ dayOfWeek: 'MON', slotIndex: 1, roomCode: 'MINI-R1' }, { dayOfWeek: 'WED', slotIndex: 1, roomCode: 'MINI-R1' }] },
-    { courseCode: 'MINI-CS101L', section: 'M1', teacherIndex: 0, sessions: [{ dayOfWeek: 'FRI', slotIndex: 2, roomCode: 'MINI-LAB1' }] },
-    { courseCode: 'MINI-MTH101', section: 'M1', teacherIndex: 1, sessions: [{ dayOfWeek: 'TUE', slotIndex: 1, roomCode: 'MINI-R2' }, { dayOfWeek: 'THU', slotIndex: 1, roomCode: 'MINI-R2' }] },
-    { courseCode: 'MINI-ENG101', section: 'M1', teacherIndex: 1, sessions: [{ dayOfWeek: 'MON', slotIndex: 3, roomCode: 'MINI-R2' }, { dayOfWeek: 'WED', slotIndex: 3, roomCode: 'MINI-R2' }] },
+    { courseCode: 'CS101', section: 'M1', teacherIndex: 0, sessions: [{ dayOfWeek: 'MON', slotIndex: 1, roomCode: 'R1' }, { dayOfWeek: 'WED', slotIndex: 1, roomCode: 'R1' }] },
+    { courseCode: 'CS101L', section: 'M1', teacherIndex: 0, sessions: [{ dayOfWeek: 'FRI', slotIndex: 2, roomCode: 'LAB1' }] },
+    { courseCode: 'MTH101', section: 'M1', teacherIndex: 1, sessions: [{ dayOfWeek: 'TUE', slotIndex: 1, roomCode: 'R2' }, { dayOfWeek: 'THU', slotIndex: 1, roomCode: 'R2' }] },
+    { courseCode: 'ENG101', section: 'M1', teacherIndex: 1, sessions: [{ dayOfWeek: 'MON', slotIndex: 3, roomCode: 'R2' }, { dayOfWeek: 'WED', slotIndex: 3, roomCode: 'R2' }] },
   ];
 
   const offerings = [];
@@ -302,13 +302,13 @@ async function main() {
 
   for (const [index, offering] of offerings.entries()) {
     await prisma.assignment.upsert({
-      where: { id: `mini-assignment-${offering.id}` },
+      where: { id: `assignment-${offering.id}` },
       update: {},
       create: {
-        id: `mini-assignment-${offering.id}`,
+        id: `assignment-${offering.id}`,
         offeringId: offering.id,
         title: `${offering.course.code} Assignment 1`,
-        description: 'Starter assignment created by the mini seed script.',
+        description: 'Starter assignment created by the  seed script.',
         totalMarks: 100,
         dueDate: daysFromNow(4 + index),
         allowLate: true,
@@ -321,10 +321,10 @@ async function main() {
   const upcomingQuizOffering = offerings[2];
 
   await prisma.quiz.upsert({
-    where: { id: `mini-quiz-open-${openQuizOffering.id}` },
+    where: { id: `quiz-open-${openQuizOffering.id}` },
     update: {},
     create: {
-      id: `mini-quiz-open-${openQuizOffering.id}`,
+      id: `quiz-open-${openQuizOffering.id}`,
       offeringId: openQuizOffering.id,
       title: `${openQuizOffering.course.code} Diagnostic Quiz`,
       description: 'Currently available sample quiz.',
@@ -358,10 +358,10 @@ async function main() {
   });
 
   await prisma.quiz.upsert({
-    where: { id: `mini-quiz-upcoming-${upcomingQuizOffering.id}` },
+    where: { id: `quiz-upcoming-${upcomingQuizOffering.id}` },
     update: {},
     create: {
-      id: `mini-quiz-upcoming-${upcomingQuizOffering.id}`,
+      id: `quiz-upcoming-${upcomingQuizOffering.id}`,
       offeringId: upcomingQuizOffering.id,
       title: `${upcomingQuizOffering.course.code} Quiz 1`,
       description: 'Upcoming sample quiz for teacher and student dashboards.',
@@ -387,11 +387,11 @@ async function main() {
   });
 
   await prisma.announcement.upsert({
-    where: { id: 'mini-announcement-welcome' },
+    where: { id: 'announcement-welcome' },
     update: {},
     create: {
-      id: 'mini-announcement-welcome',
-      title: 'Welcome to the Mini Seed Term',
+      id: 'announcement-welcome',
+      title: 'Welcome to the  Seed Term',
       content: 'This is a compact seeded term with only a few users, courses, and activities for quick local testing.',
       priority: 'medium',
       targetAudience: 'all',
@@ -400,10 +400,10 @@ async function main() {
   });
 
   await prisma.qnaThread.upsert({
-    where: { id: 'mini-qna-thread-1' },
+    where: { id: 'qna-thread-1' },
     update: {},
     create: {
-      id: 'mini-qna-thread-1',
+      id: 'qna-thread-1',
       offeringId: offerings[0].id,
       askedById: studentRecords[0].user.id,
       title: 'Will lecture slides be uploaded?',
@@ -432,21 +432,21 @@ async function main() {
         offeringId: offerings[0].id,
         studentId: record.student.id,
         date: isoDate(-2),
-        status: record.studentId === 'MINI-CS-005' ? 'LATE' : 'PRESENT',
+        status: record.studentId === 'CS-005' ? 'LATE' : 'PRESENT',
         markedBy: teacherRecords[0].teacher.id,
       },
     });
   }
 
-  console.log('Mini seed complete.');
+  console.log('seed complete.');
   console.log(`Default password for seeded users: ${PASS}`);
-  console.log('Teachers: mini.teacher1, mini.teacher2');
-  console.log('Students: mini.student1 ... mini.student5');
+  console.log('Teachers: teacher1, teacher2');
+  console.log('Students: student1 ... student5');
 }
 
 main()
   .catch(async (error) => {
-    console.error('Mini seed failed:', error);
+    console.error('seed failed:', error);
     await prisma.$disconnect();
     process.exit(1);
   })
