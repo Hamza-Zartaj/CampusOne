@@ -6,6 +6,7 @@ import {
   gradePointsForLetter,
   normalizeEnrollmentGrade,
 } from '../utils/grading.js';
+import { buildTranscriptData } from '../utils/transcript.js';
 
 // GET /api/enrollments?offeringId=&studentId=&status=
 export const getEnrollments = async (req, res) => {
@@ -285,67 +286,10 @@ export const bulkGrade = async (req, res) => {
 // GET /api/students/:studentId/transcript
 export const getTranscript = async (req, res) => {
   try {
-    const student = await prisma.student.findUnique({
-      where: { id: req.params.studentId },
-      include: {
-        user: { select: { name: true, email: true } },
-        program: { select: { programCode: true, name: true, totalCredits: true } },
-        curriculum: { select: { version: true } },
-        department: { select: { name: true } },
-      },
-    });
-    if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+    const transcript = await buildTranscriptData(req.params.studentId);
+    if (!transcript) return res.status(404).json({ success: false, message: 'Student not found' });
 
-    const enrollments = await prisma.enrollment.findMany({
-      where: { studentId: req.params.studentId, status: { in: ['COMPLETED', 'FAILED', 'WITHDRAWN', 'INCOMPLETE'] } },
-      include: {
-        offering: {
-          include: {
-            course: { select: { code: true, title: true, creditHours: true } },
-            term: { select: { code: true, season: true, academicYear: true } },
-          },
-        },
-      },
-      orderBy: { offering: { term: { academicYear: 'asc' } } },
-    });
-
-    // Group by term
-    const termMap = {};
-    for (const e of enrollments) {
-      const termCode = e.offering.term.code;
-      if (!termMap[termCode]) {
-        termMap[termCode] = { term: e.offering.term, courses: [], termGPA: null };
-      }
-      termMap[termCode].courses.push({
-        code: e.offering.course.code,
-        title: e.offering.course.title,
-        creditHours: e.offering.course.creditHours,
-        gradeLetter: e.gradeLetter,
-        gradePoints: e.gradePoints,
-        totalMarks: e.totalMarks,
-        status: e.status,
-      });
-    }
-
-    // Compute per-term GPA
-    const terms = Object.values(termMap).map((t) => {
-      t.termGPA = computeGradePointAverage(t.courses, (course) => course.creditHours);
-      t.termCredits = t.courses
-        .filter((course) => course.gradePoints !== null && course.gradePoints !== undefined)
-        .reduce((sum, course) => sum + course.creditHours, 0);
-      return t;
-    });
-
-    // CGPA
-    const cgpa = computeGradePointAverage(enrollments, (enrollment) => enrollment.offering.course.creditHours);
-    const completedCredits = enrollments
-      .filter((e) => e.status === 'COMPLETED')
-      .reduce((s, e) => s + e.offering.course.creditHours, 0);
-
-    res.json({
-      success: true,
-      data: { student, terms, cgpa, completedCredits, totalRequiredCredits: student.program.totalCredits },
-    });
+    res.json({ success: true, data: transcript });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

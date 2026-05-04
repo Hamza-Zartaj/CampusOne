@@ -546,6 +546,7 @@ export const lectureAPI = {
 // Student-scoped API (course-centric view)
 export const studentAPI = {
   myCourses:         () => api.get('/students/me/courses'),
+  myTranscript:      () => api.get('/students/me/transcript'),
   courseDetail:      (offeringId) => api.get(`/students/me/course-detail/${offeringId}`),
   activeAssignments: () => api.get('/students/me/active-assignments'),
   activeQuizzes:     () => api.get('/students/me/active-quizzes'),
