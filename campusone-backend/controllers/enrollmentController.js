@@ -1,22 +1,11 @@
 import prisma from '../prisma/client.js';
 import xlsx from 'xlsx';
-
-// Grade point map for CGPA calculation
-const GRADE_POINTS = {
-  A_PLUS: 4.0, A: 4.0, A_MINUS: 3.67,
-  B_PLUS: 3.33, B: 3.0, B_MINUS: 2.67,
-  C_PLUS: 2.33, C: 2.0, C_MINUS: 1.67,
-  D_PLUS: 1.33, D: 1.0,
-  F: 0.0, I: null, W: null,
-};
-
-const computeCGPA = (enrollments) => {
-  const countable = enrollments.filter((e) => e.gradePoints !== null && e.gradePoints !== undefined);
-  if (!countable.length) return null;
-  const totalPoints = countable.reduce((s, e) => s + e.gradePoints * (e.offering?.course?.creditHours ?? 0), 0);
-  const totalCredits = countable.reduce((s, e) => s + (e.offering?.course?.creditHours ?? 0), 0);
-  return totalCredits ? +(totalPoints / totalCredits).toFixed(2) : null;
-};
+import {
+  computeGradePointAverage,
+  enrollmentStatusForGrade,
+  gradePointsForLetter,
+  normalizeEnrollmentGrade,
+} from '../utils/grading.js';
 
 // GET /api/enrollments?offeringId=&studentId=&status=
 export const getEnrollments = async (req, res) => {
@@ -225,10 +214,9 @@ export const updateGrade = async (req, res) => {
       }
     }
 
-    const gradePoints = gradeLetter ? (GRADE_POINTS[gradeLetter] ?? null) : undefined;
-    const status = gradeLetter
-      ? gradeLetter === 'F' ? 'FAILED' : gradeLetter === 'I' ? 'INCOMPLETE' : gradeLetter === 'W' ? 'WITHDRAWN' : 'COMPLETED'
-      : undefined;
+    const resolvedGradeLetter = normalizeEnrollmentGrade({ totalMarks, gradeLetter });
+    const gradePoints = gradePointsForLetter(resolvedGradeLetter);
+    const status = enrollmentStatusForGrade(resolvedGradeLetter);
 
     const updated = await prisma.enrollment.update({
       where: { id: req.params.id },
@@ -237,10 +225,10 @@ export const updateGrade = async (req, res) => {
         midMarks: midMarks !== undefined ? +midMarks : undefined,
         finalMarks: finalMarks !== undefined ? +finalMarks : undefined,
         totalMarks: totalMarks !== undefined ? +totalMarks : undefined,
-        gradeLetter,
+        gradeLetter: resolvedGradeLetter,
         gradePoints: gradePoints !== undefined ? gradePoints : undefined,
         status: status || undefined,
-        completedAt: status === 'COMPLETED' || status === 'FAILED' ? new Date() : undefined,
+        completedAt: status ? (status === 'COMPLETED' || status === 'FAILED' ? new Date() : null) : undefined,
       },
     });
     res.json({ success: true, data: updated });
@@ -269,10 +257,9 @@ export const bulkGrade = async (req, res) => {
 
     const updates = await Promise.all(
       grades.map(({ enrollmentId, assignmentMarks, midMarks, finalMarks, totalMarks, gradeLetter }) => {
-        const gradePoints = gradeLetter ? (GRADE_POINTS[gradeLetter] ?? null) : undefined;
-        const status = gradeLetter
-          ? gradeLetter === 'F' ? 'FAILED' : gradeLetter === 'I' ? 'INCOMPLETE' : gradeLetter === 'W' ? 'WITHDRAWN' : 'COMPLETED'
-          : undefined;
+        const resolvedGradeLetter = normalizeEnrollmentGrade({ totalMarks, gradeLetter });
+        const gradePoints = gradePointsForLetter(resolvedGradeLetter);
+        const status = enrollmentStatusForGrade(resolvedGradeLetter);
         return prisma.enrollment.update({
           where: { id: enrollmentId },
           data: {
@@ -280,10 +267,10 @@ export const bulkGrade = async (req, res) => {
             midMarks: midMarks !== undefined ? +midMarks : undefined,
             finalMarks: finalMarks !== undefined ? +finalMarks : undefined,
             totalMarks: totalMarks !== undefined ? +totalMarks : undefined,
-            gradeLetter,
+            gradeLetter: resolvedGradeLetter,
             gradePoints: gradePoints !== undefined ? gradePoints : undefined,
             status: status || undefined,
-            completedAt: status === 'COMPLETED' || status === 'FAILED' ? new Date() : undefined,
+            completedAt: status ? (status === 'COMPLETED' || status === 'FAILED' ? new Date() : null) : undefined,
           },
         });
       })
@@ -342,19 +329,15 @@ export const getTranscript = async (req, res) => {
 
     // Compute per-term GPA
     const terms = Object.values(termMap).map((t) => {
-      const countable = t.courses.filter((c) => c.gradePoints !== null && c.gradePoints !== undefined);
-      const totalPts = countable.reduce((s, c) => s + c.gradePoints * c.creditHours, 0);
-      const totalCr = countable.reduce((s, c) => s + c.creditHours, 0);
-      t.termGPA = totalCr ? +(totalPts / totalCr).toFixed(2) : null;
-      t.termCredits = totalCr;
+      t.termGPA = computeGradePointAverage(t.courses, (course) => course.creditHours);
+      t.termCredits = t.courses
+        .filter((course) => course.gradePoints !== null && course.gradePoints !== undefined)
+        .reduce((sum, course) => sum + course.creditHours, 0);
       return t;
     });
 
     // CGPA
-    const allCountable = enrollments.filter((e) => e.gradePoints !== null && e.gradePoints !== undefined);
-    const totalPts = allCountable.reduce((s, e) => s + e.gradePoints * e.offering.course.creditHours, 0);
-    const totalCr = allCountable.reduce((s, e) => s + e.offering.course.creditHours, 0);
-    const cgpa = totalCr ? +(totalPts / totalCr).toFixed(2) : null;
+    const cgpa = computeGradePointAverage(enrollments, (enrollment) => enrollment.offering.course.creditHours);
     const completedCredits = enrollments
       .filter((e) => e.status === 'COMPLETED')
       .reduce((s, e) => s + e.offering.course.creditHours, 0);
@@ -372,12 +355,14 @@ export const getTranscript = async (req, res) => {
 export const getStudentCGPA = async (req, res) => {
   try {
     const enrollments = await prisma.enrollment.findMany({
-      where: { studentId: req.params.studentId, status: 'COMPLETED' },
+      where: { studentId: req.params.studentId, gradePoints: { not: null } },
       include: { offering: { include: { course: { select: { creditHours: true } } } } },
     });
 
-    const cgpa = computeCGPA(enrollments);
-    const completedCredits = enrollments.reduce((s, e) => s + e.offering.course.creditHours, 0);
+    const cgpa = computeGradePointAverage(enrollments, (enrollment) => enrollment.offering.course.creditHours);
+    const completedCredits = enrollments
+      .filter((enrollment) => enrollment.status === 'COMPLETED')
+      .reduce((sum, enrollment) => sum + enrollment.offering.course.creditHours, 0);
     res.json({ success: true, data: { cgpa, completedCredits, courseCount: enrollments.length } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

@@ -1,6 +1,7 @@
 import prisma from '../prisma/client.js';
 import { notify, notifyMany } from '../services/notificationService.js';
 import AuditLogger from '../services/auditLogger.js';
+import { computeGradePointAverage } from '../utils/grading.js';
 
 // ─── ELIGIBILITY CONFIG ──────────────────────────────────────────
 export const TA_CONFIG = {
@@ -11,29 +12,12 @@ export const TA_CONFIG = {
   enabled:           true,              // global on/off (registrar can flip later)
 };
 
-const GRADE_POINTS = {
-  A_PLUS: 4.0, A: 4.0, A_MINUS: 3.67,
-  B_PLUS: 3.33, B: 3.0, B_MINUS: 2.67,
-  C_PLUS: 2.33, C: 2.0, C_MINUS: 1.67,
-  D_PLUS: 1.33, D: 1.0,
-  F: 0.0, I: null, W: null,
-};
-
 const computeCGPA = async (studentId) => {
   const completed = await prisma.enrollment.findMany({
-    where: { studentId, status: 'COMPLETED', gradePoints: { not: null } },
+    where: { studentId, gradePoints: { not: null } },
     include: { offering: { select: { course: { select: { creditHours: true } } } } },
   });
-  if (!completed.length) return null;
-  const totalPts = completed.reduce(
-    (s, e) => s + e.gradePoints * (e.offering.course.creditHours || 0),
-    0
-  );
-  const totalCr = completed.reduce(
-    (s, e) => s + (e.offering.course.creditHours || 0),
-    0
-  );
-  return totalCr ? +(totalPts / totalCr).toFixed(2) : null;
+  return computeGradePointAverage(completed, (enrollment) => enrollment.offering.course.creditHours || 0);
 };
 
 // ─── ELIGIBILITY ────────────────────────────────────────────────
