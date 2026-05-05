@@ -20,6 +20,7 @@ const QuizTaker = ({ session, onExit, onSubmit }) => {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [timeLeft, setTimeLeft] = useState(Math.max(0, Math.floor((new Date(deadline).getTime() - Date.now()) / 1000)));
   const [violations, setViolations] = useState(session.violations || 0);
+  const blurWarnedRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [autoSubmitted, setAutoSubmitted] = useState(false);
   const containerRef = useRef(null);
@@ -82,7 +83,15 @@ const QuizTaker = ({ session, onExit, onSubmit }) => {
     const handleVisibility = () => {
       if (document.hidden) reportViolation('TAB_SWITCH');
     };
-    const handleBlur = () => reportViolation('WINDOW_BLUR');
+    const handleBlur = () => {
+      if (!blurWarnedRef.current) {
+        // First blur: warn only, don't count as violation
+        blurWarnedRef.current = true;
+        toast('⚠ Keep the quiz window focused!', { icon: '👀', duration: 3000 });
+      } else {
+        reportViolation('WINDOW_BLUR');
+      }
+    };
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('blur', handleBlur);
     return () => {
@@ -93,15 +102,21 @@ const QuizTaker = ({ session, onExit, onSubmit }) => {
 
   // Disable right-click + dev-tools shortcuts
   useEffect(() => {
-    const handleContextMenu = (e) => { e.preventDefault(); reportViolation('RIGHT_CLICK'); };
+    // Right-click: block silently (accidental)
+    const handleContextMenu = (e) => { e.preventDefault(); };
     const handleKeyDown = (e) => {
+      // Ctrl+S / Ctrl+P: block silently (accidental reflex)
+      const silentBlock =
+        (e.ctrlKey && (e.key === 's' || e.key === 'S')) ||
+        (e.ctrlKey && (e.key === 'p' || e.key === 'P'));
+      if (silentBlock) { e.preventDefault(); return; }
+
+      // Real devtools shortcuts: block and count as violation
       const blocked =
         e.key === 'F12' ||
         (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
         (e.ctrlKey && e.key === 'u') ||
-        (e.ctrlKey && e.key === 'U') ||
-        (e.ctrlKey && (e.key === 'p' || e.key === 'P')) ||
-        (e.ctrlKey && (e.key === 's' || e.key === 'S'));
+        (e.ctrlKey && e.key === 'U');
       if (blocked) {
         e.preventDefault();
         reportViolation('DEVTOOLS_SHORTCUT');
