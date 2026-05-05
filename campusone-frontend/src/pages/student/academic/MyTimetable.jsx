@@ -39,7 +39,7 @@ const MyTimetable = () => {
       const top = Object.entries(sectionCounts).sort((a, b) => b[1] - a[1])[0];
       setPrimarySection(top ? top[0] : null);
 
-      const byDay = { ...EMPTY_TIMETABLE };
+      const byDay = Object.fromEntries(DAYS.map((d) => [d, []]));
 
       enrollments.forEach((e, idx) => {
         const sessions = Array.isArray(e.offering?.sessions) ? e.offering.sessions : [];
