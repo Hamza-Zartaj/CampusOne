@@ -7,6 +7,20 @@ import { lectureAPI, offeringAPI } from '../../../utils/api';
 const inputClass = 'w-full py-2 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10';
 const labelClass = 'block text-sm font-medium text-slate-700 mb-1.5';
 
+const downloadFile = async (url, filename) => {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename || 'file';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch {
+    window.location.href = url;
+  }
+};
+
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
 
 const LectureForm = ({ offeringId, existing, onClose, onSaved }) => {
@@ -164,9 +178,9 @@ const TeacherLectures = () => {
                   </td>
                   <td className="px-4 py-2.5">
                     {l.materialUrl ? (
-                      <a href={l.materialUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs">
+                      <button onClick={() => downloadFile(l.materialUrl, l.materialName)} className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs">
                         <Download size={13} />{l.materialName || 'download'}
-                      </a>
+                      </button>
                     ) : <span className="text-xs text-slate-400">—</span>}
                   </td>
                   <td className="px-4 py-2.5 text-right">
