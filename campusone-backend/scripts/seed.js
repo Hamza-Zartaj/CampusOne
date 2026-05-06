@@ -18,6 +18,7 @@
  */
 
 import bcrypt from 'bcryptjs';
+import { fileURLToPath } from 'node:url';
 import prisma from '../prisma/client.js';
 
 const PASS = 'Campus@123';
@@ -52,7 +53,7 @@ const TEACHER_DESIGNATIONS = ['Professor', 'Associate Professor', 'Assistant Pro
 
 // ── BSCS curriculum (from real UCP transcript) ─────────────────────────────
 // Each entry: code, title, credits, type, semester slot, prerequisite code (optional)
-const CURRICULUM = [
+export const CURRICULUM = [
   // Semester 1 (Fall) — fixed core + GENERAL
   { code: 'CSCS1513', title: 'Introduction to Computing',         cr: 3, type: 'CORE',    sem: 1 },
   { code: 'CSCS1511', title: 'Introduction to Computing-Lab',     cr: 1, type: 'LAB',     sem: 1 },
@@ -1176,4 +1177,8 @@ async function main() {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 }
 
-main().catch(console.error).finally(() => prisma.$disconnect());
+const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+
+if (isDirectRun) {
+  main().catch(console.error).finally(() => prisma.$disconnect());
+}
