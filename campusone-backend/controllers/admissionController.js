@@ -1,5 +1,6 @@
 import prisma from '../prisma/client.js';
-import { deleteFile, getFileUrl } from '../middleware/uploadMiddleware.js';
+import { deleteFile } from '../middleware/uploadMiddleware.js';
+import { uploadToBucket } from '../services/storageService.js';
 import { auditLog } from '../utils/auditLogger.js';
 import {
   sendAdmissionApplicationConfirmationEmail,
@@ -379,9 +380,6 @@ export const uploadDocuments = async (req, res) => {
     });
 
     if (!application) {
-      if (req.files) {
-        req.files.forEach(file => deleteFile(file.filename));
-      }
       return res.status(404).json({
         success: false,
         message: 'Application not found'
@@ -391,9 +389,6 @@ export const uploadDocuments = async (req, res) => {
     // Check authorization
     if (req.user && req.user.role !== 'admin' &&
         application.userId && application.userId !== req.user.id) {
-      if (req.files) {
-        req.files.forEach(file => deleteFile(file.filename));
-      }
       return res.status(403).json({
         success: false,
         message: 'Not authorized to upload documents for this application'
@@ -411,7 +406,6 @@ export const uploadDocuments = async (req, res) => {
 
     // Check file count limit
     if (req.files.length > 5) {
-      req.files.forEach(file => deleteFile(file.filename));
       return res.status(400).json({
         success: false,
         message: 'Maximum 5 files can be uploaded at once'
@@ -421,38 +415,48 @@ export const uploadDocuments = async (req, res) => {
     // Create a map of filename to field type from metadata
     const fileMetadataMap = new Map(fileMetadata.map(f => [f.fileName, f.fieldType]));
 
-    // Map uploaded files to their respective schema fields based on metadata
-    req.files.forEach((file) => {
+    // Upload all files to Supabase (admission-documents bucket, organized by application ID)
+    const uploadResults = await Promise.all(req.files.map(async (file) => {
+      const { publicUrl } = await uploadToBucket(
+        'admission-documents',
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+        id
+      );
       const fieldType = fileMetadataMap.get(file.originalname);
-      const fileUrl = getFileUrl(file.filename);
+      return { file, publicUrl, fieldType };
+    }));
 
+    // Map results to their respective schema fields
+    uploadResults.forEach(({ file, publicUrl, fieldType }) => {
       console.log(`[Upload Documents] Processing file: "${file.originalname}"`);
       console.log(`[Upload Documents] Looking for metadata with fileName: "${file.originalname}"`);
       console.log(`[Upload Documents] Found fieldType: "${fieldType}"`);
-      console.log(`[Upload Documents] File URL: ${fileUrl}`);
+      console.log(`[Upload Documents] File URL: ${publicUrl}`);
 
       if (!fieldType) {
         console.warn(`[Upload Documents] WARNING: No metadata found for file "${file.originalname}". Will store in documents array only.`);
       }
 
       if (fieldType === 'cnic_front') {
-        application.cnicFront = fileUrl;
+        application.cnicFront = publicUrl;
         console.log('[Upload Documents] ✓ Updated cnicFront');
       } else if (fieldType === 'cnic_back') {
-        application.cnicBack = fileUrl;
+        application.cnicBack = publicUrl;
         console.log('[Upload Documents] ✓ Updated cnicBack');
       } else if (fieldType === 'domicile') {
         if (!application.address) application.address = {};
-        application.address.domicileUpload = fileUrl;
+        application.address.domicileUpload = publicUrl;
         console.log('[Upload Documents] ✓ Updated address.domicileUpload');
       } else if (fieldType === 'guardian_cnic') {
         if (!application.guardian) application.guardian = {};
-        application.guardian.cnicUpload = fileUrl;
+        application.guardian.cnicUpload = publicUrl;
         console.log('[Upload Documents] ✓ Updated guardian.cnicUpload');
       } else if (fieldType && fieldType.startsWith('transcript_')) {
         const index = parseInt(fieldType.split('_')[1]);
         if (application.educationRecords && application.educationRecords[index]) {
-          application.educationRecords[index].transcript = fileUrl;
+          application.educationRecords[index].transcript = publicUrl;
           console.log(`[Upload Documents] ✓ Updated educationRecords[${index}].transcript`);
         } else {
           console.warn(`[Upload Documents] WARNING: educationRecords[${index}] does not exist`);
@@ -461,15 +465,12 @@ export const uploadDocuments = async (req, res) => {
     });
 
     // Add documents to application (for general tracking)
-    const uploadedDocuments = req.files.map(file => {
-      const fieldType = fileMetadataMap.get(file.originalname) || file.fieldname;
-      return {
-        type: fieldType,
-        fileName: file.filename,
-        url: getFileUrl(file.filename),
-        uploadedAt: new Date()
-      };
-    });
+    const uploadedDocuments = uploadResults.map(({ file, publicUrl, fieldType }) => ({
+      type: fieldType || file.fieldname,
+      fileName: file.originalname,
+      url: publicUrl,
+      uploadedAt: new Date()
+    }));
 
     if (!application.documents) {
       application.documents = [];
@@ -506,9 +507,6 @@ export const uploadDocuments = async (req, res) => {
       }
     });
   } catch (error) {
-    if (req.files) {
-      req.files.forEach(file => deleteFile(file.filename));
-    }
     console.error('Error uploading documents:', error);
     res.status(500).json({
       success: false,

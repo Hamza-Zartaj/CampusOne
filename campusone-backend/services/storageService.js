@@ -29,15 +29,17 @@ const safeName = (filename) => {
 
 /**
  * Upload a file buffer (e.g. from multer) to a Supabase bucket.
- * @param {'lectures' | 'assignments' | 'marks'} bucket
+ * @param {'lectures' | 'assignments' | 'marks' | 'admission-documents'} bucket
  * @param {Buffer} buffer
  * @param {string} originalName
  * @param {string} mimeType
+ * @param {string} [folder] - optional sub-folder prefix (e.g. application ID)
  * @returns {Promise<{ path: string, publicUrl: string, originalName: string }>}
  */
-export const uploadToBucket = async (bucket, buffer, originalName, mimeType) => {
+export const uploadToBucket = async (bucket, buffer, originalName, mimeType, folder = '') => {
   const sb = getClient();
-  const filePath = safeName(originalName);
+  const name = safeName(originalName);
+  const filePath = folder ? `${folder}/${name}` : name;
   const { error } = await sb.storage.from(bucket).upload(filePath, buffer, {
     contentType: mimeType || 'application/octet-stream',
     upsert: false,
