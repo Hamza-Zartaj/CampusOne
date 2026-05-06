@@ -28,6 +28,20 @@ const KIND_ICON = {
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
+const downloadFile = async (url, filename) => {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename || 'file';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch {
+    window.location.href = url;
+  }
+};
+
 const Section = ({ icon: Icon, title, count, children }) => (
   <section className="bg-white rounded-xl border border-slate-200 overflow-hidden">
     <header className="px-5 py-3 border-b border-slate-100 flex items-center gap-2 bg-slate-50/60">
@@ -286,9 +300,9 @@ const MyCourses = () => {
                       <td className="px-4 py-2.5 text-slate-700">{l.title}</td>
                       <td className="px-4 py-2.5 text-center">
                         {l.materialUrl ? (
-                          <a href={l.materialUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs">
+                          <button onClick={() => downloadFile(l.materialUrl, l.materialName)} className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs">
                             <Download size={13} />{l.materialName || 'download'}
-                          </a>
+                          </button>
                         ) : <span className="text-xs text-slate-400">—</span>}
                       </td>
                     </tr>
