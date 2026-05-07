@@ -28,6 +28,7 @@ const RULES = [
 
 // When a write hits one of these prefixes, all caches matching the listed prefixes get cleared.
 const INVALIDATE = [
+  { onWrite: '/auth',        bust: ['/auth/me', '/students/me'] },
   { onWrite: '/terms',       bust: ['/terms'] },
   { onWrite: '/programs',    bust: ['/programs'] },
   { onWrite: '/departments', bust: ['/departments'] },
