@@ -1,5 +1,6 @@
 import prisma from '../prisma/client.js';
 import { notifyMany, TYPE } from '../services/notificationService.js';
+import { getGradingWindowError } from '../utils/gradingWindow.js';
 
 const assertTeacherOfOffering = async (offeringId, user) => {
   if (user.role === 'admin') return { ok: true };
@@ -89,13 +90,31 @@ export const updateMarkComponent = async (req, res) => {
   try {
     const existing = await prisma.markComponent.findUnique({
       where: { id: req.params.id },
-      include: { enrollment: { select: { offeringId: true, student: { select: { userId: true } } } } },
+      include: {
+        enrollment: {
+          select: {
+            offeringId: true,
+            student: { select: { userId: true } },
+            offering: {
+              select: {
+                term: { select: { code: true, isActive: true, endDate: true } },
+              },
+            },
+          },
+        },
+      },
     });
     if (!existing) return res.status(404).json({ success: false, message: 'Mark component not found' });
     const access = await assertTeacherOfOffering(existing.enrollment.offeringId, req.user);
     if (!access.ok) return res.status(access.code).json({ success: false, message: access.message });
 
     const { title, date, totalMarks, obtainedMarks } = req.body;
+    if (obtainedMarks !== undefined || totalMarks !== undefined) {
+      const gradingWindowError = getGradingWindowError(existing.enrollment.offering.term);
+      if (gradingWindowError) {
+        return res.status(409).json({ success: false, code: 'GRADE_WINDOW_CLOSED', message: gradingWindowError });
+      }
+    }
     const wasGraded = existing.obtainedMarks != null;
     const wasDated = !!existing.date;
     const updated = await prisma.markComponent.update({

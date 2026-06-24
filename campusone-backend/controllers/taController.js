@@ -2,6 +2,7 @@ import prisma from '../prisma/client.js';
 import { notify, notifyMany } from '../services/notificationService.js';
 import AuditLogger from '../services/auditLogger.js';
 import { computeGradePointAverage } from '../utils/grading.js';
+import { runSerializableTransaction } from '../utils/prismaTransactions.js';
 
 // ─── ELIGIBILITY CONFIG ──────────────────────────────────────────
 export const TA_CONFIG = {
@@ -323,29 +324,72 @@ export const approveApplication = async (req, res) => {
       : ['VIEW_ROSTER'];
     if (!cleanedPerms.includes('VIEW_ROSTER')) cleanedPerms.push('VIEW_ROSTER');
 
-    if (req.user.role === 'teacher') {
-      const check = await verifyTeacherOwns(req.user.id, req.params.id);
-      if (check.error) return res.status(check.error).json({ success: false, message: check.message });
-    }
+    const { existing, updated } = await runSerializableTransaction(prisma, async (tx) => {
+      const application = await tx.tAAssignment.findUnique({
+        where: { id: req.params.id },
+        include: {
+          student: { select: { userId: true } },
+          offering: {
+            include: {
+              course: { select: { code: true } },
+            },
+          },
+        },
+      });
+      if (!application) {
+        const error = new Error('Application not found');
+        error.statusCode = 404;
+        throw error;
+      }
 
-    const existing = await prisma.tAAssignment.findUnique({
-      where: { id: req.params.id },
-      include: { student: { select: { userId: true } }, offering: { include: { course: { select: { code: true } } } } },
-    });
-    if (!existing) return res.status(404).json({ success: false, message: 'Application not found' });
-    if (existing.status === 'APPROVED') return res.status(409).json({ success: false, message: 'Already approved' });
+      if (req.user.role === 'teacher') {
+        const teacher = await tx.teacher.findUnique({ where: { userId: req.user.id } });
+        if (!teacher || application.offering.teacherId !== teacher.id) {
+          const error = new Error('Not your offering');
+          error.statusCode = 403;
+          throw error;
+        }
+      }
 
-    const updated = await prisma.tAAssignment.update({
-      where: { id: req.params.id },
-      data: {
-        status: 'APPROVED',
-        permissions: cleanedPerms,
-        reviewedBy: req.user.id,
-        reviewNotes: reviewNotes || null,
-        reviewedAt: new Date(),
-        startedAt: existing.startedAt || new Date(),
-        endedAt: null,
-      },
+      if (application.status !== 'PENDING') {
+        const error = new Error(
+          application.status === 'APPROVED'
+            ? 'Already approved'
+            : `Cannot approve a ${application.status.toLowerCase()} application`
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+
+      const activeCount = await tx.tAAssignment.count({
+        where: {
+          studentId: application.studentId,
+          status: 'APPROVED',
+          id: { not: application.id },
+        },
+      });
+      if (activeCount >= TA_CONFIG.maxActiveAssignments) {
+        const error = new Error(
+          `Student already has ${activeCount} active TA assignments (max ${TA_CONFIG.maxActiveAssignments})`
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+
+      const approved = await tx.tAAssignment.update({
+        where: { id: application.id },
+        data: {
+          status: 'APPROVED',
+          permissions: cleanedPerms,
+          reviewedBy: req.user.id,
+          reviewNotes: reviewNotes || null,
+          reviewedAt: new Date(),
+          startedAt: application.startedAt || new Date(),
+          endedAt: null,
+        },
+      });
+
+      return { existing: application, updated: approved };
     });
 
     notify({
@@ -369,7 +413,7 @@ export const approveApplication = async (req, res) => {
     res.json({ success: true, data: updated });
   } catch (err) {
     console.error('[ta] approve error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 
