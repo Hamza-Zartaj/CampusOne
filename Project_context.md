@@ -202,7 +202,10 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 ### Quizzes
 
 - [x] Quiz and question CRUD
-- [x] Excel question import
+- [x] Excel question import with a verified downloadable sample template
+- [x] Prompt-based AI quiz question generation
+- [x] Compact AI generator with course-name context and editable draft output
+- [x] Strict AI structured output, CampusOne validation, duplicate context, rate limits, and missing-key handling
 - [x] Teacher-only and student-only quiz route authorization
 - [x] Draft-first quiz creation
 - [x] Strict backend quiz/question validation
@@ -387,10 +390,7 @@ Only open work belongs here. Move an item to the verified feature inventory or r
   Parse supported inbound email webhooks and create `QnaReply` records with a clear email source.
 
 - [ ] **Assignment similarity/plagiarism service**
-  Follow the two-stage design in `AI_IMPLEMENTATION.md`: freeze a closed assignment snapshot, run exact-file/content hashes and lexical checks locally first, then use cached embeddings and optional LLM explanations only for unresolved candidate matches. Results must remain review flags, not automatic misconduct verdicts.
-
-- [ ] **AI quiz generation from prompts with optional course-material context**
-  Follow `AI_IMPLEMENTATION.md`: the teacher prompt is the primary input and course-material selection/upload is optional context. The UI must distinguish prompt-only generation from source-grounded generation, with private source access, cached extraction, strict structured output, deterministic validation, and teacher approval before insertion into a draft quiz.
+  Follow the text-only two-stage design in `AI_IMPLEMENTATION.md`: freeze a closed assignment snapshot, run exact-file/content hashes and lexical checks locally first, then use cached text embeddings and optional LLM explanations only for unresolved candidate matches. Ignore images and mark image-only/no-text files unsupported. Results must remain review flags, not automatic misconduct verdicts.
 
 - [ ] **Advanced quiz monitoring**  
   Optional screen-sharing capture and webcam snapshots with explicit user permission and a defined privacy policy.

@@ -1,8 +1,8 @@
 import prisma from '../prisma/client.js';
-import xlsx from 'xlsx';
 import { notify, notifyMany, TYPE } from '../services/notificationService.js';
 import { getGradingWindowError } from '../utils/gradingWindow.js';
-import { validateQuestions, validateQuizPayload } from '../utils/quizValidation.js';
+import { validateQuizPayload } from '../utils/quizValidation.js';
+import { createQuizImportTemplate, parseQuizQuestionsWorkbook } from '../utils/quizExcel.js';
 
 const quizInclude = {
   offering: {
@@ -247,52 +247,21 @@ export const deleteQuiz = async (req, res) => {
 export const importQuestionsFromExcel = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'Excel file is required' });
-    const wb = xlsx.read(req.file.buffer, { type: 'buffer' });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = xlsx.utils.sheet_to_json(sheet);
-
-    const parsedQuestions = rows.map((row, idx) => {
-      const type = String(row.type || row.Type || 'MCQ').toUpperCase();
-      const questionText = row.questionText || row.question || row.Question || '';
-      const options = [row.option1, row.option2, row.option3, row.option4]
-        .filter((o) => o !== undefined && o !== null && o !== '');
-      const correctRaw = row.correctAnswer ?? row.correct ?? row.Correct;
-      const marks = Number(row.marks ?? row.Marks ?? 1);
-
-      let correctAnswer;
-      if (type === 'MCQ') {
-        // Accept a 1-based index, 0-based index, or option letter.
-        if (typeof correctRaw === 'string' && /^[a-jA-J]$/.test(correctRaw.trim())) {
-          correctAnswer = correctRaw.trim().toLowerCase().charCodeAt(0) - 97;
-        } else {
-          const n = Number(correctRaw);
-          correctAnswer = n >= 1 && n <= options.length ? n - 1 : n;
-        }
-      } else if (type === 'TRUE_FALSE' || type === 'TF') {
-        const v = String(correctRaw).toLowerCase().trim();
-        correctAnswer = (v === 'true' || v === '1' || v === 't') ? 0 : 1;
-      } else {
-        correctAnswer = String(correctRaw ?? '').trim();
-      }
-
-      return {
-        type: type === 'TF' ? 'TRUE_FALSE' : type,
-        questionText: String(questionText),
-        options: type === 'TRUE_FALSE' || type === 'TF' ? ['True', 'False'] : options,
-        correctAnswer,
-        marks,
-        order: idx,
-      };
-    }).filter((q) => q.questionText.trim());
-
-    let questions;
-    try {
-      questions = validateQuestions(parsedQuestions);
-    } catch (error) {
-      return res.status(400).json({ success: false, message: `Invalid Excel data: ${error.message}` });
-    }
+    const questions = parseQuizQuestionsWorkbook(req.file.buffer);
 
     res.json({ success: true, count: questions.length, data: questions });
+  } catch (err) {
+    res.status(400).json({ success: false, message: `Invalid Excel data: ${err.message}` });
+  }
+};
+
+// GET /api/quizzes/import-excel/template — download a workbook matching the importer
+export const downloadQuizImportTemplate = async (req, res) => {
+  try {
+    const buffer = createQuizImportTemplate();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=campusone_quiz_import_template.xlsx');
+    res.send(buffer);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

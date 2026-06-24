@@ -8,6 +8,7 @@ import {
   updateQuiz,
   deleteQuiz,
   importQuestionsFromExcel,
+  downloadQuizImportTemplate,
   getQuizAttempts,
   getAttemptDetail,
   gradeAnswer,
@@ -20,6 +21,7 @@ import {
   submitAttempt,
   getMyAttemptResult,
 } from '../controllers/quizAttemptController.js';
+import { generateAIQuizQuestions } from '../controllers/aiQuizController.js';
 
 const router = express.Router();
 
@@ -47,6 +49,8 @@ router.get('/attempts/:attemptId/result', authenticate, authorize('student'), ge
 // ─── TEACHER routes ──────────────────────────────────────────────────
 router.get('/', authenticate, authorize('teacher'), getQuizzes);
 router.post('/', authenticate, authorize('teacher'), createQuiz);
+router.post('/ai/generate', authenticate, authorize('teacher'), generateAIQuizQuestions);
+router.get('/import-excel/template', authenticate, authorize('teacher'), downloadQuizImportTemplate);
 router.post('/import-excel', authenticate, authorize('teacher'), excelUpload.single('file'), importQuestionsFromExcel);
 router.get('/:id', authenticate, authorize('teacher'), getQuizById);
 router.put('/:id', authenticate, authorize('teacher'), updateQuiz);
