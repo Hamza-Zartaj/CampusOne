@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { protect as authenticate } from '../middleware/auth.js';
+import { protect as authenticate, authorize } from '../middleware/auth.js';
 import {
   getQuizzes,
   getQuizById,
@@ -37,22 +37,22 @@ const excelUpload = multer({
 });
 
 // ─── STUDENT routes (declared before /:id to avoid conflict) ─────────
-router.get('/my', authenticate, getMyQuizzes);
-router.post('/:id/start', authenticate, startAttempt);
-router.put('/attempts/:attemptId/answer', authenticate, saveAnswer);
-router.post('/attempts/:attemptId/violation', authenticate, logViolation);
-router.post('/attempts/:attemptId/submit', authenticate, submitAttempt);
-router.get('/attempts/:attemptId/result', authenticate, getMyAttemptResult);
+router.get('/my', authenticate, authorize('student'), getMyQuizzes);
+router.post('/:id/start', authenticate, authorize('student'), startAttempt);
+router.put('/attempts/:attemptId/answer', authenticate, authorize('student'), saveAnswer);
+router.post('/attempts/:attemptId/violation', authenticate, authorize('student'), logViolation);
+router.post('/attempts/:attemptId/submit', authenticate, authorize('student'), submitAttempt);
+router.get('/attempts/:attemptId/result', authenticate, authorize('student'), getMyAttemptResult);
 
 // ─── TEACHER routes ──────────────────────────────────────────────────
-router.get('/', authenticate, getQuizzes);
-router.post('/', authenticate, createQuiz);
-router.post('/import-excel', authenticate, excelUpload.single('file'), importQuestionsFromExcel);
-router.get('/:id', authenticate, getQuizById);
-router.put('/:id', authenticate, updateQuiz);
-router.delete('/:id', authenticate, deleteQuiz);
-router.get('/:id/attempts', authenticate, getQuizAttempts);
-router.get('/teacher/attempts/:attemptId', authenticate, getAttemptDetail);
-router.put('/answers/:answerId/grade', authenticate, gradeAnswer);
+router.get('/', authenticate, authorize('teacher'), getQuizzes);
+router.post('/', authenticate, authorize('teacher'), createQuiz);
+router.post('/import-excel', authenticate, authorize('teacher'), excelUpload.single('file'), importQuestionsFromExcel);
+router.get('/:id', authenticate, authorize('teacher'), getQuizById);
+router.put('/:id', authenticate, authorize('teacher'), updateQuiz);
+router.delete('/:id', authenticate, authorize('teacher'), deleteQuiz);
+router.get('/:id/attempts', authenticate, authorize('teacher'), getQuizAttempts);
+router.get('/teacher/attempts/:attemptId', authenticate, authorize('teacher'), getAttemptDetail);
+router.put('/answers/:answerId/grade', authenticate, authorize('teacher'), gradeAnswer);
 
 export default router;

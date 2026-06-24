@@ -12,6 +12,13 @@ const STATUS_CONFIG = {
   CLOSED:    { bg: 'bg-slate-50',  text: 'text-slate-700',  label: 'Closed' },
 };
 
+const toDateTimeLocal = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+};
+
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
 // ─── Question Editor ────────────────────────────────────────────────────────
@@ -106,9 +113,9 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
     title: initial?.title ?? '',
     description: initial?.description ?? '',
     durationMinutes: initial?.durationMinutes ?? 30,
-    startAt: initial?.startAt ? new Date(initial.startAt).toISOString().slice(0, 16) : '',
-    endAt: initial?.endAt ? new Date(initial.endAt).toISOString().slice(0, 16) : '',
-    status: initial?.status ?? 'PUBLISHED',
+    startAt: toDateTimeLocal(initial?.startAt),
+    endAt: toDateTimeLocal(initial?.endAt),
+    status: initial?.status ?? 'DRAFT',
     shuffleQuestions: initial?.shuffleQuestions ?? false,
     maxViolations: initial?.maxViolations ?? 3,
     allowReview: initial?.allowReview ?? true,
@@ -166,7 +173,12 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
     }
     setSaving(true);
     try {
-      await onSave({ ...form, questions });
+      await onSave({
+        ...form,
+        startAt: new Date(form.startAt).toISOString(),
+        endAt: new Date(form.endAt).toISOString(),
+        questions,
+      });
     } finally {
       setSaving(false);
     }
@@ -273,7 +285,7 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
               </label>
               <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={form.allowReview} onChange={(e) => set('allowReview', e.target.checked)} />
-                Show answers to students after submit
+                Release answers after the quiz closes
               </label>
             </div>
 

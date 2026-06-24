@@ -637,7 +637,7 @@ model Quiz {
   durationMinutes  Int        @default(30)
   startAt          DateTime
   endAt            DateTime
-  status           QuizStatus @default(PUBLISHED)
+  status           QuizStatus @default(DRAFT)
   shuffleQuestions Boolean    @default(false)
   maxViolations    Int        @default(3)
   allowReview      Boolean    @default(true)
@@ -683,8 +683,9 @@ model QuizAttempt {
   autoGradedScore Float? // sum of MCQ + TRUE_FALSE auto-marks
   manualScore     Float? // sum of teacher-graded SHORT marks
 
-  violations   Int  @default(0)
-  violationLog Json @default("[]") // [{type, at}]
+  violations    Int  @default(0)
+  violationLog  Json @default("[]") // [{type, at}]
+  questionOrder Json @default("[]") // immutable QuizQuestion.id order for this attempt
 
   quiz    Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
   student Student      @relation(fields: [studentId], references: [id])

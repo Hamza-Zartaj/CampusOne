@@ -2,7 +2,7 @@
 
 > **Canonical project tracker and source of truth**
 >
-> Last verified: **June 24, 2026**
+> Last verified: **June 25, 2026**
 >
 > Update this file whenever a feature, architectural rule, known issue, or future task changes. Do not create a separate audit or to-do document.
 
@@ -67,6 +67,7 @@ CampusOne/
 |       `-- utils/         API client, cache, permissions, sockets
 |-- supabase/              Local Supabase configuration
 |-- README.md              Setup and quick-start guide
+|-- AI_IMPLEMENTATION.md   AI quiz and assignment-similarity architecture
 `-- Project_context.md     Canonical tracker and project reference
 ```
 
@@ -190,6 +191,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Assignment CRUD
 - [x] Assignment file upload
 - [x] Student submission and resubmission
+- [x] Teacher Close/Reopen Submissions control with backend enforcement
 - [x] Submission grading and feedback
 - [x] TA self-grading prevention for assignment submissions
 - [x] Attendance batch marking
@@ -201,14 +203,24 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 
 - [x] Quiz and question CRUD
 - [x] Excel question import
+- [x] Teacher-only and student-only quiz route authorization
+- [x] Draft-first quiz creation
+- [x] Strict backend quiz/question validation
+- [x] Atomic quiz question replacement
 - [x] Start and resume attempts
+- [x] Stable per-attempt shuffled question order
 - [x] Answer saving
+- [x] Server-enforced attempt deadlines and automatic expiry submission
+- [x] Final-answer question ownership validation
+- [x] Transactional and idempotent attempt finalization
 - [x] Automatic MCQ and true/false grading
 - [x] Manual answer grading
+- [x] Correct separation of automatic and manual scores
+- [x] Pending-manual-grading result state
 - [x] Tab/window and fullscreen violation tracking
 - [x] Copy, paste, context-menu, and common developer-tool shortcut blocking
 - [x] Violation-based automatic submission
-- [x] Student result review
+- [x] Student result review after quiz closure
 
 ### Q&A, leave, and TA workflows
 
@@ -243,14 +255,17 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 
 ## 7. Verification Snapshot
 
-Checks run on June 24, 2026:
+Checks run through June 25, 2026:
 
 - **Prisma schema:** valid
 - **Prisma Client generation:** passes
+- **Quiz backend syntax checks:** pass
+- **Quiz frontend production build:** passes
+- **Quiz database schema push:** passes; the local database includes draft-first quizzes and persistent attempt question order
 - **Changed backend controller imports and syntax:** pass
 - **Grading-window boundary checks:** pass
 - **Serializable transaction retry check:** passes
-- **Local Supabase database reset and schema push:** passes
+- **Earlier P0 local Supabase reset and seed baseline:** passed before the current Docker shutdown
 - **Seed:** passes with 265 users, 250 students, 331 offerings, 8,195 enrollments, and 100,910 mark cells
 - **Fine uniqueness integration check:** passes; two identical quota-unit inserts persisted as one row and temporary verification data was removed
 - **Local Supabase Storage:** required buckets provisioned after reset
@@ -372,8 +387,10 @@ Only open work belongs here. Move an item to the verified feature inventory or r
   Parse supported inbound email webhooks and create `QnaReply` records with a clear email source.
 
 - [ ] **Assignment similarity/plagiarism service**
+  Follow the two-stage design in `AI_IMPLEMENTATION.md`: freeze a closed assignment snapshot, run exact-file/content hashes and lexical checks locally first, then use cached embeddings and optional LLM explanations only for unresolved candidate matches. Results must remain review flags, not automatic misconduct verdicts.
 
-- [ ] **AI quiz generation from uploaded course material**
+- [ ] **AI quiz generation from prompts with optional course-material context**
+  Follow `AI_IMPLEMENTATION.md`: the teacher prompt is the primary input and course-material selection/upload is optional context. The UI must distinguish prompt-only generation from source-grounded generation, with private source access, cached extraction, strict structured output, deterministic validation, and teacher approval before insertion into a draft quiz.
 
 - [ ] **Advanced quiz monitoring**  
   Optional screen-sharing capture and webcam snapshots with explicit user permission and a defined privacy policy.
@@ -412,6 +429,10 @@ RESEND_FROM=CampusOne <...>
 RESEND_FROM_ANNOUNCEMENT=CampusOne Announcement <...>
 SUPABASE_URL=https://....supabase.co
 SUPABASE_SERVICE_ROLE_KEY=...
+OPENAI_API_KEY=...
+OPENAI_QUIZ_MODEL=gpt-5.4-mini
+OPENAI_CHEAP_MODEL=gpt-5.4-nano
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 ```
 
 Frontend:

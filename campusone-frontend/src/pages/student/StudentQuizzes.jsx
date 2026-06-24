@@ -167,7 +167,10 @@ const QuizTaker = ({ session, onExit, onSubmit }) => {
     try {
       await quizAPI.saveAnswer(attemptId, { questionId, answer });
     } catch (err) {
-      // silent fail; will be persisted on submit
+      if (err.response?.data?.code === 'ATTEMPT_EXPIRED') {
+        submittedRef.current = true;
+        onSubmit(err.response.data.data, true);
+      }
     }
   };
 
@@ -343,6 +346,16 @@ const ResultScreen = ({ attemptId, onClose }) => {
             <div className="text-5xl font-bold text-blue-600">{data.totalScore ?? '—'} <span className="text-2xl text-slate-400">/ {data.totalMarks}</span></div>
             <div className="text-lg text-slate-600 mt-1">{pct}%</div>
           </div>
+          {data.gradingStatus === 'PENDING_MANUAL' && (
+            <div className="mt-4 px-3 py-2 bg-amber-50 text-amber-800 rounded-lg text-sm">
+              This is your auto-graded score. {data.manualPending} short answer(s) are awaiting teacher grading.
+            </div>
+          )}
+          {!data.allowReview && data.reviewAvailableAt && (
+            <p className="mt-4 text-sm text-slate-500">
+              Answer review becomes available after {fmtDateTime(data.reviewAvailableAt)}.
+            </p>
+          )}
           {data.violations > 0 && (
             <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-sm">
               <AlertTriangle size={16} /> {data.violations} violations recorded
@@ -459,6 +472,12 @@ const StudentQuizzes = () => {
       setSession(res.data.data);
       setPreQuiz(null);
     } catch (err) {
+      if (err.response?.data?.code === 'ATTEMPT_EXPIRED' && err.response.data.data?.id) {
+        setPreQuiz(null);
+        setResultId(err.response.data.data.id);
+        load();
+        return;
+      }
       toast.error(err.response?.data?.message || 'Failed to start quiz');
     }
   };
