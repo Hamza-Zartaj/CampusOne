@@ -191,6 +191,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Assignment file upload
 - [x] Student submission and resubmission
 - [x] Submission grading and feedback
+- [x] TA self-grading prevention for assignment submissions
 - [x] Attendance batch marking
 - [x] Attendance sessions and summaries
 - [x] Student attendance view
@@ -217,8 +218,10 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Student leave applications
 - [x] Teacher leave review
 - [x] Leave counters, fines, and automatic enrollment drop logic
+- [x] Database-enforced fine-generation idempotency through stable quota units
 - [x] TA eligibility checks
 - [x] TA application, approval, rejection, and relief
+- [x] Serializable TA approval with active-assignment cap revalidation
 - [x] Offering-scoped TA permissions
 - [x] TA access to attendance, assignment grading, Q&A, and roster operations
 - [x] Student, teacher, and admin TA pages
@@ -232,6 +235,8 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Overview, enrollment, grade, course, trend, admission, and attendance reports
 - [x] Reports protected by `view_reports`
 - [x] Audit-log model, read API, filters, pagination, and admin UI
+- [x] Section transfers are atomic and blocked once section-specific academic activity exists
+- [x] Shared active-term/end-date grading guard across assignment, mark-component, quiz-manual, and enrollment grading
 - [x] Frontend GET cache with mutation invalidation
 - [x] Full and mini seed scripts
 - [x] Database helper scripts for push, reset, seed, super-admin, and Studio
@@ -241,6 +246,16 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 Checks run on June 24, 2026:
 
 - **Prisma schema:** valid
+- **Prisma Client generation:** passes
+- **Changed backend controller imports and syntax:** pass
+- **Grading-window boundary checks:** pass
+- **Serializable transaction retry check:** passes
+- **Local Supabase database reset and schema push:** passes
+- **Seed:** passes with 265 users, 250 students, 331 offerings, 8,195 enrollments, and 100,910 mark cells
+- **Fine uniqueness integration check:** passes; two identical quota-unit inserts persisted as one row and temporary verification data was removed
+- **Local Supabase Storage:** required buckets provisioned after reset
+- **Backend health endpoint:** OK with database connected
+- **Frontend development server:** HTTP 200
 - **Frontend production build:** passes
 - **Frontend build warnings:** main JavaScript bundle is about 955 KB before gzip; API/socket mixed static and dynamic imports prevent useful chunk splitting
 - **Frontend lint:** fails with **88 errors and 17 warnings**
@@ -261,10 +276,10 @@ This table replaces the previous audit document.
 
 | ID | Finding | Status | Current evidence |
 |---:|---|---|---|
-| 1 | TA can grade own assignment submission | Open | `gradeSubmission()` grants TA grading permission without comparing TA student ID to `submission.studentId` |
-| 2 | TA approval can bypass active-assignment cap | Open | Approval does not transactionally recount active assignments |
-| 3 | Fine generation race can create duplicates | Open | Count-then-`createMany` flow has no database uniqueness key |
-| 4 | Section transfer can leave related records on old offering | Open | Transfer updates only `Enrollment.offeringId` |
+| 1 | TA can grade own assignment submission | Resolved | TA graders are rejected when their student ID matches the submission owner |
+| 2 | TA approval can bypass active-assignment cap | Resolved | Approval recounts and updates inside a retrying serializable transaction |
+| 3 | Fine generation race can create duplicates | Resolved | Stable `quotaUnit` values, a composite unique key, conflict-safe creation, and legacy-row backfill are implemented and verified against the local database |
+| 4 | Section transfer can leave related records on old offering | Resolved | Transfer now runs serializably and rejects when grades, marks, attendance, submissions, quiz attempts, leave, or fines exist in either section |
 | 5 | Frontend API URL is hard-coded | Open | `api.js` uses `http://localhost:5000/api` instead of `VITE_API_URL` |
 | 6 | Announcement offering has no foreign key | Open | `Announcement.offeringId` is an indexed string without a Prisma relation |
 | 7 | Old TA assignments count toward active cap | Open | Active count includes every `APPROVED` record without active-term filtering |
@@ -279,7 +294,7 @@ This table replaces the previous audit document.
 | 16 | Attendance TA permission bypass | Resolved | Approved TA plus `MARK_ATTENDANCE` is required |
 | 17 | Q&A TA access/identity ambiguity | Open | TA access does not require enrollment and replies are not clearly marked as TA replies |
 | 18 | Student section-transfer authorization | Resolved | Route requires `manage_offerings` |
-| 19 | Grade changes after term closure | Open | Assignment and enrollment grading paths lack a consistent active-term or grade-window check |
+| 19 | Grade changes after term closure | Resolved | Shared guard requires an active term and an inclusive, unexpired term end date across all identified grading paths |
 | 20 | Announcement delete ownership | Resolved | Creator or admin check exists |
 | 21 | TA review notes have no length limit | Open | Schema and API accept unbounded strings |
 | 22 | Notification delivery reliability | Partial | Database insert and socket emit exist, but delivery is fire-and-forget without retry |
@@ -295,23 +310,6 @@ This table replaces the previous audit document.
 ## 9. Future Tasks
 
 Only open work belongs here. Move an item to the verified feature inventory or resolved audit status when completed.
-
-### P0 - Academic integrity and data consistency
-
-- [ ] **Prevent TA self-grading** (`A1`)  
-  In assignment grading, detect TA graders and reject when the grader's student ID equals the submission student ID.
-
-- [ ] **Make TA approval cap-safe** (`A2`)  
-  Recount active assignments during approval and enforce the maximum inside a transaction or database-safe strategy.
-
-- [ ] **Make fine generation idempotent** (`A3`)  
-  Introduce a stable fine identity/unique key and conflict-safe creation.
-
-- [ ] **Make section transfer transactional** (`A4`)  
-  Define which attendance, leave, fine, submission, quiz, and mark data moves, is rejected, or is preserved. Apply the policy atomically.
-
-- [ ] **Enforce grading windows** (`A19`)  
-  Apply one rule across assignment grading, mark-component updates, quiz manual grading, single enrollment grading, and bulk grading.
 
 ### P1 - Schema and business-rule hardening
 

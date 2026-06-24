@@ -1,6 +1,7 @@
 import prisma from '../prisma/client.js';
 import xlsx from 'xlsx';
 import { notify, notifyMany, TYPE } from '../services/notificationService.js';
+import { getGradingWindowError } from '../utils/gradingWindow.js';
 
 const quizInclude = {
   offering: {
@@ -333,12 +334,29 @@ export const gradeAnswer = async (req, res) => {
       where: { id: req.params.answerId },
       include: {
         question: true,
-        attempt: { include: { quiz: { include: { offering: { select: { teacherId: true } } } } } },
+        attempt: {
+          include: {
+            quiz: {
+              include: {
+                offering: {
+                  select: {
+                    teacherId: true,
+                    term: { select: { code: true, isActive: true, endDate: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
     if (!answer) return res.status(404).json({ success: false, message: 'Answer not found' });
     if (answer.attempt.quiz.offering.teacherId !== teacher.id) {
       return res.status(403).json({ success: false, message: 'Not your quiz' });
+    }
+    const gradingWindowError = getGradingWindowError(answer.attempt.quiz.offering.term);
+    if (gradingWindowError) {
+      return res.status(409).json({ success: false, code: 'GRADE_WINDOW_CLOSED', message: gradingWindowError });
     }
 
     const { marksAwarded, feedback } = req.body;

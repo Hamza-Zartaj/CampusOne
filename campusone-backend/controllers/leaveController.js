@@ -81,7 +81,8 @@ const computeCounter = async ({ studentId, offeringId }) => {
 };
 
 // Generate Fine rows for a student/offering when n is in 4..6 band.
-// Idempotent: skips creation if total fines already match the absent count above the free threshold.
+// Idempotent: quotaUnit is unique per student/offering, so concurrent calls
+// converge on the same generated rows.
 const generateFines = async ({ studentId, offeringId, counter }) => {
   if (counter.band === 'free') return 0;
   // Number of fineable absents = countedAbsent above the free quota, capped at fineQuota - freeQuota
@@ -91,20 +92,39 @@ const generateFines = async ({ studentId, offeringId, counter }) => {
   );
   if (fineable <= 0) return 0;
 
-  const existing = await prisma.fine.count({ where: { studentId, offeringId } });
-  const toCreate = fineable - existing;
-  if (toCreate <= 0) return 0;
+  // Backfill rows created before quotaUnit existed. This keeps db-push
+  // environments safe as well as databases upgraded through the SQL migration.
+  const existingFines = await prisma.fine.findMany({
+    where: { studentId, offeringId },
+    select: { id: true, quotaUnit: true },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+  const usedUnits = new Set(existingFines.map((fine) => fine.quotaUnit).filter((unit) => unit != null));
+  let nextUnit = 1;
+  for (const fine of existingFines.filter((row) => row.quotaUnit == null)) {
+    while (usedUnits.has(nextUnit)) nextUnit += 1;
+    try {
+      await prisma.fine.update({
+        where: { id: fine.id },
+        data: { quotaUnit: nextUnit },
+      });
+      usedUnits.add(nextUnit);
+    } catch (error) {
+      // A concurrent evaluator may have assigned the same unit first.
+      if (error?.code !== 'P2002') throw error;
+    }
+    nextUnit += 1;
+  }
 
-  const rows = [];
-  for (let i = 0; i < toCreate; i++) {
-    rows.push({
+  const rows = Array.from({ length: fineable }, (_, index) => ({
       studentId,
       offeringId,
+      quotaUnit: index + 1,
       reason: `Absent over ${LEAVE_CONFIG.freeQuota}-leave free quota`,
       amount: LEAVE_CONFIG.finePerAbsent,
-    });
-  }
-  await prisma.fine.createMany({ data: rows });
+  }));
+  const created = await prisma.fine.createMany({ data: rows, skipDuplicates: true });
+  if (created.count === 0) return 0;
 
   // Notify student
   const student = await prisma.student.findUnique({ where: { id: studentId }, select: { userId: true } });
@@ -112,12 +132,12 @@ const generateFines = async ({ studentId, offeringId, counter }) => {
     notify({
       userId: student.userId,
       type: 'FINE_ISSUED',
-      title: `Fine issued: PKR ${LEAVE_CONFIG.finePerAbsent * toCreate}`,
+      title: `Fine issued: PKR ${LEAVE_CONFIG.finePerAbsent * created.count}`,
       body: `You have crossed your free leave quota for one of your courses.`,
       linkUrl: '/student/leave-status',
     });
   }
-  return toCreate;
+  return created.count;
 };
 
 // Trigger drop-off if counter goes above fineQuota.

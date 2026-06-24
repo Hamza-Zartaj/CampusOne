@@ -2,8 +2,9 @@ import prisma from '../prisma/client.js';
 import { uploadToStorage, deleteFromStorage, pathFromUrl } from '../utils/supabaseStorage.js';
 import { v4 as uuidv4 } from 'uuid';
 import { notify, notifyMany, TYPE } from '../services/notificationService.js';
+import { getGradingWindowError } from '../utils/gradingWindow.js';
 
-const BUCKET = 'Assignments';
+const BUCKET = 'assignments';
 
 const assignmentInclude = {
   offering: {
@@ -270,12 +271,25 @@ export const gradeSubmission = async (req, res) => {
   try {
     const submission = await prisma.submission.findUnique({
       where: { id: req.params.id },
-      include: { assignment: { include: { offering: { select: { id: true, teacherId: true } } } } },
+      include: {
+        assignment: {
+          include: {
+            offering: {
+              select: {
+                id: true,
+                teacherId: true,
+                term: { select: { code: true, isActive: true, endDate: true } },
+              },
+            },
+          },
+        },
+      },
     });
     if (!submission) return res.status(404).json({ success: false, message: 'Submission not found' });
 
     let graderId = null; // teacher.id, student.id (TA), or user.id (admin)
     let allowed = false;
+    let isTAGrader = false;
     if (req.user.role === 'admin') { allowed = true; graderId = req.user.id; }
     if (!allowed && req.user.role === 'teacher') {
       const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
@@ -290,11 +304,21 @@ export const gradeSubmission = async (req, res) => {
           where: { studentId_offeringId: { studentId: student.id, offeringId: submission.assignment.offering.id } },
         });
         if (ta && ta.status === 'APPROVED' && ta.permissions.includes('GRADE_ASSIGNMENTS')) {
-          allowed = true; graderId = student.id;
+          allowed = true;
+          isTAGrader = true;
+          graderId = student.id;
         }
       }
     }
     if (!allowed) return res.status(403).json({ success: false, message: 'Not authorised to grade this submission' });
+    if (isTAGrader && graderId === submission.studentId) {
+      return res.status(403).json({ success: false, message: 'Teaching assistants cannot grade their own submissions' });
+    }
+
+    const gradingWindowError = getGradingWindowError(submission.assignment.offering.term);
+    if (gradingWindowError) {
+      return res.status(409).json({ success: false, code: 'GRADE_WINDOW_CLOSED', message: gradingWindowError });
+    }
 
     const { obtainedMarks, feedback } = req.body;
     const updated = await prisma.submission.update({
