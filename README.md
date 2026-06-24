@@ -10,7 +10,7 @@ A modern university Learning & Campus Management System built with Node.js, Reac
 **Frontend:** React 19 · Vite 7 · Tailwind CSS 4 · React Router DOM 7
 **Auth:** JWT + MFA (TOTP authenticator + Email OTP)
 **File Storage:** Supabase Storage
-**Email:** Nodemailer + Gmail SMTP _(migrating to Resend)_
+**Email:** Resend
 
 ---
 
@@ -97,4 +97,4 @@ CampusOne/
 
 ## Documentation
 
-See [ToDoList.md](./ToDoList.md) for full feature list, completion status, and roadmap.
+See [Project_context.md](./Project_context.md) for the verified feature inventory, architecture, audit status, and future work. It is the project's canonical tracker and source of truth.
