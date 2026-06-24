@@ -368,6 +368,13 @@ export const submitAssignment = async (req, res) => {
     const assignment = await prisma.assignment.findUnique({ where: { id: req.params.id } });
     if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
     if (assignment.status === 'DRAFT') return res.status(400).json({ success: false, message: 'Assignment not published yet' });
+    if (assignment.status === 'CLOSED') {
+      return res.status(409).json({
+        success: false,
+        code: 'SUBMISSIONS_CLOSED',
+        message: 'Submissions have been closed by the teacher',
+      });
+    }
 
     const isLate = new Date() > new Date(assignment.dueDate);
     if (isLate && !assignment.allowLate) {

@@ -3,6 +3,7 @@ import {
   FileText, Plus, Search, Calendar, Clock, Users,
   CheckCircle, AlertCircle, ChevronDown, ChevronUp,
   Edit3, Trash2, Eye, Download, X, Loader2, Award,
+  Lock, LockOpen,
 } from 'lucide-react';
 import { assignmentAPI, offeringAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
@@ -290,6 +291,7 @@ const TeacherAssignments = () => {
   const [editTarget, setEditTarget] = useState(null);
   const [submissionsFor, setSubmissionsFor] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [changingStatusId, setChangingStatusId] = useState(null);
 
   const loadAssignments = useCallback(async () => {
     try {
@@ -334,6 +336,24 @@ const TeacherAssignments = () => {
       toast.error('Delete failed');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleSubmissionStatus = async (assignment) => {
+    const closing = assignment.status !== 'CLOSED';
+    if (closing && !window.confirm('Close submissions now? Students will no longer be able to submit or resubmit.')) return;
+
+    setChangingStatusId(assignment.id);
+    try {
+      const formData = new FormData();
+      formData.append('status', closing ? 'CLOSED' : 'PUBLISHED');
+      await assignmentAPI.update(assignment.id, formData);
+      toast.success(closing ? 'Submissions closed' : 'Submissions reopened');
+      await loadAssignments();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update submission status');
+    } finally {
+      setChangingStatusId(null);
     }
   };
 
@@ -474,6 +494,22 @@ const TeacherAssignments = () => {
                         className="inline-flex items-center gap-1.5 py-2 px-4 border border-gray-200 rounded-lg text-sm font-medium bg-white text-slate-700 hover:bg-slate-50">
                         <Edit3 size={16} /> Edit
                       </button>
+                      {a.status !== 'DRAFT' && (
+                        <button
+                          onClick={() => handleSubmissionStatus(a)}
+                          disabled={changingStatusId === a.id}
+                          className={`inline-flex items-center gap-1.5 py-2 px-4 border rounded-lg text-sm font-medium bg-white disabled:opacity-50 ${
+                            a.status === 'CLOSED'
+                              ? 'border-green-200 text-green-700 hover:bg-green-50'
+                              : 'border-amber-200 text-amber-700 hover:bg-amber-50'
+                          }`}
+                        >
+                          {changingStatusId === a.id
+                            ? <Loader2 size={14} className="animate-spin" />
+                            : a.status === 'CLOSED' ? <LockOpen size={16} /> : <Lock size={16} />}
+                          {a.status === 'CLOSED' ? 'Reopen Submissions' : 'Close Submissions'}
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDelete(a.id)}
                         disabled={deletingId === a.id}

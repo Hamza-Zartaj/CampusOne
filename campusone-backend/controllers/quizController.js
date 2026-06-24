@@ -2,6 +2,7 @@ import prisma from '../prisma/client.js';
 import xlsx from 'xlsx';
 import { notify, notifyMany, TYPE } from '../services/notificationService.js';
 import { getGradingWindowError } from '../utils/gradingWindow.js';
+import { validateQuestions, validateQuizPayload } from '../utils/quizValidation.js';
 
 const quizInclude = {
   offering: {
@@ -42,19 +43,15 @@ export const getQuizzes = async (req, res) => {
     const { offeringId } = req.query;
     const where = {};
 
-    if (req.user.role === 'teacher') {
-      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
-      if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
+    const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+    if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
 
-      if (offeringId) {
-        const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher.id } });
-        if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
-        where.offeringId = offeringId;
-      } else {
-        where.offering = { teacherId: teacher.id };
-      }
-    } else if (offeringId) {
+    if (offeringId) {
+      const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher.id } });
+      if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
       where.offeringId = offeringId;
+    } else {
+      where.offering = { teacherId: teacher.id };
     }
 
     const quizzes = await prisma.quiz.findMany({
@@ -80,13 +77,12 @@ export const getQuizById = async (req, res) => {
     });
     if (!quiz) return res.status(404).json({ success: false, message: 'Quiz not found' });
 
-    if (req.user.role === 'teacher') {
-      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
-      if (quiz.offering && quiz.offering.id) {
-        const owns = await prisma.courseOffering.findFirst({ where: { id: quiz.offering.id, teacherId: teacher?.id } });
-        if (!owns) return res.status(403).json({ success: false, message: 'Not your quiz' });
-      }
-    }
+    const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+    const owns = teacher && await prisma.courseOffering.findFirst({
+      where: { id: quiz.offeringId, teacherId: teacher.id },
+      select: { id: true },
+    });
+    if (!owns) return res.status(403).json({ success: false, message: 'Not your quiz' });
 
     res.json({ success: true, data: quiz });
   } catch (err) {
@@ -97,39 +93,36 @@ export const getQuizById = async (req, res) => {
 // POST /api/quizzes
 export const createQuiz = async (req, res) => {
   try {
-    const { offeringId, title, description, durationMinutes, startAt, endAt, status, shuffleQuestions, maxViolations, allowReview, questions } = req.body;
-    if (!offeringId || !title || !startAt || !endAt) {
+    const { offeringId } = req.body;
+    if (!offeringId || !req.body.title || !req.body.startAt || !req.body.endAt) {
       return res.status(400).json({ success: false, message: 'offeringId, title, startAt, endAt are required' });
     }
 
     const check = await verifyTeacherOwnsOffering(req.user.id, offeringId);
     if (check.error) return res.status(check.status).json({ success: false, message: check.error });
 
-    const totalMarks = (questions || []).reduce((s, q) => s + (Number(q.marks) || 0), 0);
+    let validated;
+    try {
+      validated = validateQuizPayload(req.body);
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    const totalMarks = validated.questions.reduce((sum, question) => sum + question.marks, 0);
 
     const quiz = await prisma.quiz.create({
       data: {
         offeringId,
-        title,
-        description: description || null,
-        durationMinutes: durationMinutes ? +durationMinutes : 30,
-        startAt: new Date(startAt),
-        endAt: new Date(endAt),
-        status: status || 'PUBLISHED',
-        shuffleQuestions: !!shuffleQuestions,
-        maxViolations: maxViolations !== undefined ? +maxViolations : 3,
-        allowReview: allowReview !== undefined ? !!allowReview : true,
+        title: validated.title,
+        description: validated.description ?? null,
+        durationMinutes: validated.durationMinutes ?? 30,
+        startAt: validated.startAt,
+        endAt: validated.endAt,
+        status: validated.status || 'DRAFT',
+        shuffleQuestions: validated.shuffleQuestions ?? false,
+        maxViolations: validated.maxViolations ?? 3,
+        allowReview: validated.allowReview ?? true,
         totalMarks,
-        questions: questions && questions.length > 0 ? {
-          create: questions.map((q, idx) => ({
-            type: q.type,
-            questionText: q.questionText,
-            options: q.options || [],
-            correctAnswer: q.correctAnswer,
-            marks: Number(q.marks) || 1,
-            order: q.order !== undefined ? q.order : idx,
-          })),
-        } : undefined,
+        questions: { create: validated.questions },
       },
       include: { ...quizInclude, questions: { orderBy: { order: 'asc' } } },
     });
@@ -165,50 +158,70 @@ export const updateQuiz = async (req, res) => {
     const check = await verifyTeacherOwnsQuiz(req.user.id, req.params.id);
     if (check.error) return res.status(check.status).json({ success: false, message: check.error });
 
-    const { title, description, durationMinutes, startAt, endAt, status, shuffleQuestions, maxViolations, allowReview, questions } = req.body;
+    let validated;
+    try {
+      validated = validateQuizPayload(req.body, { partial: true });
+      const prospectiveStart = validated.startAt || check.quiz.startAt;
+      const prospectiveEnd = validated.endAt || check.quiz.endAt;
+      if (prospectiveEnd <= prospectiveStart) throw new Error('endAt must be after startAt');
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
 
     // Block question edits after any attempt has started
-    if (questions) {
+    if (validated.questions) {
       const attemptCount = await prisma.quizAttempt.count({ where: { quizId: req.params.id } });
       if (attemptCount > 0) {
         return res.status(400).json({ success: false, message: 'Cannot modify questions after students have attempted' });
       }
     }
 
-    const totalMarks = questions ? questions.reduce((s, q) => s + (Number(q.marks) || 0), 0) : undefined;
+    const totalMarks = validated.questions
+      ? validated.questions.reduce((sum, question) => sum + question.marks, 0)
+      : undefined;
 
     const data = {
-      title: title ?? undefined,
-      description: description !== undefined ? description : undefined,
-      durationMinutes: durationMinutes !== undefined ? +durationMinutes : undefined,
-      startAt: startAt ? new Date(startAt) : undefined,
-      endAt: endAt ? new Date(endAt) : undefined,
-      status: status ?? undefined,
-      shuffleQuestions: shuffleQuestions !== undefined ? !!shuffleQuestions : undefined,
-      maxViolations: maxViolations !== undefined ? +maxViolations : undefined,
-      allowReview: allowReview !== undefined ? !!allowReview : undefined,
+      title: validated.title,
+      description: validated.description,
+      durationMinutes: validated.durationMinutes,
+      startAt: validated.startAt,
+      endAt: validated.endAt,
+      status: validated.status,
+      shuffleQuestions: validated.shuffleQuestions,
+      maxViolations: validated.maxViolations,
+      allowReview: validated.allowReview,
       totalMarks,
     };
 
-    if (questions) {
-      await prisma.quizQuestion.deleteMany({ where: { quizId: req.params.id } });
+    if (validated.questions) {
       data.questions = {
-        create: questions.map((q, idx) => ({
-          type: q.type,
-          questionText: q.questionText,
-          options: q.options || [],
-          correctAnswer: q.correctAnswer,
-          marks: Number(q.marks) || 1,
-          order: q.order !== undefined ? q.order : idx,
-        })),
+        deleteMany: {},
+        create: validated.questions,
       };
     }
 
-    const quiz = await prisma.quiz.update({
+    const quiz = await prisma.$transaction((tx) => tx.quiz.update({
       where: { id: req.params.id },
       data,
       include: { ...quizInclude, questions: { orderBy: { order: 'asc' } } },
-    });
+    }));
+
+    if (check.quiz.status !== 'PUBLISHED' && quiz.status === 'PUBLISHED') {
+      (async () => {
+        const enrollments = await prisma.enrollment.findMany({
+          where: { offeringId: quiz.offeringId, status: 'ENROLLED' },
+          select: { student: { select: { userId: true } } },
+        });
+        notifyMany({
+          userIds: enrollments.map((entry) => entry.student?.userId).filter(Boolean),
+          type: TYPE.QUIZ_NEW,
+          title: `New quiz: ${quiz.title}`,
+          body: `${quiz.offering?.course?.code || ''} · Opens ${new Date(quiz.startAt).toLocaleString()}`,
+          linkUrl: '/student/quizzes',
+          metadata: { quizId: quiz.id, offeringId: quiz.offeringId },
+        });
+      })();
+    }
 
     res.json({ success: true, data: quiz });
   } catch (err) {
@@ -238,7 +251,7 @@ export const importQuestionsFromExcel = async (req, res) => {
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const rows = xlsx.utils.sheet_to_json(sheet);
 
-    const questions = rows.map((row, idx) => {
+    const parsedQuestions = rows.map((row, idx) => {
       const type = String(row.type || row.Type || 'MCQ').toUpperCase();
       const questionText = row.questionText || row.question || row.Question || '';
       const options = [row.option1, row.option2, row.option3, row.option4]
@@ -248,12 +261,12 @@ export const importQuestionsFromExcel = async (req, res) => {
 
       let correctAnswer;
       if (type === 'MCQ') {
-        // accept 1-based index, 0-based, or letter (a/b/c/d)
-        if (typeof correctRaw === 'string' && /^[a-dA-D]$/.test(correctRaw.trim())) {
+        // Accept a 1-based index, 0-based index, or option letter.
+        if (typeof correctRaw === 'string' && /^[a-jA-J]$/.test(correctRaw.trim())) {
           correctAnswer = correctRaw.trim().toLowerCase().charCodeAt(0) - 97;
         } else {
           const n = Number(correctRaw);
-          correctAnswer = n >= 1 && n <= 4 ? n - 1 : n;
+          correctAnswer = n >= 1 && n <= options.length ? n - 1 : n;
         }
       } else if (type === 'TRUE_FALSE' || type === 'TF') {
         const v = String(correctRaw).toLowerCase().trim();
@@ -267,10 +280,17 @@ export const importQuestionsFromExcel = async (req, res) => {
         questionText: String(questionText),
         options: type === 'TRUE_FALSE' || type === 'TF' ? ['True', 'False'] : options,
         correctAnswer,
-        marks: isNaN(marks) ? 1 : marks,
+        marks,
         order: idx,
       };
-    }).filter((q) => q.questionText);
+    }).filter((q) => q.questionText.trim());
+
+    let questions;
+    try {
+      questions = validateQuestions(parsedQuestions);
+    } catch (error) {
+      return res.status(400).json({ success: false, message: `Invalid Excel data: ${error.message}` });
+    }
 
     res.json({ success: true, count: questions.length, data: questions });
   } catch (err) {
@@ -311,11 +331,9 @@ export const getAttemptDetail = async (req, res) => {
     });
     if (!attempt) return res.status(404).json({ success: false, message: 'Attempt not found' });
 
-    if (req.user.role === 'teacher') {
-      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
-      if (attempt.quiz.offering.teacherId !== teacher?.id) {
-        return res.status(403).json({ success: false, message: 'Not your quiz' });
-      }
+    const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+    if (attempt.quiz.offering.teacherId !== teacher?.id) {
+      return res.status(403).json({ success: false, message: 'Not your quiz' });
     }
 
     res.json({ success: true, data: attempt });
@@ -359,24 +377,49 @@ export const gradeAnswer = async (req, res) => {
       return res.status(409).json({ success: false, code: 'GRADE_WINDOW_CLOSED', message: gradingWindowError });
     }
 
-    const { marksAwarded, feedback } = req.body;
-    const marks = Math.max(0, Math.min(answer.question.marks, +marksAwarded || 0));
+    if (answer.question.type !== 'SHORT') {
+      return res.status(400).json({ success: false, message: 'Only short answers can be graded manually' });
+    }
 
-    await prisma.quizAnswer.update({
-      where: { id: req.params.answerId },
-      data: {
-        marksAwarded: marks,
-        isCorrect: marks > 0,
-        feedback: feedback ?? null,
-      },
-    });
+    const requestedMarks = Number(req.body.marksAwarded);
+    if (!Number.isFinite(requestedMarks) || requestedMarks < 0 || requestedMarks > answer.question.marks) {
+      return res.status(400).json({
+        success: false,
+        message: `marksAwarded must be between 0 and ${answer.question.marks}`,
+      });
+    }
+    const feedback = req.body.feedback === undefined ? null : String(req.body.feedback).trim().slice(0, 4000);
 
-    // Recompute attempt totals
-    const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: answer.attemptId } });
-    const total = allAnswers.reduce((s, a) => s + (a.marksAwarded || 0), 0);
-    const updated = await prisma.quizAttempt.update({
-      where: { id: answer.attemptId },
-      data: { totalScore: total, manualScore: allAnswers.filter((a) => a.id === answer.id ? true : a.marksAwarded > 0).reduce((s, a) => s + a.marksAwarded, 0) },
+    const { updated, total, manualPending } = await prisma.$transaction(async (tx) => {
+      await tx.quizAnswer.update({
+        where: { id: req.params.answerId },
+        data: {
+          marksAwarded: requestedMarks,
+          isCorrect: requestedMarks === answer.question.marks,
+          feedback: feedback || null,
+        },
+      });
+
+      const allAnswers = await tx.quizAnswer.findMany({
+        where: { attemptId: answer.attemptId },
+        include: { question: { select: { type: true } } },
+      });
+      const autoScore = allAnswers
+        .filter((entry) => entry.question.type !== 'SHORT')
+        .reduce((sum, entry) => sum + (entry.marksAwarded || 0), 0);
+      const manualScore = allAnswers
+        .filter((entry) => entry.question.type === 'SHORT' && entry.isCorrect !== null)
+        .reduce((sum, entry) => sum + (entry.marksAwarded || 0), 0);
+      const pending = allAnswers.filter(
+        (entry) => entry.question.type === 'SHORT' && entry.isCorrect === null
+      ).length;
+      const totalScore = autoScore + manualScore;
+      const attemptUpdate = await tx.quizAttempt.update({
+        where: { id: answer.attemptId },
+        data: { autoGradedScore: autoScore, manualScore, totalScore },
+      });
+
+      return { updated: attemptUpdate, total: totalScore, manualPending: pending };
     });
 
     // Notify the student
@@ -390,14 +433,23 @@ export const gradeAnswer = async (req, res) => {
           userId: attempt.student.userId,
           type: TYPE.QUIZ_GRADED,
           title: `Quiz graded: ${attempt.quiz.title}`,
-          body: `${total} / ${attempt.quiz.totalMarks}`,
+          body: manualPending > 0
+            ? `${total} / ${attempt.quiz.totalMarks} so far · ${manualPending} answer(s) pending`
+            : `${total} / ${attempt.quiz.totalMarks}`,
           linkUrl: '/student/quizzes',
           metadata: { quizId: attempt.quiz.id, attemptId: attempt.id },
         });
       }
     })();
 
-    res.json({ success: true, data: updated });
+    res.json({
+      success: true,
+      data: {
+        ...updated,
+        gradingStatus: manualPending > 0 ? 'PENDING_MANUAL' : 'FINAL',
+        manualPending,
+      },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

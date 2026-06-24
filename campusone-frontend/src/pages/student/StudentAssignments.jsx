@@ -217,7 +217,8 @@ const StudentAssignments = () => {
             const sc = STATUS_CONFIG[displayStatus];
             const StatusIcon = sc.Icon;
             const sub = a.submissions?.[0];
-            const canSubmit = a.status !== 'DRAFT' && (a.status !== 'CLOSED' || a.allowLate);
+            const isPastDue = new Date() > new Date(a.dueDate);
+            const canSubmit = a.status === 'PUBLISHED' && (!isPastDue || a.allowLate);
 
             return (
               <div key={a.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -305,8 +306,10 @@ const StudentAssignments = () => {
                         <Upload size={18} /> {sub ? 'Update Submission' : 'Submit Assignment'}
                       </button>
                     )}
-                    {a.status === 'CLOSED' && !a.allowLate && !sub && (
-                      <p className="text-sm text-red-600 font-medium">Deadline passed — submissions closed</p>
+                    {a.status === 'CLOSED' && (
+                      <p className="text-sm text-red-600 font-medium">
+                        Submissions and resubmissions have been closed by the teacher.
+                      </p>
                     )}
                   </div>
                 )}

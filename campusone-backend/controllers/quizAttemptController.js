@@ -19,15 +19,43 @@ const autoGrade = (question, submittedAnswer) => {
   return { isCorrect, marksAwarded: isCorrect ? question.marks : 0 };
 };
 
+const normalizeAnswer = (question, answer) => {
+  if (answer === null || answer === undefined || answer === '') return null;
+  if (question.type === 'SHORT') {
+    const value = String(answer).trim();
+    if (value.length > 10_000) throw new Error('Short answer exceeds the 10,000 character limit');
+    return value || null;
+  }
+
+  const value = Number(answer);
+  const options = Array.isArray(question.options) ? question.options : [];
+  if (!Number.isInteger(value) || value < 0 || value >= options.length) {
+    throw new Error('Invalid answer option');
+  }
+  return value;
+};
+
+const shuffled = (values) => {
+  const copy = [...values];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[randomIndex]] = [copy[randomIndex], copy[index]];
+  }
+  return copy;
+};
+
 const isQuizOpen = (quiz) => {
   const now = new Date();
   return quiz.status === 'PUBLISHED' && now >= new Date(quiz.startAt) && now <= new Date(quiz.endAt);
 };
 
+const getAttemptDeadline = (attempt) => new Date(Math.min(
+  new Date(attempt.startedAt).getTime() + attempt.quiz.durationMinutes * 60_000,
+  new Date(attempt.quiz.endAt).getTime()
+));
+
 const isAttemptExpired = (attempt) => {
-  const deadline = new Date(attempt.startedAt).getTime() + attempt.quiz.durationMinutes * 60_000;
-  const quizEnd = new Date(attempt.quiz.endAt).getTime();
-  return Date.now() >= Math.min(deadline, quizEnd);
+  return Date.now() >= getAttemptDeadline(attempt).getTime();
 };
 
 // ─── STUDENT ENDPOINTS ────────────────────────────────────────────────────────
@@ -86,10 +114,6 @@ export const startAttempt = async (req, res) => {
     });
     if (!enrolled) return res.status(403).json({ success: false, message: 'Not enrolled in this course' });
 
-    if (!isQuizOpen(quiz)) {
-      return res.status(400).json({ success: false, message: 'Quiz is not currently open' });
-    }
-
     let attempt = await prisma.quizAttempt.findUnique({
       where: { quizId_studentId: { quizId: quiz.id, studentId: student.id } },
     });
@@ -98,16 +122,43 @@ export const startAttempt = async (req, res) => {
       return res.status(400).json({ success: false, message: 'You have already submitted this quiz' });
     }
 
-    if (!attempt) {
-      attempt = await prisma.quizAttempt.create({
-        data: { quizId: quiz.id, studentId: student.id, status: 'IN_PROGRESS' },
+    if (attempt && isAttemptExpired({ ...attempt, quiz })) {
+      const finalized = await finalizeAttempt(attempt.id, 'AUTO_SUBMITTED');
+      return res.status(409).json({
+        success: false,
+        code: 'ATTEMPT_EXPIRED',
+        message: 'This quiz attempt has expired and was submitted automatically',
+        data: finalized,
       });
     }
 
-    let questions = quiz.questions.map(sanitizeQuestion);
-    if (quiz.shuffleQuestions) {
-      questions = [...questions].sort(() => Math.random() - 0.5);
+    if (!isQuizOpen(quiz)) {
+      return res.status(400).json({ success: false, message: 'Quiz is not currently open' });
     }
+
+    if (!attempt) {
+      const questionOrder = quiz.shuffleQuestions
+        ? shuffled(quiz.questions.map((question) => question.id))
+        : quiz.questions.map((question) => question.id);
+      attempt = await prisma.quizAttempt.create({
+        data: { quizId: quiz.id, studentId: student.id, status: 'IN_PROGRESS', questionOrder },
+      });
+    }
+
+    let questionOrder = Array.isArray(attempt.questionOrder) ? attempt.questionOrder : [];
+    if (questionOrder.length !== quiz.questions.length) {
+      questionOrder = quiz.shuffleQuestions
+        ? shuffled(quiz.questions.map((question) => question.id))
+        : quiz.questions.map((question) => question.id);
+      attempt = await prisma.quizAttempt.update({
+        where: { id: attempt.id },
+        data: { questionOrder },
+      });
+    }
+    const orderIndex = new Map(questionOrder.map((questionId, index) => [questionId, index]));
+    const questions = quiz.questions
+      .map(sanitizeQuestion)
+      .sort((left, right) => (orderIndex.get(left.id) ?? left.order) - (orderIndex.get(right.id) ?? right.order));
 
     // Load any saved answers
     const savedAnswers = await prisma.quizAnswer.findMany({
@@ -115,12 +166,7 @@ export const startAttempt = async (req, res) => {
       select: { questionId: true, answer: true },
     });
 
-    const deadline = new Date(
-      Math.min(
-        new Date(attempt.startedAt).getTime() + quiz.durationMinutes * 60_000,
-        new Date(quiz.endAt).getTime()
-      )
-    );
+    const deadline = getAttemptDeadline({ ...attempt, quiz });
 
     res.json({
       success: true,
@@ -161,6 +207,15 @@ export const saveAnswer = async (req, res) => {
     if (!attempt) return res.status(404).json({ success: false, message: 'Attempt not found' });
     if (attempt.studentId !== student.id) return res.status(403).json({ success: false, message: 'Not your attempt' });
     if (attempt.status !== 'IN_PROGRESS') return res.status(400).json({ success: false, message: 'Attempt already submitted' });
+    if (isAttemptExpired(attempt)) {
+      const finalized = await finalizeAttempt(attempt.id, 'AUTO_SUBMITTED');
+      return res.status(409).json({
+        success: false,
+        code: 'ATTEMPT_EXPIRED',
+        message: 'The deadline passed; your saved work was submitted automatically',
+        data: finalized,
+      });
+    }
 
     const { questionId, answer } = req.body;
     if (!questionId) return res.status(400).json({ success: false, message: 'questionId required' });
@@ -170,10 +225,17 @@ export const saveAnswer = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid question' });
     }
 
+    let normalizedAnswer;
+    try {
+      normalizedAnswer = normalizeAnswer(question, answer);
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+
     await prisma.quizAnswer.upsert({
       where: { attemptId_questionId: { attemptId: attempt.id, questionId } },
-      create: { attemptId: attempt.id, questionId, answer },
-      update: { answer },
+      create: { attemptId: attempt.id, questionId, answer: normalizedAnswer },
+      update: { answer: normalizedAnswer },
     });
 
     res.json({ success: true });
@@ -195,6 +257,13 @@ export const logViolation = async (req, res) => {
     if (!attempt) return res.status(404).json({ success: false, message: 'Attempt not found' });
     if (attempt.studentId !== student.id) return res.status(403).json({ success: false, message: 'Not your attempt' });
     if (attempt.status !== 'IN_PROGRESS') return res.json({ success: true, data: { autoSubmitted: false } });
+    if (isAttemptExpired(attempt)) {
+      const finalized = await finalizeAttempt(attempt.id, 'AUTO_SUBMITTED');
+      return res.json({
+        success: true,
+        data: { autoSubmitted: true, expired: true, totalScore: finalized.totalScore },
+      });
+    }
 
     const { type } = req.body;
     const log = Array.isArray(attempt.violationLog) ? attempt.violationLog : [];
@@ -233,74 +302,124 @@ export const submitAttempt = async (req, res) => {
     if (attempt.studentId !== student.id) return res.status(403).json({ success: false, message: 'Not your attempt' });
     if (attempt.status !== 'IN_PROGRESS') return res.status(400).json({ success: false, message: 'Already submitted' });
 
-    // Optionally accept final answers payload
     const { answers } = req.body;
-    if (Array.isArray(answers)) {
-      for (const a of answers) {
-        if (!a.questionId) continue;
-        await prisma.quizAnswer.upsert({
-          where: { attemptId_questionId: { attemptId: attempt.id, questionId: a.questionId } },
-          create: { attemptId: attempt.id, questionId: a.questionId, answer: a.answer },
-          update: { answer: a.answer },
-        });
-      }
+    if (answers !== undefined && !Array.isArray(answers)) {
+      return res.status(400).json({ success: false, message: 'answers must be an array' });
     }
 
-    const finalized = await finalizeAttempt(attempt.id, 'SUBMITTED');
-    res.json({ success: true, data: finalized });
+    const expired = isAttemptExpired(attempt);
+    const finalized = await finalizeAttempt(
+      attempt.id,
+      expired ? 'AUTO_SUBMITTED' : 'SUBMITTED',
+      {},
+      expired ? [] : (answers || [])
+    );
+    res.json({ success: true, data: { ...finalized, expired } });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    const status = err.message?.startsWith('Invalid question') || err.message?.startsWith('Invalid answer')
+      || err.message?.includes('character limit') ? 400 : 500;
+    res.status(status).json({ success: false, message: err.message });
   }
 };
 
 // Internal: grade all auto-gradable answers and compute totals
-const finalizeAttempt = async (attemptId, status, extra = {}) => {
-  const attempt = await prisma.quizAttempt.findUnique({
-    where: { id: attemptId },
-    include: { quiz: { include: { questions: true } }, answers: true },
-  });
+const finalizeAttempt = async (attemptId, status, extra = {}, finalAnswers = []) => {
+  return prisma.$transaction(async (tx) => {
+    const attempt = await tx.quizAttempt.findUnique({
+      where: { id: attemptId },
+      include: { quiz: { include: { questions: true } }, answers: true },
+    });
+    if (!attempt) throw new Error('Attempt not found');
+    if (attempt.status !== 'IN_PROGRESS') return attempt;
 
-  let autoScore = 0;
-  let manualPending = 0;
-  let needsManualGrading = false;
-
-  for (const question of attempt.quiz.questions) {
-    const ans = attempt.answers.find((a) => a.questionId === question.id);
-    if (question.type === 'SHORT') {
-      needsManualGrading = true;
-      continue;
+    const claimed = await tx.quizAttempt.updateMany({
+      where: { id: attemptId, status: 'IN_PROGRESS' },
+      data: { status, submittedAt: new Date() },
+    });
+    if (claimed.count === 0) {
+      return tx.quizAttempt.findUnique({ where: { id: attemptId } });
     }
-    const submitted = ans?.answer;
-    const { isCorrect, marksAwarded } = autoGrade(question, submitted);
-    autoScore += marksAwarded;
 
-    if (ans) {
-      await prisma.quizAnswer.update({
-        where: { id: ans.id },
-        data: { isCorrect, marksAwarded },
+    const questionsById = new Map(attempt.quiz.questions.map((question) => [question.id, question]));
+    const answersByQuestion = new Map(attempt.answers.map((answer) => [answer.questionId, answer]));
+
+    for (const submitted of finalAnswers) {
+      if (!submitted?.questionId || !questionsById.has(submitted.questionId)) {
+        throw new Error('Invalid question in final answers');
+      }
+      const question = questionsById.get(submitted.questionId);
+      const answer = normalizeAnswer(question, submitted.answer);
+      const saved = await tx.quizAnswer.upsert({
+        where: { attemptId_questionId: { attemptId, questionId: question.id } },
+        create: { attemptId, questionId: question.id, answer },
+        update: { answer },
       });
-    } else {
-      await prisma.quizAnswer.create({
-        data: { attemptId: attempt.id, questionId: question.id, answer: null, isCorrect: false, marksAwarded: 0 },
-      });
+      answersByQuestion.set(question.id, saved);
     }
-  }
 
-  const totalScore = needsManualGrading ? autoScore : autoScore;
+    let autoScore = 0;
+    let manualPending = 0;
+    for (const question of attempt.quiz.questions) {
+      const savedAnswer = answersByQuestion.get(question.id);
+      if (question.type === 'SHORT') {
+        manualPending += 1;
+        if (!savedAnswer) {
+          const created = await tx.quizAnswer.create({
+            data: {
+              attemptId,
+              questionId: question.id,
+              answer: null,
+              isCorrect: null,
+              marksAwarded: 0,
+            },
+          });
+          answersByQuestion.set(question.id, created);
+        } else {
+          await tx.quizAnswer.update({
+            where: { id: savedAnswer.id },
+            data: { isCorrect: null, marksAwarded: 0 },
+          });
+        }
+        continue;
+      }
 
-  const updated = await prisma.quizAttempt.update({
-    where: { id: attemptId },
-    data: {
-      status,
-      submittedAt: new Date(),
-      autoGradedScore: autoScore,
-      manualScore: 0,
-      totalScore,
-      ...extra,
-    },
+      const grade = autoGrade(question, savedAnswer?.answer);
+      autoScore += grade.marksAwarded;
+      if (savedAnswer) {
+        await tx.quizAnswer.update({
+          where: { id: savedAnswer.id },
+          data: grade,
+        });
+      } else {
+        await tx.quizAnswer.create({
+          data: {
+            attemptId,
+            questionId: question.id,
+            answer: null,
+            ...grade,
+          },
+        });
+      }
+    }
+
+    const updated = await tx.quizAttempt.update({
+      where: { id: attemptId },
+      data: {
+        status,
+        submittedAt: new Date(),
+        autoGradedScore: autoScore,
+        manualScore: 0,
+        totalScore: autoScore,
+        ...extra,
+      },
+    });
+
+    return {
+      ...updated,
+      gradingStatus: manualPending > 0 ? 'PENDING_MANUAL' : 'FINAL',
+      manualPending,
+    };
   });
-
-  return updated;
 };
 
 // GET /api/quizzes/attempts/:attemptId/result  — student views own result
@@ -320,7 +439,19 @@ export const getMyAttemptResult = async (req, res) => {
     if (attempt.studentId !== student.id) return res.status(403).json({ success: false, message: 'Not your attempt' });
     if (attempt.status === 'IN_PROGRESS') return res.status(400).json({ success: false, message: 'Quiz still in progress' });
 
-    const allowReview = attempt.quiz.allowReview;
+    const shortQuestionIds = new Set(
+      attempt.quiz.questions.filter((question) => question.type === 'SHORT').map((question) => question.id)
+    );
+    const manualPending = attempt.answers.filter(
+      (answer) => shortQuestionIds.has(answer.questionId) && answer.isCorrect === null
+    ).length;
+    const allowReview = attempt.quiz.allowReview
+      && (attempt.quiz.status === 'CLOSED' || Date.now() > new Date(attempt.quiz.endAt).getTime());
+    const questionOrder = Array.isArray(attempt.questionOrder) ? attempt.questionOrder : [];
+    const orderIndex = new Map(questionOrder.map((questionId, index) => [questionId, index]));
+    const orderedQuestions = [...attempt.quiz.questions].sort(
+      (left, right) => (orderIndex.get(left.id) ?? left.order) - (orderIndex.get(right.id) ?? right.order)
+    );
 
     res.json({
       success: true,
@@ -332,8 +463,13 @@ export const getMyAttemptResult = async (req, res) => {
         totalScore: attempt.totalScore,
         totalMarks: attempt.quiz.totalMarks,
         violations: attempt.violations,
+        autoGradedScore: attempt.autoGradedScore,
+        manualScore: attempt.manualScore,
+        gradingStatus: manualPending > 0 ? 'PENDING_MANUAL' : 'FINAL',
+        manualPending,
         allowReview,
-        questions: allowReview ? attempt.quiz.questions.map((q) => {
+        reviewAvailableAt: attempt.quiz.allowReview ? attempt.quiz.endAt : null,
+        questions: allowReview ? orderedQuestions.map((q) => {
           const ans = attempt.answers.find((a) => a.questionId === q.id);
           return {
             ...sanitizeQuestion(q),
