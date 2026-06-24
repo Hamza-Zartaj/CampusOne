@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   HelpCircle, Plus, Search, Calendar, Clock, Users, Edit3, Trash2,
-  Eye, X, Loader2, Award, FileSpreadsheet, ListChecks,
+  Eye, X, Loader2, Award, FileSpreadsheet, ListChecks, Download,
+  Sparkles, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { quizAPI, offeringAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
@@ -123,6 +125,29 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
   const [questions, setQuestions] = useState(initial?.questions || []);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [showAIGenerator, setShowAIGenerator] = useState(false);
+  const [generatingAI, setGeneratingAI] = useState(false);
+  const [aiPrompt, setAIPrompt] = useState('');
+  const [aiOptions, setAIOptions] = useState({
+    questionCount: 5,
+    mix: 'BALANCED',
+    difficulty: 'MIXED',
+    marksPerQuestion: 1,
+  });
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape' && !saving) onClose();
+    };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [onClose, saving]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -157,6 +182,61 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    try {
+      const response = await quizAPI.downloadImportTemplate();
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'campusone_quiz_import_template.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Quiz import template downloaded');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to download template');
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
+  const selectedOffering = offerings.find((offering) => offering.id === form.offeringId);
+
+  const handleAIGenerate = async () => {
+    if (!form.offeringId) {
+      toast.error('Select a course offering before using AI');
+      return;
+    }
+    if (aiPrompt.trim().length < 10) {
+      toast.error('Describe the quiz you want in at least 10 characters');
+      return;
+    }
+
+    setGeneratingAI(true);
+    try {
+      const response = await quizAPI.generateWithAI({
+        offeringId: form.offeringId,
+        prompt: aiPrompt.trim(),
+        ...aiOptions,
+        existingQuestionTexts: questions.map((question) => question.questionText),
+      });
+      const generated = response.data.data.questions || [];
+      const existingTexts = new Set(questions.map((question) => question.questionText.trim().toLocaleLowerCase()));
+      const uniqueGenerated = generated.filter(
+        (question) => !existingTexts.has(question.questionText.trim().toLocaleLowerCase())
+      );
+      setQuestions((current) => [...current, ...uniqueGenerated]);
+      setShowAIGenerator(false);
+      toast.success(`Added ${uniqueGenerated.length} AI-generated question${uniqueGenerated.length === 1 ? '' : 's'}`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'AI generation failed');
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.offeringId || !form.title || !form.startAt || !form.endAt) {
@@ -186,16 +266,43 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
 
   const totalMarks = questions.reduce((s, q) => s + (Number(q.marks) || 0), 0);
 
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
-          <h2 className="text-xl font-bold text-slate-800 m-0">{initial ? 'Edit Quiz' : 'Create Quiz'}</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"><X size={20} /></button>
-        </div>
-        <form onSubmit={handleSubmit}>
-          <div className="p-6 space-y-4">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-[2px] sm:p-6"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !saving) onClose();
+      }}
+    >
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)]">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-blue-50 via-white to-cyan-50 px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
+              <ListChecks size={20} />
+            </div>
             <div>
+              <h2 className="m-0 text-xl font-bold text-slate-900">{initial ? 'Edit Quiz' : 'Create Quiz'}</h2>
+              <p className="m-0 mt-0.5 text-sm text-slate-500">Configure availability, rules, and questions.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            aria-label="Close quiz editor"
+            className="rounded-xl p-2 text-slate-400 transition hover:bg-white hover:text-slate-700 disabled:opacity-50"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto bg-slate-50/60 p-5 sm:p-6">
+            <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <div>
+                <h3 className="m-0 text-base font-semibold text-slate-900">Quiz details</h3>
+                <p className="m-0 mt-1 text-xs text-slate-500">Choose the course and explain what students should expect.</p>
+              </div>
+              <div>
               <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Course Offering</label>
               <select
                 value={form.offeringId}
@@ -230,8 +337,14 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
                 className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500 resize-none"
               />
             </div>
+            </section>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <div>
+                <h3 className="m-0 text-base font-semibold text-slate-900">Schedule and rules</h3>
+                <p className="m-0 mt-1 text-xs text-slate-500">Times are shown in your local timezone.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Start At</label>
                 <input
@@ -248,7 +361,7 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Duration (min)</label>
                 <input
@@ -278,34 +391,159 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-6">
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 transition hover:border-blue-200 hover:bg-blue-50/50">
                 <input type="checkbox" checked={form.shuffleQuestions} onChange={(e) => set('shuffleQuestions', e.target.checked)} />
-                Shuffle question order
+                <span><strong className="block text-slate-800">Shuffle questions</strong><span className="text-xs text-slate-500">Each attempt keeps its generated order.</span></span>
               </label>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 transition hover:border-blue-200 hover:bg-blue-50/50">
                 <input type="checkbox" checked={form.allowReview} onChange={(e) => set('allowReview', e.target.checked)} />
-                Release answers after the quiz closes
+                <span><strong className="block text-slate-800">Release answers</strong><span className="text-xs text-slate-500">Students can review answers after closing.</span></span>
               </label>
             </div>
+            </section>
 
-            <div className="border-t border-slate-100 pt-4">
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                 <div>
                   <h3 className="text-base font-semibold text-slate-800 m-0">Questions ({questions.length})</h3>
                   <p className="text-xs text-slate-500">Total marks: {totalMarks}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAIGenerator((open) => !open)}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                      showAIGenerator
+                        ? 'border-violet-300 bg-violet-50 text-violet-700'
+                        : 'border-violet-200 text-violet-700 hover:bg-violet-50'
+                    }`}
+                  >
+                    <Sparkles size={14} />
+                    Generate with AI
+                    {showAIGenerator ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadTemplate}
+                    disabled={downloadingTemplate}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {downloadingTemplate
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : <Download size={14} />}
+                    Sample Excel
+                  </button>
                   <label className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-200 rounded-lg cursor-pointer hover:bg-slate-50">
                     {importing ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
                     Import Excel
-                    <input type="file" accept=".xlsx,.xls" hidden onChange={(e) => handleImportExcel(e.target.files[0])} />
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      hidden
+                      onChange={(event) => {
+                        handleImportExcel(event.target.files[0]);
+                        event.target.value = '';
+                      }}
+                    />
                   </label>
                   <button type="button" onClick={() => addQuestion('MCQ')} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                     <Plus size={14} /> Add Question
                   </button>
                 </div>
               </div>
+
+              {showAIGenerator && (
+                <div className="mb-4 rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-blue-50 p-4">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="m-0 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <Sparkles size={15} className="text-violet-600" /> AI question generator
+                      </h4>
+                      <p className="m-0 mt-1 text-xs text-slate-500">
+                        Context: {selectedOffering
+                          ? `${selectedOffering.course?.code} — ${selectedOffering.course?.title}`
+                          : 'Select a course offering above'}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-white/80 px-2 py-1 text-[11px] font-medium text-violet-700">Draft suggestions</span>
+                  </div>
+
+                  <textarea
+                    value={aiPrompt}
+                    onChange={(event) => setAIPrompt(event.target.value)}
+                    maxLength={10_000}
+                    rows={3}
+                    placeholder="Example: Create conceptual questions about database normalization. Focus on identifying 1NF, 2NF, and 3NF violations."
+                    className="w-full resize-y rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                  />
+
+                  <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <label className="text-xs font-medium text-slate-600">
+                      Questions
+                      <input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={aiOptions.questionCount}
+                        onChange={(event) => setAIOptions((current) => ({ ...current, questionCount: Number(event.target.value) }))}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-violet-400"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-slate-600">
+                      Type mix
+                      <select
+                        value={aiOptions.mix}
+                        onChange={(event) => setAIOptions((current) => ({ ...current, mix: event.target.value }))}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-violet-400"
+                      >
+                        <option value="BALANCED">Balanced</option>
+                        <option value="MCQ_ONLY">MCQ only</option>
+                        <option value="MCQ_TRUE_FALSE">MCQ + True/False</option>
+                        <option value="ALL_TYPES">All types</option>
+                      </select>
+                    </label>
+                    <label className="text-xs font-medium text-slate-600">
+                      Difficulty
+                      <select
+                        value={aiOptions.difficulty}
+                        onChange={(event) => setAIOptions((current) => ({ ...current, difficulty: event.target.value }))}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-violet-400"
+                      >
+                        <option value="MIXED">Mixed</option>
+                        <option value="EASY">Easy</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="HARD">Hard</option>
+                      </select>
+                    </label>
+                    <label className="text-xs font-medium text-slate-600">
+                      Marks each
+                      <input
+                        type="number"
+                        min="0.5"
+                        max="100"
+                        step="0.5"
+                        value={aiOptions.marksPerQuestion}
+                        onChange={(event) => setAIOptions((current) => ({ ...current, marksPerQuestion: Number(event.target.value) }))}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-violet-400"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <p className="m-0 text-xs text-slate-500">Review and edit every generated question before publishing.</p>
+                    <button
+                      type="button"
+                      onClick={handleAIGenerate}
+                      disabled={generatingAI || !form.offeringId}
+                      className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {generatingAI ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                      {generatingAI ? 'Generating…' : 'Generate'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-3">
                 {questions.map((q, i) => (
@@ -315,19 +553,23 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
                   <p className="text-center text-slate-500 text-sm py-6 bg-slate-50 rounded-lg">No questions yet. Add one or import from Excel.</p>
                 )}
               </div>
-            </div>
+            </section>
           </div>
 
-          <div className="p-6 border-t border-slate-100 flex justify-end gap-3 sticky bottom-0 bg-white">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+            <p className="m-0 hidden text-sm text-slate-500 sm:block">{questions.length} questions · {totalMarks} total marks</p>
+            <div className="ml-auto flex items-center gap-3">
             <button type="button" onClick={onClose} className="px-5 py-2.5 border border-gray-200 rounded-lg text-slate-700 hover:bg-slate-50">Cancel</button>
-            <button type="submit" disabled={saving} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2">
+            <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-medium text-white shadow-sm transition hover:bg-blue-700 hover:shadow disabled:opacity-50">
               {saving && <Loader2 size={16} className="animate-spin" />}
               {initial ? 'Update Quiz' : 'Create Quiz'}
             </button>
+            </div>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
