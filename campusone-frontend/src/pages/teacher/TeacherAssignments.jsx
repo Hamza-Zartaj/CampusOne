@@ -3,7 +3,7 @@ import {
   FileText, Plus, Search, Calendar, Clock, Users,
   CheckCircle, AlertCircle, ChevronDown, ChevronUp,
   Edit3, Trash2, Eye, Download, X, Loader2, Award,
-  Lock, LockOpen, ScanSearch, ShieldCheck, AlertTriangle,
+  Lock, LockOpen, ScanSearch, ShieldCheck, AlertTriangle, Save, Upload,
 } from 'lucide-react';
 import { assignmentAPI, offeringAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
@@ -20,12 +20,15 @@ const SUB_STATUS = {
   GRADED:    { bg: 'bg-green-50', text: 'text-green-700', label: 'Graded' },
 };
 
-const daysUntil = (dateStr) => {
+const daysUntil = (dateStr, status) => {
   const diff = Math.ceil((new Date(dateStr) - new Date()) / (1000 * 60 * 60 * 24));
-  if (diff < 0) return <span className="text-red-500 font-medium">Overdue</span>;
-  if (diff === 0) return <span className="text-amber-600 font-medium">Due today</span>;
-  if (diff <= 3) return <span className="text-amber-600 font-medium">{diff}d left</span>;
-  return <span className="text-slate-500">{diff}d left</span>;
+  if (status === 'CLOSED') {
+    return <span className="font-medium text-slate-500">{diff > 0 ? 'Closed early' : 'Closed'}</span>;
+  }
+  if (diff < 0) return <span className="font-semibold text-red-600">Overdue</span>;
+  if (diff === 0) return <span className="font-semibold text-amber-600">Due today</span>;
+  if (diff <= 3) return <span className="font-semibold text-amber-600">{diff}d left</span>;
+  return <span className="font-medium text-slate-500">{diff}d left</span>;
 };
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -45,6 +48,8 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
   const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const fieldClass = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10 disabled:bg-slate-50';
+  const labelClass = 'mb-1.5 block text-sm font-semibold text-slate-700';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -64,22 +69,29 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-800 m-0">{initial ? 'Edit Assignment' : 'Create Assignment'}</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"><X size={20} /></button>
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/45 p-3 sm:p-5">
+      <div className="flex max-h-[calc(100vh-24px)] w-full max-w-xl flex-col overflow-hidden rounded-lg bg-white shadow-xl sm:max-h-[calc(100vh-40px)]">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
+          <div>
+            <h2 className="m-0 text-lg font-bold text-slate-800">{initial ? 'Edit Assignment' : 'Create Assignment'}</h2>
+            <p className="m-0 mt-0.5 text-xs text-slate-500">
+              {initial ? 'Update assignment details and availability.' : 'Add coursework for one of your active offerings.'}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} title="Close" className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
+            <X size={19} />
+          </button>
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
             <div>
-              <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Course Offering</label>
+              <label className={labelClass}>Course Offering</label>
               <select
                 value={form.offeringId}
                 onChange={(e) => set('offeringId', e.target.value)}
                 required
                 disabled={!!initial}
-                className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500 disabled:bg-slate-50"
+                className={fieldClass}
               >
                 <option value="">Select course…</option>
                 {offerings.map((o) => (
@@ -90,65 +102,87 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
               </select>
             </div>
             <div>
-              <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Title</label>
+              <label className={labelClass}>Title</label>
               <input
                 value={form.title} onChange={(e) => set('title', e.target.value)}
                 required placeholder="Assignment title…"
-                className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
+                className={fieldClass}
               />
             </div>
             <div>
-              <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Description / Instructions</label>
+              <label className={labelClass}>Description / Instructions</label>
               <textarea
                 rows={3} value={form.description} onChange={(e) => set('description', e.target.value)}
                 placeholder="Enter instructions…"
-                className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500 resize-none"
+                className={`${fieldClass} resize-none`}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Due Date</label>
+                <label className={labelClass}>Due Date</label>
                 <input
                   type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} required
-                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
+                  className={fieldClass}
                 />
               </div>
               <div>
-                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Total Marks</label>
+                <label className={labelClass}>Total Marks</label>
                 <input
                   type="number" value={form.totalMarks} onChange={(e) => set('totalMarks', e.target.value)}
                   min={1} max={1000}
-                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
+                  className={fieldClass}
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Status</label>
+                <label className={labelClass}>Status</label>
                 <select
                   value={form.status} onChange={(e) => set('status', e.target.value)}
-                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
+                  className={fieldClass}
                 >
                   <option value="DRAFT">Draft</option>
                   <option value="PUBLISHED">Published</option>
                   <option value="CLOSED">Closed</option>
                 </select>
               </div>
-              <div className="flex flex-col justify-end pb-0.5">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.allowLate} onChange={(e) => set('allowLate', e.target.checked)} className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[0.9rem] font-medium text-slate-800">Allow late submissions</span>
+              <div className="flex items-end">
+                <label className="flex min-h-10 w-full cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-700">Late submissions</span>
+                    <span className="block text-[11px] text-slate-500">Accept work after the deadline</span>
+                  </span>
+                  <span className="relative inline-flex shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={form.allowLate}
+                      onChange={(e) => set('allowLate', e.target.checked)}
+                      className="peer sr-only"
+                    />
+                    <span className="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-blue-600" />
+                    <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+                  </span>
                 </label>
               </div>
             </div>
             <div>
-              <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Attachment (optional)</label>
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
-                onChange={(e) => setFile(e.target.files[0])}
-                className="w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-              />
+              <label className={labelClass}>Attachment <span className="font-normal text-slate-400">(optional)</span></label>
+              <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50/40">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-blue-600 shadow-sm">
+                  <Upload size={17} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-slate-700">{file?.name || 'Choose a file'}</span>
+                  <span className="block text-[11px] text-slate-500">PDF, Word, text, PNG or JPG</span>
+                </span>
+                <span className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">Browse</span>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
+                  onChange={(e) => setFile(e.target.files[0])}
+                  className="sr-only"
+                />
+              </label>
               {initial?.attachmentUrl && !file && (
                 <a href={initial.attachmentUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-block">
                   View current attachment
@@ -156,13 +190,13 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
               )}
             </div>
           </div>
-          <div className="p-6 border-t border-slate-100 flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="py-2.5 px-5 border border-gray-200 rounded-lg text-[0.95rem] font-medium bg-white text-slate-800 hover:bg-slate-50">
+          <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 bg-white px-5 py-4 sm:px-6">
+            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
               Cancel
             </button>
-            <button type="submit" disabled={saving} className="py-2.5 px-5 border-none rounded-lg text-[0.95rem] font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 inline-flex items-center gap-2">
+            <button type="submit" disabled={saving} className="inline-flex min-w-32 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
               {saving && <Loader2 size={16} className="animate-spin" />}
-              {initial ? 'Save Changes' : 'Create'}
+              {initial ? 'Save Changes' : 'Create Assignment'}
             </button>
           </div>
         </form>
@@ -265,6 +299,7 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
   const [similarityReport, setSimilarityReport] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
+  const [savingGradeId, setSavingGradeId] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -314,13 +349,26 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
 
   const saveGrade = async (subId) => {
     const { marks, feedback } = gradeForm[subId] || {};
+    const numericMarks = Number(marks);
+    if (marks === '' || !Number.isFinite(numericMarks)) {
+      toast.error('Enter valid marks');
+      return;
+    }
+    if (numericMarks < 0 || numericMarks > currentAssignment.totalMarks) {
+      toast.error(`Marks must be between 0 and ${currentAssignment.totalMarks}`);
+      return;
+    }
+
+    setSavingGradeId(subId);
     try {
-      await assignmentAPI.gradeSubmission(subId, { obtainedMarks: marks, feedback });
-      setSubmissions((prev) => prev.map((s) => s.id === subId ? { ...s, status: 'GRADED', obtainedMarks: +marks, feedback } : s));
+      await assignmentAPI.gradeSubmission(subId, { obtainedMarks: numericMarks, feedback });
+      setSubmissions((prev) => prev.map((s) => s.id === subId ? { ...s, status: 'GRADED', obtainedMarks: numericMarks, feedback } : s));
       setGradingId(null);
-      toast.success('Graded');
-    } catch {
-      toast.error('Grade save failed');
+      toast.success('Grade saved');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Grade save failed');
+    } finally {
+      setSavingGradeId(null);
     }
   };
 
@@ -390,22 +438,30 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
                 </div>
 
                 {sub.submissionText && <p className="text-sm text-slate-600 mb-2 line-clamp-2">{sub.submissionText}</p>}
-                {sub.attachmentUrl && (
-                  <a href={sub.attachmentUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mb-2">
-                    <Download size={12} /> Download submission
-                  </a>
-                )}
                 {sub.feedback && <p className="text-xs text-green-700 bg-green-50 rounded p-2 mb-2">{sub.feedback}</p>}
 
                 {!isGrading ? (
-                  <button
-                    onClick={() => { setGradingId(sub.id); setGradeForm((f) => ({ ...f, [sub.id]: { marks: sub.obtainedMarks ?? '', feedback: sub.feedback ?? '' } })); }}
-                    className="text-xs text-blue-600 hover:underline"
-                  >
-                    {sub.status === 'GRADED' ? 'Edit grade' : 'Grade'}
-                  </button>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
+                    {sub.attachmentUrl && (
+                      <a
+                        href={sub.attachmentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+                      >
+                        <Download size={14} /> Download
+                      </a>
+                    )}
+                    <button
+                      onClick={() => { setGradingId(sub.id); setGradeForm((f) => ({ ...f, [sub.id]: { marks: sub.obtainedMarks ?? '', feedback: sub.feedback ?? '' } })); }}
+                      className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700"
+                    >
+                      <Award size={14} />
+                      {sub.status === 'GRADED' ? 'Edit grade' : 'Grade'}
+                    </button>
+                  </div>
                 ) : (
-                  <div className="flex items-end gap-2 mt-2">
+                  <div className="mt-3 flex flex-col gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-end">
                     <div>
                       <label className="text-xs text-slate-500 mb-1 block">Marks / {currentAssignment.totalMarks}</label>
                       <input
@@ -424,8 +480,23 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
                         className="w-full py-1.5 px-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                       />
                     </div>
-                    <button onClick={() => saveGrade(sub.id)} className="py-1.5 px-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Save</button>
-                    <button onClick={() => setGradingId(null)} className="py-1.5 px-3 border border-gray-200 bg-white text-slate-700 rounded-lg text-sm hover:bg-slate-50">Cancel</button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => saveGrade(sub.id)}
+                        disabled={savingGradeId === sub.id}
+                        className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {savingGradeId === sub.id ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setGradingId(null)}
+                        disabled={savingGradeId === sub.id}
+                        className="min-h-9 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -538,52 +609,54 @@ const TeacherAssignments = () => {
 
   return (
     <div className="max-w-350 mx-auto">
-      <div className="flex items-center justify-between mb-6 max-sm:flex-col max-sm:items-start max-sm:gap-3">
+      <div className="mb-5 flex items-center justify-between max-sm:flex-col max-sm:items-start max-sm:gap-3">
         <div>
           <h1 className="text-[28px] font-bold text-slate-800 m-0 max-md:text-2xl">Assignments</h1>
           <p className="text-sm text-slate-500 m-0 mt-1">Create and manage course assignments</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="inline-flex items-center gap-2 py-2.5 px-5 border-none rounded-lg text-[0.95rem] font-medium cursor-pointer transition-all bg-blue-600 text-white hover:bg-blue-700"
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
         >
           <Plus size={18} /> Create Assignment
         </button>
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-5 mb-6 max-sm:grid-cols-2">
+      <div className="mb-5 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 max-sm:grid-cols-2">
         {stats.map((s, i) => (
-          <div key={i} className="bg-white rounded-2xl p-5 flex items-center gap-3 shadow-sm">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${s.color}15`, color: s.color }}>
-              <s.icon size={22} />
+          <div key={i} className="flex min-h-20 items-center gap-3 rounded-lg border border-slate-100 bg-white px-4 py-3 shadow-sm">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `${s.color}15`, color: s.color }}>
+              <s.icon size={19} />
             </div>
             <div>
-              <p className="text-xs text-slate-500 m-0 mb-0.5 font-medium">{s.label}</p>
-              <h3 className="text-2xl font-bold text-slate-800 m-0">{s.value}</h3>
+              <p className="m-0 text-xs font-medium text-slate-500">{s.label}</p>
+              <h3 className="m-0 text-xl font-bold text-slate-800">{s.value}</h3>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-4 mb-5 flex items-center gap-3 max-sm:flex-col">
-        <div className="flex-1 relative max-sm:w-full">
+      <div className="mb-4 grid grid-cols-[minmax(260px,1fr)_minmax(210px,280px)_160px] items-center gap-3 rounded-lg border border-slate-100 bg-white p-3 shadow-sm max-lg:grid-cols-[1fr_220px_150px] max-md:grid-cols-2 max-sm:grid-cols-1">
+        <div className="relative max-md:col-span-2 max-sm:col-span-1">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text" placeholder="Search assignments…"
             value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full py-2.5 pl-10 pr-4 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/10"
+            className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10"
           />
         </div>
         <select value={filterOffering} onChange={(e) => setFilterOffering(e.target.value)}
-          className="py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] bg-white focus:outline-none focus:border-blue-500">
+          aria-label="Filter by course"
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500">
           <option value="">All Courses</option>
           {offerings.map((o) => (
             <option key={o.id} value={o.id}>{o.course?.code} Sec {o.section}</option>
           ))}
         </select>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-          className="py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] bg-white focus:outline-none focus:border-blue-500">
-          <option value="">All Status</option>
+          aria-label="Filter by status"
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500">
+          <option value="">All statuses</option>
           <option value="DRAFT">Draft</option>
           <option value="PUBLISHED">Published</option>
           <option value="CLOSED">Closed</option>
@@ -593,32 +666,75 @@ const TeacherAssignments = () => {
       {loading ? (
         <div className="flex items-center justify-center py-16 text-slate-400"><Loader2 size={28} className="animate-spin" /></div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {filtered.map((a) => {
             const expanded = expandedId === a.id;
             const sc = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.PUBLISHED;
             const subCount = a._count?.submissions ?? 0;
             return (
-              <div key={a.id} className="bg-white rounded-2xl shadow-sm overflow-hidden transition-all">
+              <div key={a.id} className="overflow-hidden rounded-lg border border-slate-100 bg-white shadow-sm transition-all">
                 <div
-                  className="p-5 flex items-center gap-4 cursor-pointer hover:bg-slate-50/50 transition-colors max-sm:flex-col max-sm:items-start"
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50/70 max-sm:flex-col max-sm:items-start"
                   onClick={() => setExpandedId(expanded ? null : a.id)}
                 >
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
-                    <FileText size={20} />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                    <FileText size={18} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h3 className="text-[0.95rem] font-semibold text-slate-800 m-0 truncate">{a.title}</h3>
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <h3 className="m-0 truncate text-sm font-semibold text-slate-800">{a.title}</h3>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>{sc.label}</span>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                       <span>{a.offering?.course?.code} — {a.offering?.course?.title} (Sec {a.offering?.section})</span>
                       <span>&middot;</span>
                       <span className="flex items-center gap-1"><Calendar size={12} /> {fmtDate(a.dueDate)}</span>
                       <span>&middot;</span>
-                      {daysUntil(a.dueDate)}
+                      {daysUntil(a.dueDate, a.status)}
                     </div>
+                  </div>
+                  <div
+                    className="hidden items-center gap-1 lg:flex"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      title={`View ${subCount} submissions`}
+                      onClick={() => setSubmissionsFor(a)}
+                      className="rounded-lg p-2 text-slate-500 transition hover:bg-blue-50 hover:text-blue-700"
+                    >
+                      <Eye size={17} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Edit assignment"
+                      onClick={() => setEditTarget(a)}
+                      className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                    >
+                      <Edit3 size={17} />
+                    </button>
+                    {a.status !== 'DRAFT' && (
+                      <button
+                        type="button"
+                        title={a.status === 'CLOSED' ? 'Reopen submissions' : 'Close submissions'}
+                        onClick={() => handleSubmissionStatus(a)}
+                        disabled={changingStatusId === a.id}
+                        className="rounded-lg p-2 text-slate-500 transition hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50"
+                      >
+                        {changingStatusId === a.id
+                          ? <Loader2 size={17} className="animate-spin" />
+                          : a.status === 'CLOSED' ? <LockOpen size={17} /> : <Lock size={17} />}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      title="Delete assignment"
+                      onClick={() => handleDelete(a.id)}
+                      disabled={deletingId === a.id}
+                      className="rounded-lg p-2 text-slate-500 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    >
+                      {deletingId === a.id ? <Loader2 size={17} className="animate-spin" /> : <Trash2 size={17} />}
+                    </button>
                   </div>
                   <div className="flex items-center gap-4 max-sm:w-full max-sm:justify-between">
                     <div className="text-right">

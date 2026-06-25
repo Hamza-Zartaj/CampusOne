@@ -468,7 +468,7 @@ npx prisma generate
 npm run dev
 npm run db:push
 npm run db:seed
-npm run db:miniseed
+npm run db:seed
 npm run db:superadmin
 npm run db:studio
 ```
