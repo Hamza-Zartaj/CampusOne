@@ -384,6 +384,8 @@ export const assignmentAPI = {
   update: (id, formData) => api.put(`/assignments/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   delete: (id) => api.delete(`/assignments/${id}`),
   getSubmissions: (id) => api.get(`/assignments/${id}/submissions`),
+  runSimilarityScan: (id) => api.post(`/assignments/${id}/similarity/scan`),
+  getLatestSimilarityReport: (id) => api.get(`/assignments/${id}/similarity/latest`),
   gradeSubmission: (submissionId, data) => api.put(`/assignments/submissions/${submissionId}/grade`, data),
   // Student
   getMy: () => api.get('/assignments/my'),

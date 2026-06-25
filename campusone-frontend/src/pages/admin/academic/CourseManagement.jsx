@@ -60,7 +60,7 @@ const GradeComponentEditor = ({ course, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-5 border-b">
           <div>
@@ -259,7 +259,7 @@ const CourseManagement = () => {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg my-8">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="font-semibold text-slate-800">{editId ? 'Edit Course' : 'New Course'}</h2>

@@ -196,6 +196,24 @@ Authorization must confirm that the teacher owns the selected course offering. A
 
 This service should find evidence of similarity, not pronounce a plagiarism verdict.
 
+### Implementation status
+
+Stage 1 was implemented on June 25, 2026:
+
+- teacher-triggered scan inside the **View Submissions** popup
+- scans require the assignment to be closed and at least two submissions
+- immutable submission/update-time snapshot per report
+- original file SHA-256 duplicate detection
+- normalized combined submission/file-text SHA-256 detection
+- local TXT, PDF, and DOCX text extraction
+- embedded images and image-only content are ignored
+- five-word shingle Jaccard overlap detection
+- stored reports, flagged pairs, shared phrases, summary counts, and stale-report detection
+- no OpenAI calls or AI tokens are used by Stage 1
+- ZIP submissions are not accepted
+
+Stage 2 embeddings and optional LLM explanations remain future work.
+
 ### Teacher workflow
 
 1. Open a particular assignment.
@@ -215,7 +233,7 @@ Run these checks before any OpenAI request:
 
 - Compute SHA-256 from original file bytes. Identical PDFs are immediately marked `EXACT_FILE_DUPLICATE`, even if their filenames differ.
 - Hash directly entered submission text.
-- Extract text locally from PDF, DOCX, TXT, and supported archives.
+- Extract text locally from PDF, DOCX, and TXT.
 - Ignore embedded images and image-only pages.
 - Mark submissions with no extractable text as `NO_EXTRACTABLE_TEXT`; do not send them to OpenAI.
 - Normalize Unicode, whitespace, headers, footers, and known assignment templates.
@@ -337,12 +355,12 @@ Do not market AI-writing detection as reliable plagiarism evidence. It can produ
 
 ### Phase 3 — Assignment similarity
 
-- Add direct Close/Reopen Submissions controls
-- Require a closed submission snapshot for each scan
-- Add exact original-file and normalized-content hashing
+- [x] Add direct Close/Reopen Submissions controls
+- [x] Require a closed submission snapshot for each scan
+- [x] Add exact original-file and normalized-content hashing
+- [x] Add local PDF, DOCX, TXT extraction and lexical fingerprints
+- [x] Add stored Stage 1 reports in the submissions popup
 - Enable `pgvector`
-- Implement extraction and normalization
-- Add lexical fingerprints
 - Add embeddings and candidate retrieval
 - Add side-by-side evidence reports
 - Add teacher review records and audit logs

@@ -3,7 +3,7 @@ import {
   FileText, Plus, Search, Calendar, Clock, Users,
   CheckCircle, AlertCircle, ChevronDown, ChevronUp,
   Edit3, Trash2, Eye, Download, X, Loader2, Award,
-  Lock, LockOpen,
+  Lock, LockOpen, ScanSearch, ShieldCheck, AlertTriangle,
 } from 'lucide-react';
 import { assignmentAPI, offeringAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
@@ -64,7 +64,7 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-800 m-0">{initial ? 'Edit Assignment' : 'Create Assignment'}</h2>
@@ -145,7 +145,7 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
               <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Attachment (optional)</label>
               <input
                 type="file"
-                accept=".pdf,.doc,.docx,.zip,.txt,.png,.jpg,.jpeg"
+                accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
                 onChange={(e) => setFile(e.target.files[0])}
                 className="w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
               />
@@ -172,18 +172,145 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
 };
 
 // ─── Submissions Panel ────────────────────────────────────────────────────────
-const SubmissionsPanel = ({ assignment, onClose }) => {
+const SimilarityResults = ({ report }) => {
+  const [expanded, setExpanded] = useState(true);
+  const summary = report.summary || {};
+  const labels = {
+    EXACT_FILE: 'Identical file',
+    EXACT_TEXT: 'Identical text',
+    HIGH_LEXICAL: 'High text overlap',
+  };
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-violet-200 bg-white">
+      <button type="button" onClick={() => setExpanded((value) => !value)}
+        className="flex w-full items-center justify-between gap-3 bg-violet-50 px-4 py-3 text-left">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={18} className="text-violet-600" />
+          <div>
+            <p className="m-0 text-sm font-semibold text-slate-800">Stage 1 similarity results</p>
+            <p className="m-0 text-xs text-slate-500">
+              {summary.flaggedPairs || 0} flagged of {summary.comparedPairs || 0} compared pairs
+              {report.isStale ? ' · report is stale' : ''}
+            </p>
+          </div>
+        </div>
+        {expanded ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+      </button>
+
+      {expanded && (
+        <div className="space-y-3 p-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              ['Exact files', summary.exactFilePairs || 0],
+              ['Exact text', summary.exactTextPairs || 0],
+              ['High overlap', summary.lexicalPairs || 0],
+              ['Unsupported', summary.unsupportedCount || 0],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg bg-slate-50 px-3 py-2">
+                <p className="m-0 text-lg font-bold text-slate-800">{value}</p>
+                <p className="m-0 text-[11px] text-slate-500">{label}</p>
+              </div>
+            ))}
+          </div>
+          {report.isStale && (
+            <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <AlertTriangle size={14} /> Submissions changed after this scan. Run it again.
+            </div>
+          )}
+          {report.matches?.length > 0 ? (
+            <div className="space-y-2">
+              {report.matches.map((match) => (
+                <div key={match.id} className="rounded-lg border border-slate-200 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm font-medium text-slate-800">
+                      {match.submissionA.student.user.name}
+                      <span className="mx-2 text-slate-300">↔</span>
+                      {match.submissionB.student.user.name}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">{labels[match.matchType]}</span>
+                      <span className="text-sm font-bold text-slate-700">{Math.round(match.combinedScore * 100)}%</span>
+                    </div>
+                  </div>
+                  <p className="m-0 mt-1 text-xs text-slate-500">
+                    {match.submissionA.student.studentId} · {match.submissionB.student.studentId}
+                  </p>
+                  {match.matchedPassages?.length > 0 && (
+                    <p className="m-0 mt-2 rounded bg-slate-50 px-2 py-1.5 text-xs text-slate-600">
+                      Shared phrase: “{match.matchedPassages[0]}”
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="m-0 rounded-lg bg-green-50 px-3 py-3 text-sm text-green-700">
+              No exact duplicates or high lexical-overlap pairs were found.
+            </p>
+          )}
+          <p className="m-0 text-[11px] text-slate-400">Local evidence only—this is not an automatic plagiarism verdict.</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => {
+  const [currentAssignment, setCurrentAssignment] = useState(assignment);
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [gradingId, setGradingId] = useState(null);
   const [gradeForm, setGradeForm] = useState({});
+  const [similarityReport, setSimilarityReport] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
 
   useEffect(() => {
-    assignmentAPI.getSubmissions(assignment.id)
-      .then((r) => setSubmissions(r.data.data))
+    Promise.all([
+      assignmentAPI.getSubmissions(assignment.id),
+      assignmentAPI.getLatestSimilarityReport(assignment.id),
+    ])
+      .then(([submissionsResponse, reportResponse]) => {
+        setSubmissions(submissionsResponse.data.data);
+        setSimilarityReport(reportResponse.data.data);
+      })
       .catch(() => toast.error('Failed to load submissions'))
       .finally(() => setLoading(false));
   }, [assignment.id]);
+
+  const runSimilarityScan = async () => {
+    setScanning(true);
+    try {
+      const response = await assignmentAPI.runSimilarityScan(assignment.id);
+      setSimilarityReport(response.data.data);
+      toast.success('Stage 1 similarity scan completed');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Similarity scan failed');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const changeSubmissionStatus = async () => {
+    const closing = currentAssignment.status !== 'CLOSED';
+    if (closing && !window.confirm('Close submissions now? Students will no longer be able to submit or resubmit.')) return;
+
+    setChangingStatus(true);
+    try {
+      const formData = new FormData();
+      formData.append('status', closing ? 'CLOSED' : 'PUBLISHED');
+      const response = await assignmentAPI.update(currentAssignment.id, formData);
+      const updatedAssignment = response.data.data;
+      setCurrentAssignment(updatedAssignment);
+      onAssignmentStatusChange?.(updatedAssignment);
+      toast.success(closing ? 'Submissions closed' : 'Submissions reopened');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update submission status');
+    } finally {
+      setChangingStatus(false);
+    }
+  };
 
   const saveGrade = async (subId) => {
     const { marks, feedback } = gradeForm[subId] || {};
@@ -198,16 +325,48 @@ const SubmissionsPanel = ({ assignment, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between gap-4 shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-slate-800 m-0">{assignment.title}</h2>
+            <h2 className="text-lg font-bold text-slate-800 m-0">{currentAssignment.title}</h2>
             <p className="text-sm text-slate-500 m-0">Submissions · {submissions.length} received</p>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"><X size={20} /></button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={changeSubmissionStatus}
+              disabled={changingStatus || scanning}
+              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                currentAssignment.status === 'CLOSED'
+                  ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+                  : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+              }`}
+            >
+              {changingStatus
+                ? <Loader2 size={14} className="animate-spin" />
+                : currentAssignment.status === 'CLOSED' ? <LockOpen size={14} /> : <Lock size={14} />}
+              {currentAssignment.status === 'CLOSED' ? 'Reopen' : 'Close Submissions'}
+            </button>
+            <button
+              onClick={runSimilarityScan}
+              disabled={scanning || changingStatus || loading || submissions.length < 2 || currentAssignment.status !== 'CLOSED'}
+              title={currentAssignment.status !== 'CLOSED' ? 'Close submissions before scanning' : 'Run local Stage 1 checks'}
+              className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {scanning ? <Loader2 size={14} className="animate-spin" /> : <ScanSearch size={14} />}
+              {scanning ? 'Scanning…' : similarityReport ? 'Scan Again' : 'Check Similarity'}
+            </button>
+            <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"><X size={20} /></button>
+          </div>
         </div>
         <div className="overflow-y-auto flex-1 p-4 space-y-3">
+          {currentAssignment.status !== 'CLOSED' && (
+            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <Lock size={17} className="mt-0.5 shrink-0" />
+              <span>Close submissions here before running similarity checks.</span>
+            </div>
+          )}
+          {similarityReport && <SimilarityResults report={similarityReport} />}
           {loading ? (
             <div className="flex items-center justify-center py-12 text-slate-400"><Loader2 size={24} className="animate-spin" /></div>
           ) : submissions.length === 0 ? (
@@ -225,7 +384,7 @@ const SubmissionsPanel = ({ assignment, onClose }) => {
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${sc.bg} ${sc.text}`}>{sc.label}</span>
                     {sub.status === 'GRADED' && (
-                      <span className="text-sm font-bold text-green-700">{sub.obtainedMarks}/{assignment.totalMarks}</span>
+                      <span className="text-sm font-bold text-green-700">{sub.obtainedMarks}/{currentAssignment.totalMarks}</span>
                     )}
                   </div>
                 </div>
@@ -248,9 +407,9 @@ const SubmissionsPanel = ({ assignment, onClose }) => {
                 ) : (
                   <div className="flex items-end gap-2 mt-2">
                     <div>
-                      <label className="text-xs text-slate-500 mb-1 block">Marks / {assignment.totalMarks}</label>
+                      <label className="text-xs text-slate-500 mb-1 block">Marks / {currentAssignment.totalMarks}</label>
                       <input
-                        type="number" min={0} max={assignment.totalMarks}
+                        type="number" min={0} max={currentAssignment.totalMarks}
                         value={gradeForm[sub.id]?.marks ?? ''}
                         onChange={(e) => setGradeForm((f) => ({ ...f, [sub.id]: { ...f[sub.id], marks: e.target.value } }))}
                         className="w-24 py-1.5 px-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
@@ -540,7 +699,18 @@ const TeacherAssignments = () => {
         <AssignmentModal offerings={offerings} initial={editTarget} onClose={() => setEditTarget(null)} onSave={handleUpdate} />
       )}
       {submissionsFor && (
-        <SubmissionsPanel assignment={submissionsFor} onClose={() => setSubmissionsFor(null)} />
+        <SubmissionsPanel
+          assignment={submissionsFor}
+          onClose={() => setSubmissionsFor(null)}
+          onAssignmentStatusChange={(updatedAssignment) => {
+            setSubmissionsFor(updatedAssignment);
+            setAssignments((current) => current.map(
+              (item) => item.id === updatedAssignment.id
+                ? { ...item, ...updatedAssignment, _count: item._count }
+                : item
+            ));
+          }}
+        />
       )}
     </div>
   );

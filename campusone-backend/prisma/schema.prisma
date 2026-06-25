@@ -532,6 +532,18 @@ enum SubmissionStatus {
   GRADED
 }
 
+enum SimilarityReportStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum SimilarityMatchType {
+  EXACT_FILE
+  EXACT_TEXT
+  HIGH_LEXICAL
+}
+
 model Assignment {
   id            String           @id @default(cuid())
   offeringId    String
@@ -543,8 +555,9 @@ model Assignment {
   attachmentUrl String?
   status        AssignmentStatus @default(PUBLISHED)
 
-  offering    CourseOffering @relation(fields: [offeringId], references: [id])
-  submissions Submission[]
+  offering          CourseOffering     @relation(fields: [offeringId], references: [id])
+  submissions       Submission[]
+  similarityReports SimilarityReport[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -597,8 +610,10 @@ model Submission {
 
   status SubmissionStatus @default(SUBMITTED)
 
-  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  student    Student    @relation(fields: [studentId], references: [id])
+  assignment         Assignment        @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student            Student           @relation(fields: [studentId], references: [id])
+  similarityMatchesA SimilarityMatch[] @relation("SimilaritySubmissionA")
+  similarityMatchesB SimilarityMatch[] @relation("SimilaritySubmissionB")
 
   submittedAt DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -606,6 +621,51 @@ model Submission {
   @@unique([assignmentId, studentId])
   @@index([assignmentId])
   @@index([studentId])
+}
+
+model SimilarityReport {
+  id           String                 @id @default(cuid())
+  assignmentId String
+  createdById  String
+  status       SimilarityReportStatus @default(RUNNING)
+
+  submissionSnapshot Json
+  summary            Json    @default("{}")
+  error              String?
+
+  assignment Assignment        @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  matches    SimilarityMatch[]
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([assignmentId, createdAt])
+  @@index([status])
+}
+
+model SimilarityMatch {
+  id            String              @id @default(cuid())
+  reportId      String
+  submissionAId String
+  submissionBId String
+  matchType     SimilarityMatchType
+
+  exactFile       Boolean @default(false)
+  exactText       Boolean @default(false)
+  lexicalScore    Float   @default(0)
+  combinedScore   Float   @default(0)
+  matchedPassages Json    @default("[]")
+
+  report      SimilarityReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  submissionA Submission       @relation("SimilaritySubmissionA", fields: [submissionAId], references: [id], onDelete: Cascade)
+  submissionB Submission       @relation("SimilaritySubmissionB", fields: [submissionBId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([reportId, submissionAId, submissionBId])
+  @@index([reportId, combinedScore])
+  @@index([submissionAId])
+  @@index([submissionBId])
 }
 
 // ============ QUIZ MANAGEMENT ============

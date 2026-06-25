@@ -63,7 +63,7 @@ const SubmitModal = ({ assignment, onClose, onSubmitted }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <div>
@@ -91,11 +91,11 @@ const SubmitModal = ({ assignment, onClose, onSubmitted }) => {
               <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Upload File (optional)</label>
               <input
                 type="file"
-                accept=".pdf,.doc,.docx,.zip,.txt,.png,.jpg,.jpeg"
+                accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
                 onChange={(e) => setFile(e.target.files[0])}
                 className="w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
               />
-              <p className="text-xs text-slate-400 mt-1">PDF, DOC, DOCX, ZIP, images, TXT · max 20 MB</p>
+              <p className="text-xs text-slate-400 mt-1">PDF, DOC, DOCX, images, TXT · max 20 MB</p>
             </div>
           </div>
           <div className="p-6 border-t border-slate-100 flex justify-end gap-3">

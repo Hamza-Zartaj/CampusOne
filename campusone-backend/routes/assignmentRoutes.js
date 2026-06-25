@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { protect as authenticate } from '../middleware/auth.js';
+import { protect as authenticate, authorize } from '../middleware/auth.js';
 import {
   getAssignments,
   getMyAssignments,
@@ -13,6 +13,10 @@ import {
   submitAssignment,
   getMySubmission,
 } from '../controllers/assignmentController.js';
+import {
+  getLatestSimilarityReport,
+  runStageOneSimilarityScan,
+} from '../controllers/assignmentSimilarityController.js';
 
 const router = express.Router();
 
@@ -25,13 +29,11 @@ const upload = multer({
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/zip',
-      'application/x-zip-compressed',
       'image/jpeg', 'image/png',
       'text/plain',
     ];
     if (allowed.includes(file.mimetype)) return cb(null, true);
-    cb(new Error('Unsupported file type. Allowed: PDF, DOC, DOCX, ZIP, images, TXT'));
+    cb(new Error('Unsupported file type. Allowed: PDF, DOC, DOCX, images, TXT'));
   },
 });
 
@@ -43,6 +45,8 @@ router.get('/:id', authenticate, getAssignmentById);
 router.put('/:id', authenticate, upload.single('file'), updateAssignment);
 router.delete('/:id', authenticate, deleteAssignment);
 router.get('/:id/submissions', authenticate, getSubmissions);
+router.post('/:id/similarity/scan', authenticate, authorize('teacher'), runStageOneSimilarityScan);
+router.get('/:id/similarity/latest', authenticate, authorize('teacher'), getLatestSimilarityReport);
 
 // Submission routes (scoped under assignment)
 router.post('/:id/submit', authenticate, upload.single('file'), submitAssignment);

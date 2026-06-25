@@ -235,7 +235,7 @@ const EnrollmentManagement = () => {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="font-semibold text-slate-800">Enroll Student</h2>
@@ -277,7 +277,7 @@ const EnrollmentManagement = () => {
       )}
 
       {showBulk && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="font-semibold text-slate-800">Bulk Import Enrollments</h2>
@@ -326,7 +326,7 @@ const EnrollmentManagement = () => {
       )}
 
       {transferTarget && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="font-semibold text-slate-800">Move to Another Section</h2>

@@ -197,7 +197,7 @@ const SessionPicker = ({ offering, onClose, onSaved }) => {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
         <div className="bg-white rounded-xl p-8 text-slate-400">Loading schedule…</div>
       </div>
     );
@@ -206,7 +206,7 @@ const SessionPicker = ({ offering, onClose, onSaved }) => {
   const days = Object.keys(slots);
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-5 border-b">
           <div>
@@ -407,7 +407,7 @@ const CourseOfferingManagement = () => {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="font-semibold text-slate-800">{editId ? 'Edit Offering' : 'New Offering'}</h2>

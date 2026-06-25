@@ -34,6 +34,7 @@ The application is a mature, feature-heavy codebase. Most major product areas ar
 - Supabase Storage
 - Resend email
 - Multer and XLSX
+- `pdf-parse` and Mammoth for text-only assignment similarity extraction
 
 ### Frontend
 
@@ -118,6 +119,7 @@ Status in this section means the relevant schema, backend route/controller, and 
 ### Infrastructure and authentication
 
 - [x] Root command starts backend and frontend with `concurrently`
+- [x] Full-screen modal overlays consistently render above the sticky CampusOne header
 - [x] PostgreSQL and Prisma adapter setup
 - [x] Local Supabase configuration
 - [x] JWT login and protected routes
@@ -192,6 +194,10 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Assignment file upload
 - [x] Student submission and resubmission
 - [x] Teacher Close/Reopen Submissions control with backend enforcement
+- [x] Assignment similarity Stage 1 inside View Submissions
+- [x] Exact file hash, normalized text hash, and local lexical-overlap detection
+- [x] Text-only TXT, PDF, and DOCX extraction with unsupported/no-text reporting
+- [x] Persistent similarity reports with stale-snapshot detection
 - [x] Submission grading and feedback
 - [x] TA self-grading prevention for assignment submissions
 - [x] Attendance batch marking
@@ -390,7 +396,7 @@ Only open work belongs here. Move an item to the verified feature inventory or r
   Parse supported inbound email webhooks and create `QnaReply` records with a clear email source.
 
 - [ ] **Assignment similarity/plagiarism service**
-  Follow the text-only two-stage design in `AI_IMPLEMENTATION.md`: freeze a closed assignment snapshot, run exact-file/content hashes and lexical checks locally first, then use cached text embeddings and optional LLM explanations only for unresolved candidate matches. Ignore images and mark image-only/no-text files unsupported. Results must remain review flags, not automatic misconduct verdicts.
+  **Stage 1 is implemented.** Continue with Stage 2 from `AI_IMPLEMENTATION.md`: use cached text embeddings for unresolved candidate matches, optional LLM explanations for only the strongest passages, teacher review records, and audit logs. Ignore images and keep results as review evidence rather than automatic misconduct verdicts.
 
 - [ ] **Advanced quiz monitoring**  
   Optional screen-sharing capture and webcam snapshots with explicit user permission and a defined privacy policy.
@@ -403,6 +409,7 @@ Only open work belongs here. Move an item to the verified feature inventory or r
 - Current executable source and Prisma schema outrank comments or old assumptions.
 - Inspect the controller, route, schema model, and frontend caller before changing a feature.
 - Backend authorization is the security boundary; hidden frontend navigation is not authorization.
+- Full-screen dialogs must use the shared `z-modal` layer rather than `z-50`.
 - Admin roles and admin permissions are separate concepts.
 - A TA operation must verify approved status, offering scope, required permission, and self-action restrictions.
 - `CourseGradeComponent` defines grading structure; `MarkComponent` stores individual scores.
