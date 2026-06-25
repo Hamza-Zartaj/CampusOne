@@ -11,7 +11,16 @@ const assignmentInclude = {
     select: {
       id: true, section: true,
       course: { select: { id: true, code: true, title: true } },
-      term: { select: { id: true, code: true, season: true, academicYear: true } },
+      term: {
+        select: {
+          id: true,
+          code: true,
+          season: true,
+          academicYear: true,
+          isActive: true,
+          endDate: true,
+        },
+      },
     },
   },
   _count: { select: { submissions: true } },
