@@ -1,5 +1,8 @@
 import prisma from '../prisma/client.js';
 import { reevaluateAfterAttendance } from './leaveController.js';
+import { assertDateWithinTerm, parseDateOnly, toDateOnlyString } from '../utils/dateOnly.js';
+
+const VALID_ATTENDANCE_STATUSES = new Set(['PRESENT', 'ABSENT', 'LATE']);
 
 // Allow teacher of offering, admin, or APPROVED TA (with optional permission gate).
 const assertCanViewOffering = async (user, offeringId, requiredTAPermission = 'VIEW_ROSTER') => {
@@ -33,15 +36,27 @@ export const markAttendance = async (req, res) => {
     if (!offeringId || !date || !Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ success: false, message: 'offeringId, date, and records[] are required' });
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({ success: false, message: 'date must be in YYYY-MM-DD format' });
+    const dateValue = parseDateOnly(date);
+    if (!dateValue) {
+      return res.status(400).json({ success: false, message: 'date must be a real calendar date in YYYY-MM-DD format' });
+    }
+    if (records.some((record) => !VALID_ATTENDANCE_STATUSES.has(record.status))) {
+      return res.status(400).json({ success: false, message: 'status must be one of: PRESENT, ABSENT, LATE' });
     }
 
     let markerId; // string used for `markedBy` (teacher.id, ta student.id, or user.id for admin)
+    const offeringWithTerm = await prisma.courseOffering.findUnique({
+      where: { id: offeringId },
+      include: { term: true },
+    });
+    if (!offeringWithTerm) return res.status(404).json({ success: false, message: 'Offering not found' });
+    if (!assertDateWithinTerm(date, offeringWithTerm.term)) {
+      const start = toDateOnlyString(offeringWithTerm.term.startDate);
+      const end = toDateOnlyString(offeringWithTerm.term.endDate);
+      return res.status(400).json({ success: false, message: `attendance date must be within term bounds (${start} to ${end})` });
+    }
 
     if (req.user.role === 'admin') {
-      const offering = await prisma.courseOffering.findUnique({ where: { id: offeringId } });
-      if (!offering) return res.status(404).json({ success: false, message: 'Offering not found' });
       markerId = req.user.id;
     } else if (req.user.role === 'teacher') {
       const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
@@ -65,14 +80,13 @@ export const markAttendance = async (req, res) => {
 
     await Promise.all(records.map(({ studentId, status }) =>
       prisma.attendance.upsert({
-        where: { offeringId_studentId_date: { offeringId, studentId, date } },
-        create: { offeringId, studentId, date, status, markedBy: markerId },
+        where: { offeringId_studentId_date: { offeringId, studentId, date: dateValue } },
+        create: { offeringId, studentId, date: dateValue, status, markedBy: markerId },
         update: { status, markedBy: markerId },
       })
     ));
 
-    // Fire-and-forget leave-quota re-evaluation (fines + drop-off)
-    reevaluateAfterAttendance({
+    await reevaluateAfterAttendance({
       offeringId,
       studentIds: records.map((r) => r.studentId),
       performedById: req.user.id,
@@ -102,9 +116,10 @@ export const getSessions = async (req, res) => {
 
     const sessions = {};
     for (const row of grouped) {
-      if (!sessions[row.date]) sessions[row.date] = { date: row.date, present: 0, absent: 0, late: 0, total: 0 };
-      sessions[row.date][row.status.toLowerCase()] = row._count._all;
-      sessions[row.date].total += row._count._all;
+      const dateKey = toDateOnlyString(row.date);
+      if (!sessions[dateKey]) sessions[dateKey] = { date: dateKey, present: 0, absent: 0, late: 0, total: 0 };
+      sessions[dateKey][row.status.toLowerCase()] = row._count._all;
+      sessions[dateKey].total += row._count._all;
     }
 
     res.json({ success: true, data: Object.values(sessions).sort((a, b) => b.date.localeCompare(a.date)) });
@@ -121,15 +136,20 @@ export const getSessionDetail = async (req, res) => {
     const allowed = await assertCanViewOffering(req.user, offeringId, 'VIEW_ROSTER');
     if (!allowed) return res.status(403).json({ success: false, message: 'Not authorised for this offering' });
 
+    const dateValue = parseDateOnly(date);
+    if (!dateValue) {
+      return res.status(400).json({ success: false, message: 'date must be a real calendar date in YYYY-MM-DD format' });
+    }
+
     const records = await prisma.attendance.findMany({
-      where: { offeringId, date },
+      where: { offeringId, date: dateValue },
       include: {
         student: { select: { id: true, studentId: true, user: { select: { name: true } } } },
       },
       orderBy: { student: { studentId: 'asc' } },
     });
 
-    res.json({ success: true, data: records });
+    res.json({ success: true, data: records.map((record) => ({ ...record, date: toDateOnlyString(record.date) })) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -149,7 +169,7 @@ export const getStudentSummary = async (req, res) => {
     });
 
     const allAttendance = await prisma.attendance.findMany({ where: { offeringId } });
-    const uniqueDates = [...new Set(allAttendance.map(a => a.date))];
+    const uniqueDates = [...new Set(allAttendance.map(a => toDateOnlyString(a.date)))];
     const totalSessions = uniqueDates.length;
 
     const summary = enrollments.map(({ student }) => {
@@ -227,7 +247,7 @@ export const getMyAttendance = async (req, res) => {
         late,
         percentage,
         isAtRisk: percentage < 75,
-        records: records.slice(0, 20),
+        records: records.slice(0, 20).map((record) => ({ ...record, date: toDateOnlyString(record.date) })),
       };
     });
 

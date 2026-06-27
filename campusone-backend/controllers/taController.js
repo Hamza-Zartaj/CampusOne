@@ -13,6 +13,18 @@ export const TA_CONFIG = {
   enabled:           true,              // global on/off (registrar can flip later)
 };
 
+export const TA_REVIEW_NOTES_MAX_LENGTH = 1000;
+
+const normalizeReviewNotes = (value) => {
+  const notes = (value ?? '').toString().trim();
+  if (notes.length > TA_REVIEW_NOTES_MAX_LENGTH) {
+    const error = new Error(`reviewNotes must be ${TA_REVIEW_NOTES_MAX_LENGTH} characters or fewer`);
+    error.statusCode = 400;
+    throw error;
+  }
+  return notes || null;
+};
+
 const computeCGPA = async (studentId) => {
   const completed = await prisma.enrollment.findMany({
     where: { studentId, gradePoints: { not: null } },
@@ -37,10 +49,14 @@ export const checkEligibility = async (studentId) => {
   if (cgpa == null) reasons.push('No completed courses on record');
   else if (cgpa < TA_CONFIG.minCgpa) reasons.push(`CGPA ${cgpa} is below required ${TA_CONFIG.minCgpa}`);
 
-  // Active TA assignments cap
-  const activeCount = await prisma.tAAssignment.count({
-    where: { studentId, status: 'APPROVED' },
-  });
+  const activeTerm = await prisma.term.findFirst({ where: { isActive: true } });
+
+  // Active TA assignments cap scoped to the active term.
+  const activeCount = activeTerm
+    ? await prisma.tAAssignment.count({
+        where: { studentId, status: 'APPROVED', offering: { termId: activeTerm.id } },
+      })
+    : 0;
   if (activeCount >= TA_CONFIG.maxActiveAssignments) {
     reasons.push(`Already TA for ${activeCount} offerings (max ${TA_CONFIG.maxActiveAssignments})`);
   }
@@ -68,7 +84,6 @@ export const checkEligibility = async (studentId) => {
   });
   const existingMap = new Map(existing.map((e) => [e.offeringId, e.status]));
 
-  const activeTerm = await prisma.term.findFirst({ where: { isActive: true } });
   const eligibleCourses = [];
 
   if (reasons.length === 0 && activeTerm) {
@@ -209,7 +224,7 @@ export const applyForTA = async (req, res) => {
 
     // Notify teacher
     if (offering.teacher?.userId) {
-      notify({
+      await notify({
         userId: offering.teacher.userId,
         type: 'TA_APPLICATION',
         title: `TA application: ${offering.course.code}`,
@@ -318,6 +333,7 @@ const verifyTeacherOwns = async (userId, applicationId) => {
 export const approveApplication = async (req, res) => {
   try {
     const { permissions, reviewNotes } = req.body;
+    const cleanReviewNotes = normalizeReviewNotes(reviewNotes);
     const validPerms = ['MARK_ATTENDANCE', 'GRADE_ASSIGNMENTS', 'GRADE_QUIZZES', 'ANSWER_QNA', 'UPLOAD_RESOURCES', 'VIEW_ROSTER'];
     const cleanedPerms = Array.isArray(permissions)
       ? permissions.filter((p) => validPerms.includes(p))
@@ -366,6 +382,7 @@ export const approveApplication = async (req, res) => {
           studentId: application.studentId,
           status: 'APPROVED',
           id: { not: application.id },
+          offering: { termId: application.offering.termId },
         },
       });
       if (activeCount >= TA_CONFIG.maxActiveAssignments) {
@@ -382,7 +399,7 @@ export const approveApplication = async (req, res) => {
           status: 'APPROVED',
           permissions: cleanedPerms,
           reviewedBy: req.user.id,
-          reviewNotes: reviewNotes || null,
+          reviewNotes: cleanReviewNotes,
           reviewedAt: new Date(),
           startedAt: application.startedAt || new Date(),
           endedAt: null,
@@ -392,7 +409,7 @@ export const approveApplication = async (req, res) => {
       return { existing: application, updated: approved };
     });
 
-    notify({
+    await notify({
       userId: existing.student.userId,
       type: 'TA_APPROVED',
       title: `TA application approved: ${existing.offering.course.code}`,
@@ -400,14 +417,14 @@ export const approveApplication = async (req, res) => {
       linkUrl: '/student/ta',
     });
 
-    AuditLogger.log({
+    await AuditLogger.log({
       action: 'TA_APPROVED',
       category: 'ACADEMIC',
       performedBy: req.user.id,
       performedByRole: req.user.role,
       targetModel: 'TAAssignment',
       targetId: updated.id,
-      newValue: { permissions: cleanedPerms, reviewNotes },
+      newValue: { permissions: cleanedPerms, reviewNotes: cleanReviewNotes },
     });
 
     res.json({ success: true, data: updated });
@@ -420,6 +437,7 @@ export const approveApplication = async (req, res) => {
 // PUT /api/ta/applications/:id/reject  body: { reviewNotes }
 export const rejectApplication = async (req, res) => {
   try {
+    const cleanReviewNotes = normalizeReviewNotes(req.body?.reviewNotes);
     if (req.user.role === 'teacher') {
       const check = await verifyTeacherOwns(req.user.id, req.params.id);
       if (check.error) return res.status(check.error).json({ success: false, message: check.message });
@@ -439,29 +457,30 @@ export const rejectApplication = async (req, res) => {
       data: {
         status: 'REJECTED',
         reviewedBy: req.user.id,
-        reviewNotes: req.body?.reviewNotes || null,
+        reviewNotes: cleanReviewNotes,
         reviewedAt: new Date(),
       },
     });
 
-    notify({
+    await notify({
       userId: existing.student.userId,
       type: 'TA_DECISION',
       title: `TA application rejected: ${existing.offering.course.code}`,
-      body: req.body?.reviewNotes || 'Your TA application was not approved.',
+      body: cleanReviewNotes || 'Your TA application was not approved.',
       linkUrl: '/student/ta',
     });
 
     res.json({ success: true, data: updated });
   } catch (err) {
     console.error('[ta] reject error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 
 // PUT /api/ta/applications/:id/relieve  — teacher or admin removes an active TA
 export const relieveAssignment = async (req, res) => {
   try {
+    const cleanReviewNotes = normalizeReviewNotes(req.body?.reviewNotes);
     if (req.user.role === 'teacher') {
       const check = await verifyTeacherOwns(req.user.id, req.params.id);
       if (check.error) return res.status(check.error).json({ success: false, message: check.message });
@@ -481,19 +500,19 @@ export const relieveAssignment = async (req, res) => {
       data: {
         status: 'RELIEVED',
         endedAt: new Date(),
-        reviewNotes: req.body?.reviewNotes || existing.reviewNotes,
+        reviewNotes: cleanReviewNotes || existing.reviewNotes,
       },
     });
 
-    notify({
+    await notify({
       userId: existing.student.userId,
       type: 'TA_RELIEVED',
       title: `TA assignment ended: ${existing.offering.course.code}`,
-      body: req.body?.reviewNotes || 'Your TA duties for this course have ended.',
+      body: cleanReviewNotes || 'Your TA duties for this course have ended.',
       linkUrl: '/student/ta',
     });
 
-    AuditLogger.log({
+    await AuditLogger.log({
       action: 'TA_RELIEVED',
       category: 'ACADEMIC',
       performedBy: req.user.id,
@@ -504,7 +523,7 @@ export const relieveAssignment = async (req, res) => {
 
     res.json({ success: true, data: updated });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 

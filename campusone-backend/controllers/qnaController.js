@@ -57,20 +57,58 @@ const verifyOfferingAccess = async (user, offeringId) => {
 // Enrich threads with author + replies' author info (User-level, since asker can be student or teacher)
 const enrichThreads = async (threads) => {
   const userIds = new Set();
+  const offeringIds = new Set();
   threads.forEach((t) => {
+    offeringIds.add(t.offeringId);
     userIds.add(t.askedById);
     (t.replies || []).forEach((r) => userIds.add(r.authorId));
   });
   if (userIds.size === 0) return threads;
-  const users = await prisma.user.findMany({
-    where: { id: { in: [...userIds] } },
-    select: { id: true, name: true, role: true, email: true },
-  });
+  const [users, studentProfiles] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { in: [...userIds] } },
+      select: { id: true, name: true, role: true, email: true },
+    }),
+    prisma.student.findMany({
+      where: { userId: { in: [...userIds] } },
+      select: { id: true, userId: true, studentId: true },
+    }),
+  ]);
   const map = new Map(users.map((u) => [u.id, u]));
+  const studentByUserId = new Map(studentProfiles.map((student) => [student.userId, student]));
+  const taAssignments = studentProfiles.length
+    ? await prisma.tAAssignment.findMany({
+        where: {
+          studentId: { in: studentProfiles.map((student) => student.id) },
+          offeringId: { in: [...offeringIds] },
+          status: 'APPROVED',
+          permissions: { has: 'ANSWER_QNA' },
+        },
+        select: { studentId: true, offeringId: true },
+      })
+    : [];
+  const studentUserById = new Map(studentProfiles.map((student) => [student.id, student.userId]));
+  const taByUserOffering = new Set(
+    taAssignments.map((ta) => `${studentUserById.get(ta.studentId)}:${ta.offeringId}`)
+  );
+  const enrichAuthor = (userId, offeringId) => {
+    const user = map.get(userId);
+    if (!user) return null;
+    const student = studentByUserId.get(userId);
+    const isTA = taByUserOffering.has(`${userId}:${offeringId}`);
+    return {
+      ...user,
+      qnaIdentity: {
+        isTA,
+        label: isTA ? 'Teaching Assistant' : user.role,
+        studentId: student?.studentId ?? null,
+      },
+    };
+  };
   return threads.map((t) => ({
     ...t,
-    askedBy: map.get(t.askedById) || null,
-    replies: (t.replies || []).map((r) => ({ ...r, author: map.get(r.authorId) || null })),
+    askedBy: enrichAuthor(t.askedById, t.offeringId),
+    replies: (t.replies || []).map((r) => ({ ...r, author: enrichAuthor(r.authorId, t.offeringId) })),
   }));
 };
 
@@ -172,7 +210,7 @@ export const createThread = async (req, res) => {
 
         const asker = await prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } });
 
-        notify({
+        await notify({
           userId: offering.teacher.user.id,
           type: TYPE.QNA_NEW,
           title: `New question in ${offering.course.code}`,
@@ -235,7 +273,7 @@ export const createReply = async (req, res) => {
     // Notify the asker (if reply is from someone else)
     if (thread.askedById !== req.user.id) {
       const linkPath = req.user.role === 'teacher' ? `/student/qna?thread=${thread.id}` : `/teacher/qna?thread=${thread.id}`;
-      notify({
+      await notify({
         userId: thread.askedById,
         type: TYPE.QNA_REPLY,
         title: `${author?.name || 'Someone'} replied to your question`,

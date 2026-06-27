@@ -24,10 +24,26 @@ export const TYPE = {
   GENERAL:             'GENERAL',
 };
 
-export const notify = ({ userId, type, title, body, linkUrl, metadata }) => {
-  if (!userId || !type || !title) return;
-  prisma.notification
-    .create({
+const retry = async (fn, attempts = 3) => {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 150));
+      }
+    }
+  }
+  throw lastError;
+};
+
+export const notify = async ({ userId, type, title, body, linkUrl, metadata }) => {
+  if (!userId || !type || !title) return null;
+  try {
+    const notification = await retry(() =>
+      prisma.notification.create({
       data: {
         userId,
         type,
@@ -36,15 +52,20 @@ export const notify = ({ userId, type, title, body, linkUrl, metadata }) => {
         linkUrl: linkUrl ?? null,
         metadata: metadata ?? {},
       },
-    })
-    .then((n) => emitToUser(userId, 'notification:new', n))
-    .catch((err) => console.error('[notify] failed:', err.message));
+    }));
+    emitToUser(userId, 'notification:new', notification);
+    return notification;
+  } catch (err) {
+    console.error('[notify] failed:', err.message);
+    return null;
+  }
 };
 
-export const notifyMany = ({ userIds, type, title, body, linkUrl, metadata }) => {
-  if (!Array.isArray(userIds) || userIds.length === 0 || !type || !title) return;
-  prisma.notification
-    .createMany({
+export const notifyMany = async ({ userIds, type, title, body, linkUrl, metadata }) => {
+  if (!Array.isArray(userIds) || userIds.length === 0 || !type || !title) return { count: 0 };
+  try {
+    const result = await retry(() =>
+      prisma.notification.createMany({
       data: userIds.map((userId) => ({
         userId,
         type,
@@ -53,9 +74,13 @@ export const notifyMany = ({ userIds, type, title, body, linkUrl, metadata }) =>
         linkUrl: linkUrl ?? null,
         metadata: metadata ?? {},
       })),
-    })
-    .then(() => emitToUsers(userIds, 'notification:new', { type, title, body, linkUrl, metadata }))
-    .catch((err) => console.error('[notifyMany] failed:', err.message));
+    }));
+    emitToUsers(userIds, 'notification:new', { type, title, body, linkUrl, metadata });
+    return result;
+  } catch (err) {
+    console.error('[notifyMany] failed:', err.message);
+    return { count: 0 };
+  }
 };
 
 export default { notify, notifyMany, TYPE };

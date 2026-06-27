@@ -3,6 +3,13 @@ import { sendAnnouncementEmail } from '../services/emailService.js';
 import { notifyMany, TYPE } from '../services/notificationService.js';
 import { auditLog } from '../utils/auditLogger.js';
 
+const VALID_PRIORITIES = new Set(['low', 'medium', 'high']);
+
+const normalizePriority = (priority) => {
+  const value = (priority || 'medium').toString().trim().toLowerCase();
+  return VALID_PRIORITIES.has(value) ? value : null;
+};
+
 /**
  * Send announcement (Admin)
  * Can filter by: all, teachers, students, specific_course
@@ -15,6 +22,10 @@ export const sendAnnouncement = async (req, res) => {
     // Validation
     if (!title || !content) {
       return res.status(400).json({ error: 'Title and content are required' });
+    }
+    const priorityValue = normalizePriority(priority);
+    if (!priorityValue) {
+      return res.status(400).json({ error: 'priority must be one of: low, medium, high' });
     }
 
     // Normalise filters (only persist non-empty values)
@@ -31,7 +42,7 @@ export const sendAnnouncement = async (req, res) => {
       data: {
         title,
         content,
-        priority: priority || 'medium',
+        priority: priorityValue,
         createdBy: userId,
         targetAudience: hasFilters ? 'filtered' : targetAudience,
         audienceFilters: hasFilters ? { ...cleanFilters, baseAudience: targetAudience } : null,
@@ -93,13 +104,13 @@ export const sendAnnouncement = async (req, res) => {
 
     // In-app notification (instant — single bulk insert)
     if (recipients.length > 0) {
-      notifyMany({
+      await notifyMany({
         userIds: recipients.map((r) => r.id),
         type: TYPE.ANNOUNCEMENT,
         title: `📢 ${title}`,
         body: content.length > 200 ? content.slice(0, 200) + '…' : content,
         linkUrl: '/announcements',
-        metadata: { announcementId: announcement.id, priority },
+        metadata: { announcementId: announcement.id, priority: priorityValue },
       });
     }
 
@@ -112,19 +123,19 @@ export const sendAnnouncement = async (req, res) => {
             name: recipient.name,
             title,
             content,
-            priority
+            priority: priorityValue
           }).catch(err => console.error(`Failed to send email to ${recipient.email}:`, err));
           await new Promise(resolve => setTimeout(resolve, 550));
         }
       })();
     }
 
-    auditLog({
+    await auditLog({
       action: 'SEND_ANNOUNCEMENT', category: 'ANNOUNCEMENT',
       performedBy: req.user.id, performedByRole: req.user.role,
       targetModel: 'Announcement', targetId: announcement.id,
       description: `Sent announcement "${title}" to ${targetAudience} (${recipients.length} recipients)`,
-      newValue: { title, priority, targetAudience, recipientCount: recipients.length },
+      newValue: { title, priority: priorityValue, targetAudience, recipientCount: recipients.length },
     });
 
     res.status(201).json({
@@ -150,6 +161,10 @@ export const sendCourseAnnouncement = async (req, res) => {
     if (!title || !content || !offeringId) {
       return res.status(400).json({ error: 'title, content, offeringId are required' });
     }
+    const priorityValue = normalizePriority(priority);
+    if (!priorityValue) {
+      return res.status(400).json({ error: 'priority must be one of: low, medium, high' });
+    }
 
     const offering = await prisma.courseOffering.findUnique({
       where: { id: offeringId },
@@ -168,7 +183,7 @@ export const sendCourseAnnouncement = async (req, res) => {
       data: {
         title,
         content,
-        priority: priority || 'medium',
+        priority: priorityValue,
         createdBy: userId,
         targetAudience: 'course',
         offeringId,
@@ -187,13 +202,13 @@ export const sendCourseAnnouncement = async (req, res) => {
     }));
 
     if (recipients.length > 0) {
-      notifyMany({
+      await notifyMany({
         userIds: recipients.map((r) => r.id),
         type: TYPE.ANNOUNCEMENT,
         title: `📢 ${offering.course.code}: ${title}`,
         body: content.length > 200 ? content.slice(0, 200) + '…' : content,
         linkUrl: '/student/notification',
-        metadata: { announcementId: announcement.id, offeringId, priority },
+        metadata: { announcementId: announcement.id, offeringId, priority: priorityValue },
       });
 
       (async () => {
@@ -203,19 +218,19 @@ export const sendCourseAnnouncement = async (req, res) => {
             name: r.name,
             title: `${offering.course.code}: ${title}`,
             content,
-            priority: priority || 'medium',
+            priority: priorityValue,
           }).catch((err) => console.error(`Failed to email ${r.email}:`, err));
           await new Promise((resolve) => setTimeout(resolve, 550));
         }
       })();
     }
 
-    auditLog({
+    await auditLog({
       action: 'SEND_COURSE_ANNOUNCEMENT', category: 'ANNOUNCEMENT',
       performedBy: userId, performedByRole: req.user.role,
       targetModel: 'Announcement', targetId: announcement.id,
       description: `Sent course announcement "${title}" to ${offering.course.code} (${recipients.length} students)`,
-      newValue: { title, priority, offeringId, recipientCount: recipients.length },
+      newValue: { title, priority: priorityValue, offeringId, recipientCount: recipients.length },
     });
 
     res.status(201).json({
@@ -404,6 +419,10 @@ export const updateAnnouncement = async (req, res) => {
   try {
     const { id } = req.params;
     const { title, content, priority } = req.body;
+    const priorityValue = priority === undefined ? undefined : normalizePriority(priority);
+    if (priority !== undefined && !priorityValue) {
+      return res.status(400).json({ success: false, message: 'priority must be one of: low, medium, high' });
+    }
 
     // Check if announcement exists
     const announcement = await prisma.announcement.findUnique({
@@ -430,7 +449,7 @@ export const updateAnnouncement = async (req, res) => {
       data: {
         ...(title && { title }),
         ...(content && { content }),
-        ...(priority && { priority })
+        ...(priorityValue && { priority: priorityValue })
       }
     });
 
@@ -480,7 +499,7 @@ export const deleteAnnouncement = async (req, res) => {
       where: { id }
     });
 
-    auditLog({
+    await auditLog({
       action: 'DELETE_ANNOUNCEMENT', category: 'ANNOUNCEMENT',
       performedBy: req.user.id, performedByRole: req.user.role,
       targetModel: 'Announcement', targetId: id,
