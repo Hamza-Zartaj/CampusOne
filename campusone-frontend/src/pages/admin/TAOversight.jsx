@@ -18,6 +18,8 @@ const StatusIcon = ({ s }) => {
   return <Clock size={14} className="text-amber-600" />;
 };
 
+const REVIEW_NOTES_MAX_LENGTH = 1000;
+
 const TAOversight = () => {
   const [terms, setTerms] = useState([]);
   const [filterStatus, setFilterStatus] = useState('');
@@ -46,6 +48,10 @@ const TAOversight = () => {
 
   const submitDecision = async () => {
     if (!reviewing || !decision) return;
+    if (reviewNotes.length > REVIEW_NOTES_MAX_LENGTH) {
+      toast.error(`Notes must be ${REVIEW_NOTES_MAX_LENGTH} characters or fewer`);
+      return;
+    }
     try {
       if (decision === 'REJECTED') {
         await taAPI.reject(reviewing.id, reviewNotes);
@@ -216,7 +222,11 @@ const TAOversight = () => {
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Notes (optional)</label>
                 <textarea rows={3} value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)}
+                  maxLength={REVIEW_NOTES_MAX_LENGTH}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <p className="text-[11px] text-slate-400 mt-1 m-0 text-right">
+                  {reviewNotes.length}/{REVIEW_NOTES_MAX_LENGTH}
+                </p>
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => { setReviewing(null); setDecision(null); setReviewNotes(''); }}

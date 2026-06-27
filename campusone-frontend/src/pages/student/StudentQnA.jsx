@@ -9,6 +9,16 @@ import toast from 'react-hot-toast';
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
 // ─── Ask Modal ───────────────────────────────────────────────────────────────
+const AuthorBadge = ({ author }) => {
+  if (author?.qnaIdentity?.isTA) {
+    return <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">TA</span>;
+  }
+  if (author?.role) {
+    return <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{author.role}</span>;
+  }
+  return null;
+};
+
 const AskModal = ({ enrollments, onClose, onCreated }) => {
   const [offeringId, setOfferingId] = useState('');
   const [title, setTitle] = useState('');
@@ -166,6 +176,7 @@ const ThreadDetail = ({ threadId, currentUserId, onBack, onChange }) => {
             <p className="text-xs text-slate-500 mt-1">
               Asked by <span className="font-medium text-slate-700">{thread.askedBy?.name || 'Unknown'}</span>
               {isAsker && <span className="text-blue-600 ml-1">(you)</span>}
+              <AuthorBadge author={thread.askedBy} />
               · {fmtDateTime(thread.createdAt)}
             </p>
           </div>
@@ -195,16 +206,13 @@ const ThreadDetail = ({ threadId, currentUserId, onBack, onChange }) => {
         )}
         {thread.replies.map((r) => {
           const isTeacher = r.author?.role === 'teacher';
+          const isTA = r.author?.qnaIdentity?.isTA;
           return (
-            <div key={r.id} className={`bg-white rounded-xl border p-4 ${isTeacher ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200'}`}>
+            <div key={r.id} className={`bg-white rounded-xl border p-4 ${isTeacher || isTA ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200'}`}>
               <div className="flex items-start justify-between mb-2">
                 <div>
                   <span className="font-medium text-slate-800">{r.author?.name || 'Unknown'}</span>
-                  {r.author?.role && (
-                    <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${isTeacher ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
-                      {r.author.role}
-                    </span>
-                  )}
+                  <AuthorBadge author={r.author} />
                   <span className="ml-2 text-xs text-slate-500">{fmtDateTime(r.createdAt)}</span>
                 </div>
               </div>
@@ -367,7 +375,7 @@ const StudentQnA = () => {
                           </p>
                           <p className="text-sm text-slate-600 mt-2 line-clamp-2">{t.body}</p>
                           <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
-                            <span>by <span className="font-medium text-slate-700">{t.askedBy?.name || 'Unknown'}</span></span>
+                            <span>by <span className="font-medium text-slate-700">{t.askedBy?.name || 'Unknown'}</span><AuthorBadge author={t.askedBy} /></span>
                             <span className="inline-flex items-center gap-1"><MessageSquare size={12} /> {t._count?.replies ?? 0} replies</span>
                             <span className="inline-flex items-center gap-1"><Clock size={12} /> {fmtDateTime(t.updatedAt)}</span>
                           </div>

@@ -1,8 +1,8 @@
 import prisma from '../prisma/client.js';
 
 /**
- * Fire-and-forget audit log writer.
- * Call after a successful mutation — never await, never block the response.
+ * Awaitable audit log writer.
+ * Await this for critical mutations where the audit row is part of the success contract.
  *
  * @param {object} opts
  * @param {string} opts.action          e.g. 'CREATE_USER'
@@ -15,18 +15,23 @@ import prisma from '../prisma/client.js';
  * @param {any}    [opts.previousValue] snapshot before change
  * @param {any}    [opts.newValue]      snapshot after change
  */
-export const auditLog = ({ action, category, performedBy, performedByRole, targetModel, targetId, description, previousValue, newValue } = {}) => {
-  prisma.auditLog.create({
-    data: {
-      action,
-      category,
-      performedBy,
-      performedByRole,
-      targetModel,
-      targetId: targetId ?? 'N/A',
-      description: description ?? null,
-      previousValue: previousValue ?? undefined,
-      newValue: newValue ?? undefined,
-    },
-  }).catch((err) => console.error('[AuditLog] write failed:', err.message));
+export const auditLog = async ({ action, category, performedBy, performedByRole, targetModel, targetId, description, previousValue, newValue } = {}) => {
+  try {
+    return await prisma.auditLog.create({
+      data: {
+        action,
+        category,
+        performedBy,
+        performedByRole,
+        targetModel,
+        targetId: targetId ?? 'N/A',
+        description: description ?? null,
+        previousValue: previousValue ?? undefined,
+        newValue: newValue ?? undefined,
+      },
+    });
+  } catch (err) {
+    console.error('[AuditLog] write failed:', err.message);
+    return null;
+  }
 };

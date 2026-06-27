@@ -26,6 +26,8 @@ const ALL_PERMS = [
   { value: 'UPLOAD_RESOURCES',  label: 'Upload resources' },
 ];
 
+const REVIEW_NOTES_MAX_LENGTH = 1000;
+
 const TeacherTAApplications = () => {
   const [tab, setTab] = useState('pending');
   const [applications, setApplications] = useState([]);
@@ -49,6 +51,10 @@ const TeacherTAApplications = () => {
 
   const submitDecision = async () => {
     if (!reviewing || !decision) return;
+    if (reviewNotes.length > REVIEW_NOTES_MAX_LENGTH) {
+      toast.error(`Notes must be ${REVIEW_NOTES_MAX_LENGTH} characters or fewer`);
+      return;
+    }
     try {
       if (decision === 'APPROVED') {
         await taAPI.approve(reviewing.id, { permissions: grantedPerms, reviewNotes });
@@ -209,8 +215,12 @@ const TeacherTAApplications = () => {
                   rows={3}
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
+                  maxLength={REVIEW_NOTES_MAX_LENGTH}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
+                <p className="text-[11px] text-slate-400 mt-1 m-0 text-right">
+                  {reviewNotes.length}/{REVIEW_NOTES_MAX_LENGTH}
+                </p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

@@ -304,24 +304,24 @@ This table replaces the previous audit document.
 | 2 | TA approval can bypass active-assignment cap | Resolved | Approval recounts and updates inside a retrying serializable transaction |
 | 3 | Fine generation race can create duplicates | Resolved | Stable `quotaUnit` values, a composite unique key, conflict-safe creation, and legacy-row backfill are implemented and verified against the local database |
 | 4 | Section transfer can leave related records on old offering | Resolved | Transfer now runs serializably and rejects when grades, marks, attendance, submissions, quiz attempts, leave, or fines exist in either section |
-| 5 | Frontend API URL is hard-coded | Open | `api.js` uses `http://localhost:5000/api` instead of `VITE_API_URL` |
-| 6 | Announcement offering has no foreign key | Open | `Announcement.offeringId` is an indexed string without a Prisma relation |
-| 7 | Old TA assignments count toward active cap | Open | Active count includes every `APPROVED` record without active-term filtering |
-| 8 | Leave quota and fine calculation mismatch | Partial | Counter uses weighted `n`; fine quantity still uses raw `countedAbsent` |
-| 9 | Leave dates are strings | Partial | Format/order checks exist, but schema fields remain strings and invalid calendar dates can pass |
+| 5 | Frontend API URL is hard-coded | Resolved | `api.js` reads `import.meta.env.VITE_API_URL` with a same-origin `/api` fallback |
+| 6 | Announcement offering has no foreign key | Resolved | `Announcement.offeringId` has a Prisma relation to `CourseOffering` with `onDelete: SetNull` and a cleanup/FK migration |
+| 7 | Old TA assignments count toward active cap | Resolved | Eligibility and approval counts scope approved TA assignments through the relevant offering term |
+| 8 | Leave quota and fine calculation mismatch | Resolved | Leave banding and fine generation use shared weighted `n` boundaries: `n <= 4`, `4 < n <= 6`, and `n > 6` |
+| 9 | Leave dates are strings | Resolved | Leave and attendance dates are stored as database dates with real-date, range, and term-bound validation |
 | 10 | TA assignment duplicate rows | Resolved | `@@unique([studentId, offeringId])` exists |
 | 11 | Reports overview N+1 query | Resolved | Audited nested query shape is gone |
 | 12 | Invalid TA permission combinations | Resolved for audited case | Values are allow-listed and `VIEW_ROSTER` is always added |
-| 13 | Audit writes are fire-and-forget | Open | Most callers do not await `AuditLogger.log()` |
-| 14 | Announcement priority lacks backend validation | Open | Priority remains a free-form string |
+| 13 | Audit writes are fire-and-forget | Resolved | Critical P1 mutation paths await audit writes through awaitable audit helpers |
+| 14 | Announcement priority lacks backend validation | Resolved | Announcement create/update paths strictly allow only `low`, `medium`, or `high` |
 | 15 | Announcement offering access leak | Resolved | Student and teacher offering IDs are scoped before course announcements are returned |
 | 16 | Attendance TA permission bypass | Resolved | Approved TA plus `MARK_ATTENDANCE` is required |
-| 17 | Q&A TA access/identity ambiguity | Open | TA access does not require enrollment and replies are not clearly marked as TA replies |
+| 17 | Q&A TA access/identity ambiguity | Resolved | Approved `ANSWER_QNA` TAs can participate and API/UI return/render explicit TA identity badges |
 | 18 | Student section-transfer authorization | Resolved | Route requires `manage_offerings` |
 | 19 | Grade changes after term closure | Resolved | Shared guard requires an active term and an inclusive, unexpired term end date across all identified grading paths |
 | 20 | Announcement delete ownership | Resolved | Creator or admin check exists |
-| 21 | TA review notes have no length limit | Open | Schema and API accept unbounded strings |
-| 22 | Notification delivery reliability | Partial | Database insert and socket emit exist, but delivery is fire-and-forget without retry |
+| 21 | TA review notes have no length limit | Resolved | TA review notes are backend-validated, UI-limited, and stored in a bounded database column |
+| 22 | Notification delivery reliability | Resolved | Notification helpers return promises, retry database writes, and critical P1 delivery paths await them |
 | 23 | Multiple active terms | Resolved | Activation deactivates all terms in one transaction |
 | 24 | Sidebar TA request rejection handling | Resolved | Rejection is caught and state receives a fallback |
 | 25 | Grade-distribution boundary bug | Resolved | Reports group stored grade letters directly |
@@ -334,38 +334,6 @@ This table replaces the previous audit document.
 ## 9. Future Tasks
 
 Only open work belongs here. Move an item to the verified feature inventory or resolved audit status when completed.
-
-### P1 - Schema and business-rule hardening
-
-- [ ] **Use environment-aware API configuration** (`A5`)  
-  Read `import.meta.env.VITE_API_URL` with a safe same-origin fallback.
-
-- [ ] **Add the Announcement-to-Offering relation** (`A6`)  
-  Choose cascade, restrict, or set-null deletion behavior and migrate existing rows safely.
-
-- [ ] **Scope TA active counts to the relevant term** (`A7`)  
-  Filter through `offering.term` or add explicit term ownership if required by reporting/history.
-
-- [ ] **Unify leave quota, fine, and drop boundaries** (`A8`)  
-  Use one shared calculation based on weighted `n` and document exact inclusive boundaries.
-
-- [ ] **Store leave and attendance dates as database dates** (`A9`)  
-  Validate real calendar dates, range order, and term bounds before migrating string values.
-
-- [ ] **Make audit recording reliable** (`A13`)  
-  Await critical logs or introduce a durable queue/outbox.
-
-- [ ] **Validate announcement priority on the backend** (`A14`)  
-  Prefer a Prisma enum or strict request validation.
-
-- [ ] **Clarify Q&A TA behavior** (`A17`)  
-  Either require enrollment or return/render an explicit TA identity badge.
-
-- [ ] **Limit TA review-note length** (`A21`)  
-  Add backend validation, UI limits, and a bounded database column.
-
-- [ ] **Improve critical notification reliability** (`A22`)  
-  Return promises from notification helpers and add retry/outbox handling where delivery is business-critical.
 
 ### P2 - Maintainability and scale
 
