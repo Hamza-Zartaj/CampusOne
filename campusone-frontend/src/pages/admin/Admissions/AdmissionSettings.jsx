@@ -7,6 +7,7 @@ import ApplicationsTabs from './components/StatisticsCards';
 import ApplicationSettings from './components/ApplicationSettings';
 import { useApplications } from './hooks/useApplications';
 import ApplicationsList from './components/ApplicationsList';
+import clientLogger from '../../../utils/clientLogger';
 
 const AdmissionSettingsPage = () => {
   const [settings, setSettings] = useState({
@@ -57,7 +58,7 @@ const AdmissionSettingsPage = () => {
         ...response.data.data
       }));
     } catch (error) {
-      console.error('Error fetching settings:', error);
+      clientLogger.error('Error fetching settings', error);
       toast.error('Failed to fetch admission settings');
     } finally {
       setLoading(false);
@@ -69,7 +70,7 @@ const AdmissionSettingsPage = () => {
       const response = await admissionAPI.getStatistics();
       setStatistics(response.data.data);
     } catch (error) {
-      console.error('Error fetching statistics:', error);
+      clientLogger.error('Error fetching statistics', error);
     }
   };
 
@@ -95,7 +96,7 @@ const AdmissionSettingsPage = () => {
 
       fetchStatistics();
     } catch (error) {
-      console.error('Error toggling admissions:', error);
+      clientLogger.error('Error toggling admissions', error);
       toast.error('Failed to update admission status');
     } finally {
       setSaving(false);
@@ -121,7 +122,7 @@ const AdmissionSettingsPage = () => {
 
       fetchStatistics();
     } catch (error) {
-      console.error('Error saving settings:', error);
+      clientLogger.error('Error saving settings', error);
       toast.error('Failed to save settings');
     } finally {
       setSaving(false);

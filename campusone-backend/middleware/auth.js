@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import jwt from 'jsonwebtoken';
 import prisma from '../prisma/client.js';
 import speakeasy from 'speakeasy';
@@ -102,7 +103,7 @@ export const protect = async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    logger.error('Auth middleware error:', error);
     return res.status(500).json({
       success: false,
       message: 'Server error during authentication',
@@ -170,7 +171,7 @@ export const authorizeSuperAdmin = async (req, res, next) => {
     req.adminRecord = adminRecord;
     next();
   } catch (error) {
-    console.error('Super admin auth error:', error);
+    logger.error('Super admin auth error:', error);
     return res.status(500).json({
       success: false,
       message: 'Error verifying Super Admin status',
@@ -233,7 +234,7 @@ export const verify2FA = async (req, res, next) => {
     req.user = userWithoutPassword;
     next();
   } catch (error) {
-    console.error('2FA verification error:', error);
+    logger.error('2FA verification error:', error);
     return res.status(500).json({
       success: false,
       message: 'Error verifying 2FA token',
@@ -277,7 +278,7 @@ export const checkDeviceTrust = async (req, res, next) => {
     req.deviceFingerprint = deviceFingerprint;
     next();
   } catch (error) {
-    console.error('Device trust check error:', error);
+    logger.error('Device trust check error:', error);
     return res.status(500).json({
       success: false,
       message: 'Error checking device trust',
@@ -362,7 +363,7 @@ export const addTrustedDevice = async (req, res, next) => {
     
     next();
   } catch (error) {
-    console.error('Add trusted device error:', error);
+    logger.error('Add trusted device error:', error);
     next(); // Don't fail the request
   }
 };

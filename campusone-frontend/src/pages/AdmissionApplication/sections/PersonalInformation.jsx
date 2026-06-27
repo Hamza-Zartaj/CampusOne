@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FormField, SelectField, FileField } from '../components/FormFields';
 import { GENDER_OPTIONS, TAILWIND_CLASSES } from '../utils/constants';
 import { admissionAPI } from '../../../utils/api';
+import clientLogger from '../../../utils/clientLogger';
 
 /**
  * Step 0: Personal Information Section
@@ -32,7 +33,7 @@ export const PersonalInformation = ({ formData, handleChange, handleFileChange }
             errors.email = '';
           }
         } catch (error) {
-          console.error('Error checking email:', error);
+          clientLogger.error('Error checking email', error);
         }
       }
 
@@ -46,7 +47,7 @@ export const PersonalInformation = ({ formData, handleChange, handleFileChange }
             errors.cnic = '';
           }
         } catch (error) {
-          console.error('Error checking CNIC:', error);
+          clientLogger.error('Error checking CNIC', error);
         }
       }
 
@@ -60,7 +61,7 @@ export const PersonalInformation = ({ formData, handleChange, handleFileChange }
             errors.phone = '';
           }
         } catch (error) {
-          console.error('Error checking phone:', error);
+          clientLogger.error('Error checking phone', error);
         }
       }
 

@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import { Resend } from 'resend';
 
 /**
@@ -14,19 +15,19 @@ const ANNOUNCEMENT_FROM = process.env.RESEND_FROM_ANNOUNCEMENT || FROM_ADDRESS;
  */
 const sendEmail = async ({ from = FROM_ADDRESS, to, subject, html, text }) => {
   if (!process.env.RESEND_API_KEY) {
-    console.error('Email send skipped: RESEND_API_KEY is not set');
+    logger.error('Email send skipped: RESEND_API_KEY is not set');
     return { success: false, error: 'RESEND_API_KEY not configured' };
   }
 
   try {
     const { data, error } = await resend.emails.send({ from, to, subject, html, text });
     if (error) {
-      console.error('Resend error:', error);
+      logger.error('Resend error:', error);
       return { success: false, error: error.message || String(error) };
     }
     return { success: true, id: data?.id };
   } catch (err) {
-    console.error('Email send failed:', err);
+    logger.error('Email send failed:', err);
     return { success: false, error: err.message };
   }
 };

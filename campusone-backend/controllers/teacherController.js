@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 
 /**
@@ -58,7 +59,7 @@ export const getAllTeachers = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching teachers:', error);
+    logger.error('Error fetching teachers:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching teachers',
@@ -107,7 +108,7 @@ export const getTeacherById = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching teacher:', error);
+    logger.error('Error fetching teacher:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching teacher',
@@ -156,7 +157,7 @@ export const getTeacherByUserId = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching teacher:', error);
+    logger.error('Error fetching teacher:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching teacher',
@@ -224,7 +225,7 @@ export const getTeacherProfile = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching teacher profile:', error);
+    logger.error('Error fetching teacher profile:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching teacher profile',
@@ -305,7 +306,7 @@ export const updateTeacherProfile = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error updating teacher profile:', error);
+    logger.error('Error updating teacher profile:', error);
     res.status(500).json({
       success: false,
       message: 'Error updating teacher profile',
@@ -357,7 +358,7 @@ export const getTeacherCurrentCourses = async (req, res) => {
       data: enrichedOfferings
     });
   } catch (error) {
-    console.error('Error fetching teacher courses:', error);
+    logger.error('Error fetching teacher courses:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching teacher courses',

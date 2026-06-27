@@ -1,64 +1,57 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Landing from './pages/Landing';
-import Login from './pages/auth/Login';
-import Dashboard from './pages/Dashboard';
-import AdmissionApplication from './pages/AdmissionApplication';
-import Profile from './pages/Profile';
 import DashboardLayout from './components/DashboardLayout';
 import { Toaster } from 'react-hot-toast';
 
-// Admin Pages
-import UserManagement from './pages/admin/UserManagement';
-import AdmissionSettings from './pages/admin/Admissions/AdmissionSettings';
-import ApplicationsManagement from './pages/admin/Admissions/ApplicationsManagement';
-import AnnouncementManagement from './pages/admin/AnnouncementManagement';
-import Reports from './pages/admin/Reports';
-import AuditLogs from './pages/admin/AuditLogs';
-import TAOversight from './pages/admin/TAOversight';
+const Landing = lazy(() => import('./pages/Landing'));
+const Login = lazy(() => import('./pages/auth/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const AdmissionApplication = lazy(() => import('./pages/AdmissionApplication'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Notifications = lazy(() => import('./pages/Notifications'));
 
-// Admin Academic Pages
-import DepartmentManagement from './pages/admin/academic/DepartmentManagement';
-import ProgramManagement from './pages/admin/academic/ProgramManagement';
-import CourseManagement from './pages/admin/academic/CourseManagement';
-import TermManagement from './pages/admin/academic/TermManagement';
-import CourseOfferingManagement from './pages/admin/academic/CourseOfferingManagement';
-import EnrollmentManagement from './pages/admin/academic/EnrollmentManagement';
-import ScheduleConfigPage from './pages/admin/schedule/ScheduleConfigPage';
-import RoomManagement from './pages/admin/schedule/RoomManagement';
-import HolidayManagement from './pages/admin/schedule/HolidayManagement';
+const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
+const AdmissionSettings = lazy(() => import('./pages/admin/Admissions/AdmissionSettings'));
+const ApplicationsManagement = lazy(() => import('./pages/admin/Admissions/ApplicationsManagement'));
+const AnnouncementManagement = lazy(() => import('./pages/admin/AnnouncementManagement'));
+const Reports = lazy(() => import('./pages/admin/Reports'));
+const AuditLogs = lazy(() => import('./pages/admin/AuditLogs'));
+const TAOversight = lazy(() => import('./pages/admin/TAOversight'));
 
-// Teacher Pages
-import TeacherDashboard from './pages/teacher/TeacherDashboard';
-import TeacherAnnouncement from './pages/teacher/TeacherAnnouncement';
-import TeacherNotification from './pages/teacher/TeacherNotification';
-import TeacherAttendance from './pages/teacher/TeacherAttendance';
-import TeacherAssignments from './pages/teacher/TeacherAssignments';
-import TeacherQuizzes from './pages/teacher/TeacherQuizzes';
-import TeacherQnA from './pages/teacher/TeacherQnA';
-import TeacherLeaveApplications from './pages/teacher/TeacherLeaveApplications';
-import TeacherTAApplications from './pages/teacher/TeacherTAApplications';
+const DepartmentManagement = lazy(() => import('./pages/admin/academic/DepartmentManagement'));
+const ProgramManagement = lazy(() => import('./pages/admin/academic/ProgramManagement'));
+const CourseManagement = lazy(() => import('./pages/admin/academic/CourseManagement'));
+const TermManagement = lazy(() => import('./pages/admin/academic/TermManagement'));
+const CourseOfferingManagement = lazy(() => import('./pages/admin/academic/CourseOfferingManagement'));
+const EnrollmentManagement = lazy(() => import('./pages/admin/academic/EnrollmentManagement'));
+const ScheduleConfigPage = lazy(() => import('./pages/admin/schedule/ScheduleConfigPage'));
+const RoomManagement = lazy(() => import('./pages/admin/schedule/RoomManagement'));
+const HolidayManagement = lazy(() => import('./pages/admin/schedule/HolidayManagement'));
 
-// Teacher Academic Pages
-import MyOfferings from './pages/teacher/academic/MyOfferings';
-import MarksUpload from './pages/teacher/academic/MarksUpload';
-import TeacherLectures from './pages/teacher/academic/TeacherLectures';
+const TeacherDashboard = lazy(() => import('./pages/teacher/TeacherDashboard'));
+const TeacherAnnouncement = lazy(() => import('./pages/teacher/TeacherAnnouncement'));
+const TeacherAttendance = lazy(() => import('./pages/teacher/TeacherAttendance'));
+const TeacherAssignments = lazy(() => import('./pages/teacher/TeacherAssignments'));
+const TeacherQuizzes = lazy(() => import('./pages/teacher/TeacherQuizzes'));
+const TeacherQnA = lazy(() => import('./pages/teacher/TeacherQnA'));
+const TeacherLeaveApplications = lazy(() => import('./pages/teacher/TeacherLeaveApplications'));
+const TeacherTAApplications = lazy(() => import('./pages/teacher/TeacherTAApplications'));
+const MyOfferings = lazy(() => import('./pages/teacher/academic/MyOfferings'));
+const MarksUpload = lazy(() => import('./pages/teacher/academic/MarksUpload'));
+const TeacherLectures = lazy(() => import('./pages/teacher/academic/TeacherLectures'));
 
-// Student Pages
-import StudentDashboard from './pages/student/StudentDashboard';
-import StudentNotification from './pages/student/StudentNotification';
-import StudentAttendance from './pages/student/StudentAttendance';
-import StudentAssignments from './pages/student/StudentAssignments';
-import StudentQuizzes from './pages/student/StudentQuizzes';
-import StudentQnA from './pages/student/StudentQnA';
-import StudentLeaveStatus from './pages/student/StudentLeaveStatus';
-import MyTAAssignments from './pages/student/MyTAAssignments';
-
-// Student Academic Pages
-import MyCourses from './pages/student/academic/MyCourses';
-import MyGrades from './pages/student/academic/MyGrades';
-import Transcript from './pages/student/academic/Transcript';
-import CourseRegistration from './pages/student/academic/CourseRegistration';
-import MyTimetable from './pages/student/academic/MyTimetable';
+const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard'));
+const StudentAttendance = lazy(() => import('./pages/student/StudentAttendance'));
+const StudentAssignments = lazy(() => import('./pages/student/StudentAssignments'));
+const StudentQuizzes = lazy(() => import('./pages/student/StudentQuizzes'));
+const StudentQnA = lazy(() => import('./pages/student/StudentQnA'));
+const StudentLeaveStatus = lazy(() => import('./pages/student/StudentLeaveStatus'));
+const MyTAAssignments = lazy(() => import('./pages/student/MyTAAssignments'));
+const MyCourses = lazy(() => import('./pages/student/academic/MyCourses'));
+const MyGrades = lazy(() => import('./pages/student/academic/MyGrades'));
+const Transcript = lazy(() => import('./pages/student/academic/Transcript'));
+const CourseRegistration = lazy(() => import('./pages/student/academic/CourseRegistration'));
+const MyTimetable = lazy(() => import('./pages/student/academic/MyTimetable'));
 
 function getDashboardPathForRole(role) {
   const normalizedRole = String(role || '').toLowerCase();
@@ -86,6 +79,7 @@ function App() {
           },
         }}
       />
+      <Suspense fallback={<div className="p-10 text-center text-slate-400 text-sm">Loading...</div>}>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -114,6 +108,7 @@ function App() {
           <Route path="/admin/schedule/holidays" element={<HolidayManagement />} />
           <Route path="/admin/audit-logs" element={<AuditLogs />} />
           <Route path="/admin/ta-oversight" element={<TAOversight />} />
+          <Route path="/admin/notifications" element={<Notifications />} />
 
           {/* Teacher Routes */}
           <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
@@ -122,7 +117,8 @@ function App() {
           <Route path="/teacher/quizzes" element={<TeacherQuizzes />} />
           <Route path="/teacher/qna" element={<TeacherQnA />} />
           <Route path="/teacher/announcements" element={<TeacherAnnouncement />} />
-          <Route path="/teacher/notification" element={<TeacherNotification />} />
+          <Route path="/teacher/notification" element={<Notifications />} />
+          <Route path="/teacher/notifications" element={<Notifications />} />
           <Route path="/teacher/offerings" element={<MyOfferings />} />
           <Route path="/teacher/offerings/:offeringId/marks" element={<MarksUpload />} />
           <Route path="/teacher/offerings/:offeringId/lectures" element={<TeacherLectures />} />
@@ -135,7 +131,8 @@ function App() {
           <Route path="/student/assignments" element={<StudentAssignments />} />
           <Route path="/student/quizzes" element={<StudentQuizzes />} />
           <Route path="/student/qna" element={<StudentQnA />} />
-          <Route path="/student/notification" element={<StudentNotification />} />
+          <Route path="/student/notification" element={<Notifications />} />
+          <Route path="/student/notifications" element={<Notifications />} />
           <Route path="/student/courses" element={<MyCourses />} />
           <Route path="/student/registration" element={<CourseRegistration />} />
           <Route path="/student/grades" element={<MyGrades />} />
@@ -145,6 +142,7 @@ function App() {
           <Route path="/student/ta" element={<MyTAAssignments />} />
         </Route>
       </Routes>
+      </Suspense>
     </Router>
   );
 }

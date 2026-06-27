@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 import { analyzeSubmissionsStageOne } from '../services/assignmentSimilarityService.js';
 
@@ -122,7 +123,7 @@ export const runStageOneSimilarityScan = async (req, res) => {
         data: { status: 'FAILED', error: error.message.slice(0, 1000), completedAt: new Date() },
       }).catch(() => {});
     }
-    console.error('Stage 1 similarity scan failed:', error.message);
+    logger.error('Stage 1 similarity scan failed:', error.message);
     res.status(500).json({ success: false, message: 'Similarity scan failed. Please try again.' });
   }
 };

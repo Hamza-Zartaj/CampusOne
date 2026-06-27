@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, authorizePermission } from '../middleware/auth.js';
+import { protect, authorize, authorizePermission } from '../middleware/auth.js';
 import * as ctrl from '../controllers/courseController.js';
 import * as gradeCtrl from '../controllers/gradeComponentController.js';
 
@@ -20,5 +20,6 @@ router.delete('/:id/prerequisites/:prereqId', protect, authorizePermission('mana
 router.get('/:id/grade-components', protect, gradeCtrl.listForCourse);
 router.post('/:id/grade-components', protect, authorizePermission('manage_academic'), gradeCtrl.replaceForCourse);
 router.post('/:id/grade-components/apply-template', protect, authorizePermission('manage_academic'), gradeCtrl.applyTemplate);
+router.put('/:id/grade-components/:kind/release', protect, authorize('teacher', 'admin'), gradeCtrl.setReleasedForCourse);
 
 export default router;

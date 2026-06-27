@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { admissionAPI } from '../../../../utils/api';
 import toast from 'react-hot-toast';
+import clientLogger from '../../../../utils/clientLogger';
 
 export const useApplications = () => {
   const [applications, setApplications] = useState([]);
@@ -62,7 +63,7 @@ export const useApplications = () => {
       
       return appList;
     } catch (error) {
-      console.error('Error fetching applications:', error);
+      clientLogger.error('Error fetching applications', error);
       toast.error('Failed to fetch applications');
       return [];
     } finally {
@@ -83,7 +84,7 @@ export const useApplications = () => {
       await fetchApplications(null, currentPage, pageSize);
       return true;
     } catch (error) {
-      console.error('Error updating application:', error);
+      clientLogger.error('Error updating application', error);
       toast.error('Failed to update application status');
       return false;
     } finally {

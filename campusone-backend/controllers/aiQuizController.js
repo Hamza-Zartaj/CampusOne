@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 import { generateQuizQuestions, validateAIQuizRequest } from '../services/aiQuizService.js';
 
@@ -87,7 +88,7 @@ export const generateAIQuizQuestions = async (req, res) => {
       });
     }
 
-    console.error('AI quiz generation failed:', error.message);
+    logger.error('AI quiz generation failed:', error.message);
     res.status(502).json({
       success: false,
       code: 'AI_GENERATION_FAILED',

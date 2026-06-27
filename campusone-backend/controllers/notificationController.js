@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 
 // GET /api/notifications?unread=true&limit=50
@@ -15,7 +16,7 @@ export const getMyNotifications = async (req, res) => {
 
     res.json({ success: true, count: notifications.length, data: notifications });
   } catch (err) {
-    console.error('[notifications] get error:', err);
+    logger.error('[notifications] get error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -28,7 +29,7 @@ export const getUnreadCount = async (req, res) => {
     });
     res.json({ success: true, count });
   } catch (err) {
-    console.error('[notifications] unread-count error:', err);
+    logger.error('[notifications] unread-count error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -46,7 +47,7 @@ export const markAsRead = async (req, res) => {
     });
     res.json({ success: true, data: updated });
   } catch (err) {
-    console.error('[notifications] mark-read error:', err);
+    logger.error('[notifications] mark-read error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -60,7 +61,7 @@ export const markAllAsRead = async (req, res) => {
     });
     res.json({ success: true, count: result.count });
   } catch (err) {
-    console.error('[notifications] mark-all-read error:', err);
+    logger.error('[notifications] mark-all-read error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -75,7 +76,7 @@ export const deleteNotification = async (req, res) => {
     await prisma.notification.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch (err) {
-    console.error('[notifications] delete error:', err);
+    logger.error('[notifications] delete error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -88,7 +89,7 @@ export const clearRead = async (req, res) => {
     });
     res.json({ success: true, count: result.count });
   } catch (err) {
-    console.error('[notifications] clear-read error:', err);
+    logger.error('[notifications] clear-read error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

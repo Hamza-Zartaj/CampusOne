@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 import xlsx from 'xlsx';
 import bcrypt from 'bcryptjs';
@@ -130,7 +131,7 @@ export const getAllUsers = async (req, res) => {
       data
     });
   } catch (error) {
-    console.error('Error fetching users:', error);
+    logger.error('Error fetching users:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching users',
@@ -181,7 +182,7 @@ export const getUserById = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching user:', error);
+    logger.error('Error fetching user:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching user',
@@ -366,7 +367,7 @@ export const createUser = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error creating user:', error);
+    logger.error('Error creating user:', error);
     res.status(500).json({
       success: false,
       message: 'Error creating user',
@@ -484,7 +485,7 @@ export const updateUser = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error updating user:', error);
+    logger.error('Error updating user:', error);
     if (error.code === 'P2025') {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -540,7 +541,7 @@ export const deactivateUser = async (req, res) => {
       data: user
     });
   } catch (error) {
-    console.error('Error deactivating user:', error);
+    logger.error('Error deactivating user:', error);
     if (error.code === 'P2025') {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -588,7 +589,7 @@ export const activateUser = async (req, res) => {
       data: user
     });
   } catch (error) {
-    console.error('Error activating user:', error);
+    logger.error('Error activating user:', error);
     if (error.code === 'P2025') {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -640,7 +641,7 @@ export const unlockAccount = async (req, res) => {
       data: user
     });
   } catch (error) {
-    console.error('Error unlocking account:', error);
+    logger.error('Error unlocking account:', error);
     if (error.code === 'P2025') {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -736,7 +737,7 @@ export const deleteUser = async (req, res) => {
       message: 'User permanently deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting user:', error);
+    logger.error('Error deleting user:', error);
     if (error.code === 'P2025') {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -784,7 +785,7 @@ export const getUserStats = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching user statistics:', error);
+    logger.error('Error fetching user statistics:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching user statistics',
@@ -816,7 +817,7 @@ export const getUserStatsByRole = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching user statistics by role:', error);
+    logger.error('Error fetching user statistics by role:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching user statistics by role',
@@ -892,7 +893,7 @@ export const searchStudents = async (req, res) => {
       data: studentsWithDetails
     });
   } catch (error) {
-    console.error('Error searching students:', error);
+    logger.error('Error searching students:', error);
     res.status(500).json({
       success: false,
       message: 'Error searching students',
@@ -962,7 +963,7 @@ export const downloadBulkUploadTemplate = async (req, res) => {
     
     res.send(excelBuffer);
   } catch (error) {
-    console.error('Error generating template:', error);
+    logger.error('Error generating template:', error);
     res.status(500).json({
       success: false,
       message: 'Error generating template',
@@ -1129,7 +1130,7 @@ export const bulkUploadStudents = async (req, res) => {
       data: results
     });
   } catch (error) {
-    console.error('Error bulk uploading students:', error);
+    logger.error('Error bulk uploading students:', error);
     res.status(500).json({
       success: false,
       message: 'Error bulk uploading students',

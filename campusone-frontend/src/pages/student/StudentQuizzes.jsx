@@ -4,6 +4,7 @@ import {
   Loader2, ChevronRight, Send, Maximize, X,
 } from 'lucide-react';
 import { quizAPI } from '../../utils/api';
+import clientLogger from '../../utils/clientLogger';
 import toast from 'react-hot-toast';
 
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -74,7 +75,7 @@ const QuizTaker = ({ session, onExit, onSubmit }) => {
         toast.error(`⚠ ${type.replace(/_/g, ' ')} detected — ${data.violations}/${data.max} violations`, { duration: 4000 });
       }
     } catch (err) {
-      console.error('Violation log failed:', err);
+      clientLogger.error('Violation log failed', err);
     }
   }, [attemptId, onSubmit]);
 
@@ -147,7 +148,11 @@ const QuizTaker = ({ session, onExit, onSubmit }) => {
   useEffect(() => {
     const enterFs = async () => {
       if (containerRef.current && !document.fullscreenElement) {
-        try { await containerRef.current.requestFullscreen(); } catch {}
+        try {
+          await containerRef.current.requestFullscreen();
+        } catch (err) {
+          clientLogger.warn('Failed to enter fullscreen quiz mode', err);
+        }
       }
     };
     enterFs();

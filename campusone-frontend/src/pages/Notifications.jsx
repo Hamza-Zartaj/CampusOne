@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Check, Trash2, CheckCheck, Loader2, Filter, Eraser } from 'lucide-react';
 import { notificationAPI } from '../utils/api';
+import clientLogger from '../utils/clientLogger';
 import toast from 'react-hot-toast';
 
 const ICON = {
@@ -52,6 +53,7 @@ const Notifications = () => {
       const res = await notificationAPI.getAll({ limit: 200 });
       setNotifications(res.data.data || []);
     } catch (err) {
+      clientLogger.warn('Failed to load notifications page', err);
       toast.error('Failed to load notifications');
     } finally {
       setLoading(false);
@@ -65,7 +67,9 @@ const Notifications = () => {
       try {
         await notificationAPI.markRead(n.id);
         setNotifications((arr) => arr.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
-      } catch {}
+      } catch (err) {
+        clientLogger.warn('Failed to mark notification as read', err);
+      }
     }
     if (n.linkUrl) navigate(n.linkUrl);
   };
@@ -75,7 +79,9 @@ const Notifications = () => {
     try {
       await notificationAPI.markRead(id);
       setNotifications((arr) => arr.map((x) => (x.id === id ? { ...x, isRead: true } : x)));
-    } catch {}
+    } catch (err) {
+      clientLogger.warn('Failed to mark notification as read', err);
+    }
   };
 
   const handleDelete = async (e, id) => {
@@ -83,7 +89,9 @@ const Notifications = () => {
     try {
       await notificationAPI.delete(id);
       setNotifications((arr) => arr.filter((x) => x.id !== id));
-    } catch {}
+    } catch (err) {
+      clientLogger.warn('Failed to delete notification', err);
+    }
   };
 
   const handleMarkAllRead = async () => {

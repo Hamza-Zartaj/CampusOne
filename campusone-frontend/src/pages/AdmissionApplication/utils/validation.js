@@ -27,7 +27,7 @@ export const validatePakistaniPhone = (phone) => {
 
 // Validate CNIC format (Pakistani ID: 5 digits - 7 digits - 1 digit)
 export const validatePakistaniCNIC = (cnic) => {
-  const cleanCNIC = cnic.replace(/[\s\-]/g, '');
+  const cleanCNIC = cnic.replace(/[\s-]/g, '');
   const cnicRegex = /^[0-9]{5}-?[0-9]{7}-?[0-9]{1}$/;
   return cnicRegex.test(cleanCNIC);
 };

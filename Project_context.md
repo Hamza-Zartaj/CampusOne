@@ -2,7 +2,7 @@
 
 > **Canonical project tracker and source of truth**
 >
-> Last verified: **June 25, 2026**
+> Last verified: **June 28, 2026**
 >
 > Update this file whenever a feature, architectural rule, known issue, or future task changes. Do not create a separate audit or to-do document.
 
@@ -155,6 +155,7 @@ Status in this section means the relevant schema, backend route/controller, and 
 - [x] In-app notification model and APIs
 - [x] Socket.IO notification delivery
 - [x] Notification bell and unread state
+- [x] Notification full-page routes for admin, teacher, and student plural notification URLs
 - [x] Assignment-deadline and quiz-opening cron notifications
 
 ### Academic management
@@ -183,6 +184,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Assignment, quiz, mid, final, presentation, participation, and lab component kinds
 - [x] Teacher marks grid with initialization and bulk save
 - [x] Per-kind marks visibility controls
+- [x] Course-wide mark release endpoint and UI copy make the release scope explicit
 - [x] Student grade-breakdown view
 - [x] Participation marks
 - [x] Assignment submission links in grade details
@@ -246,6 +248,8 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Offering-scoped TA permissions
 - [x] TA access to attendance, assignment grading, Q&A, and roster operations
 - [x] Student, teacher, and admin TA pages
+- [x] TA oversight pagination across backend API and admin UI
+- [x] Sidebar TA status refreshes on focus and relevant socket notification events
 
 ### Scheduling, reporting, and audit
 
@@ -256,22 +260,26 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Overview, enrollment, grade, course, trend, admission, and attendance reports
 - [x] Reports protected by `view_reports`
 - [x] Audit-log model, read API, filters, pagination, and admin UI
+- [x] Audit-log `createdAt` precision is explicitly declared as database `TIMESTAMP(3)`
 - [x] Section transfers are atomic and blocked once section-specific academic activity exists
 - [x] Shared active-term/end-date grading guard across assignment, mark-component, quiz-manual, and enrollment grading
 - [x] Frontend GET cache with mutation invalidation
+- [x] Backend runtime logging uses a structured logger wrapper
+- [x] Frontend runtime diagnostics use a dev-only client logger wrapper
+- [x] Frontend route/page-level code splitting reduces the initial entry bundle
 - [x] Full and mini seed scripts
 - [x] Database helper scripts for push, reset, seed, super-admin, and Studio
 
 ## 7. Verification Snapshot
 
-Checks run through June 25, 2026:
+Checks run through June 28, 2026:
 
 - **Prisma schema:** valid
 - **Prisma Client generation:** passes
 - **Quiz backend syntax checks:** pass
 - **Quiz frontend production build:** passes
 - **Quiz database schema push:** passes; the local database includes draft-first quizzes and persistent attempt question order
-- **Changed backend controller imports and syntax:** pass
+- **Changed backend controller/middleware/service/util imports and syntax:** pass
 - **Grading-window boundary checks:** pass
 - **Serializable transaction retry check:** passes
 - **Earlier P0 local Supabase reset and seed baseline:** passed before the current Docker shutdown
@@ -281,18 +289,14 @@ Checks run through June 25, 2026:
 - **Backend health endpoint:** OK with database connected
 - **Frontend development server:** HTTP 200
 - **Frontend production build:** passes
-- **Frontend build warnings:** main JavaScript bundle is about 955 KB before gzip; API/socket mixed static and dynamic imports prevent useful chunk splitting
-- **Frontend lint:** fails with **88 errors and 17 warnings**
+- **Frontend build size:** route-level splitting reduced the initial app chunk to about 373 KB before gzip
+- **Frontend build warnings:** API/socket mixed static and dynamic imports still produce one Vite warning, but the oversized entry warning is gone
+- **Frontend lint:** passes with **0 errors and 54 warnings**
 
-Notable lint-discovered defects:
+Remaining lint warnings:
 
-- `AnnouncementManagement.jsx` references undefined `courseId`
-- Several empty catch blocks hide failures
 - Multiple unused variables and stale imports
 - Multiple React hook dependency warnings
-- Components are declared inside `ReviewSubmit` render
-- Several effects trigger the React set-state-in-effect rule
-- `TeacherQnA.jsx` contains a constant-truthiness expression
 
 ## 8. Audit Reconciliation
 
@@ -325,32 +329,15 @@ This table replaces the previous audit document.
 | 23 | Multiple active terms | Resolved | Activation deactivates all terms in one transaction |
 | 24 | Sidebar TA request rejection handling | Resolved | Rejection is caught and state receives a fallback |
 | 25 | Grade-distribution boundary bug | Resolved | Reports group stored grade letters directly |
-| 26 | Console logging in application code | Open | Scan found 117 console calls across backend controllers/services/middleware/utils |
-| 27 | Generic error messages | Partial | Some flows use server messages; many still collapse failures into generic text or empty catches |
-| 28 | Stale sidebar TA status | Open | Active TA assignments load only on sidebar mount |
-| 29 | TA oversight has no pagination | Open | Backend returns all matching assignments and UI renders all rows |
-| 30 | Audit timestamp precision is implicit | Partial | `createdAt` exists, but no explicit database precision annotation is declared |
+| 26 | Console logging in application code | Resolved | Backend runtime source uses `utils/logger.js`; frontend runtime source uses `utils/clientLogger.js`; direct console calls remain only inside those wrappers |
+| 27 | Generic error messages | Resolved for P2 scope | Empty catch blocks were removed from runtime source and recovery paths now log contextual details through the logger wrappers |
+| 28 | Stale sidebar TA status | Resolved | Sidebar refreshes active TA assignments on window focus and relevant socket notifications |
+| 29 | TA oversight has no pagination | Resolved | Backend `getAllAssignments` returns paginated results and the admin UI sends page/limit controls |
+| 30 | Audit timestamp precision is implicit | Resolved | `AuditLog.createdAt` is declared with explicit `@db.Timestamp(3)` precision and a migration |
 
 ## 9. Future Tasks
 
 Only open work belongs here. Move an item to the verified feature inventory or resolved audit status when completed.
-
-### P2 - Maintainability and scale
-
-- [ ] **Replace production console calls with structured logging** (`A26`)
-- [ ] **Improve error context and remove silent catches** (`A27`)
-- [ ] **Refresh sidebar TA status on focus or relevant socket events** (`A28`)
-- [ ] **Paginate TA oversight end to end** (`A29`)
-- [ ] **Declare audit timestamp precision explicitly if ordering requires it** (`A30`)
-- [ ] **Fix notification full-page routing**  
-  The bell navigates to plural `/admin/notifications`, `/teacher/notifications`, and `/student/notifications`, while registered teacher/student routes are singular and no admin route is registered.
-- [ ] **Decide and enforce marks-release scope**  
-  The endpoint is offering-shaped, but it updates course-level `CourseGradeComponent` rows and therefore affects every offering of that course.
-- [ ] **Resolve the current frontend lint baseline**  
-  Start with undefined identifiers and React correctness rules, then unused code and hook warnings.
-- [ ] **Fix `AnnouncementManagement.jsx` undefined `courseId`**
-- [ ] **Reduce the oversized frontend entry bundle**  
-  Remove ineffective mixed dynamic imports and introduce route/page-level splitting.
 
 ### Deferred product features
 

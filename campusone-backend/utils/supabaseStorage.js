@@ -1,3 +1,4 @@
+import logger from './logger.js';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -25,7 +26,7 @@ export const uploadToStorage = async (bucket, filePath, buffer, mimeType) => {
  */
 export const deleteFromStorage = async (bucket, filePath) => {
   const { error } = await supabase.storage.from(bucket).remove([filePath]);
-  if (error) console.error(`[Storage] Delete error: ${error.message}`);
+  if (error) logger.error(`[Storage] Delete error: ${error.message}`);
 };
 
 /**

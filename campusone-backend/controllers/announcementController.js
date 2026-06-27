@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 import { sendAnnouncementEmail } from '../services/emailService.js';
 import { notifyMany, TYPE } from '../services/notificationService.js';
@@ -124,7 +125,7 @@ export const sendAnnouncement = async (req, res) => {
             title,
             content,
             priority: priorityValue
-          }).catch(err => console.error(`Failed to send email to ${recipient.email}:`, err));
+          }).catch(err => logger.error(`Failed to send email to ${recipient.email}:`, err));
           await new Promise(resolve => setTimeout(resolve, 550));
         }
       })();
@@ -144,7 +145,7 @@ export const sendAnnouncement = async (req, res) => {
       recipientCount: recipients.length
     });
   } catch (error) {
-    console.error('Error sending announcement:', error);
+    logger.error('Error sending announcement:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -219,7 +220,7 @@ export const sendCourseAnnouncement = async (req, res) => {
             title: `${offering.course.code}: ${title}`,
             content,
             priority: priorityValue,
-          }).catch((err) => console.error(`Failed to email ${r.email}:`, err));
+          }).catch((err) => logger.error(`Failed to email ${r.email}:`, err));
           await new Promise((resolve) => setTimeout(resolve, 550));
         }
       })();
@@ -239,7 +240,7 @@ export const sendCourseAnnouncement = async (req, res) => {
       recipientCount: recipients.length,
     });
   } catch (error) {
-    console.error('Error sending course announcement:', error);
+    logger.error('Error sending course announcement:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -269,7 +270,7 @@ export const getAnnouncements = async (req, res) => {
 
     res.status(200).json(enrichedAnnouncements);
   } catch (error) {
-    console.error('Error fetching announcements:', error);
+    logger.error('Error fetching announcements:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -366,7 +367,7 @@ export const getMyAnnouncements = async (req, res) => {
 
     res.status(200).json(enrichedAnnouncements);
   } catch (error) {
-    console.error('Error fetching announcements:', error);
+    logger.error('Error fetching announcements:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -403,7 +404,7 @@ export const getAnnouncementById = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching announcement:', error);
+    logger.error('Error fetching announcement:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching announcement',
@@ -459,7 +460,7 @@ export const updateAnnouncement = async (req, res) => {
       data: updated
     });
   } catch (error) {
-    console.error('Error updating announcement:', error);
+    logger.error('Error updating announcement:', error);
     res.status(500).json({
       success: false,
       message: 'Error updating announcement',
@@ -518,7 +519,7 @@ export const deleteAnnouncement = async (req, res) => {
         message: 'Announcement not found'
       });
     }
-    console.error('Error deleting announcement:', error);
+    logger.error('Error deleting announcement:', error);
     res.status(500).json({
       success: false,
       message: 'Error deleting announcement',

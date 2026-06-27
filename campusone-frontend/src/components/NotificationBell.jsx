@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Bell, Check, Trash2, X } from 'lucide-react';
 import { notificationAPI } from '../utils/api';
 import { getSocket } from '../utils/socket';
+import clientLogger from '../utils/clientLogger';
 
 const ICON = {
   ANNOUNCEMENT: '📢',
@@ -42,7 +43,9 @@ const NotificationBell = () => {
     try {
       const res = await notificationAPI.getUnreadCount();
       setUnreadCount(res.data.count || 0);
-    } catch {}
+    } catch (err) {
+      clientLogger.warn('Failed to fetch unread notification count', err);
+    }
   }, []);
 
   // Initial count + socket-driven live updates (with a 2-min safety poll for reconnect gaps)
@@ -68,7 +71,9 @@ const NotificationBell = () => {
     try {
       const res = await notificationAPI.getAll({ limit: 10 });
       setNotifications(res.data.data || []);
-    } catch {}
+    } catch (err) {
+      clientLogger.warn('Failed to load notifications', err);
+    }
     setLoading(false);
   }, []);
 
@@ -91,7 +96,9 @@ const NotificationBell = () => {
         await notificationAPI.markRead(n.id);
         setUnreadCount((c) => Math.max(0, c - 1));
         setNotifications((arr) => arr.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
-      } catch {}
+      } catch (err) {
+        clientLogger.warn('Failed to mark notification as read', err);
+      }
     }
     setOpen(false);
     if (n.linkUrl) navigate(n.linkUrl);
@@ -102,7 +109,9 @@ const NotificationBell = () => {
       await notificationAPI.markAllRead();
       setUnreadCount(0);
       setNotifications((arr) => arr.map((x) => ({ ...x, isRead: true })));
-    } catch {}
+    } catch (err) {
+      clientLogger.warn('Failed to mark all notifications as read', err);
+    }
   };
 
   const handleDelete = async (e, id) => {
@@ -111,7 +120,9 @@ const NotificationBell = () => {
       await notificationAPI.delete(id);
       setNotifications((arr) => arr.filter((x) => x.id !== id));
       fetchUnreadCount();
-    } catch {}
+    } catch (err) {
+      clientLogger.warn('Failed to delete notification', err);
+    }
   };
 
   return (

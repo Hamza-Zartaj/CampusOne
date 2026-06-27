@@ -3,8 +3,9 @@ import { authAPI } from '../../../utils/api';
 import toast from 'react-hot-toast';
 import TwoFactorMethodSelection from './TwoFactorMethodSelection';
 import TwoFactorSetupVerification from './TwoFactorSetupVerification';
+import clientLogger from '../../../utils/clientLogger';
 
-export default function FirstTimeSetup({ user, token, onComplete }) {
+export default function FirstTimeSetup({ user, token: _token, onComplete }) {
   // Steps: 1=password, 2=email, 3=2FA method, 4=2FA verify
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -52,7 +53,7 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
     setIsLoading(true);
 
     try {
-      const response = await authAPI.completeFirstTimeSetup({
+      await authAPI.completeFirstTimeSetup({
         currentPassword: formData.currentPassword,
         newPassword: formData.newPassword,
         enable2FA: false,
@@ -102,7 +103,9 @@ export default function FirstTimeSetup({ user, token, onComplete }) {
           const stored = JSON.parse(localStorage.getItem('user') || '{}');
           stored.email = trimmed.toLowerCase();
           localStorage.setItem('user', JSON.stringify(stored));
-        } catch {}
+        } catch (err) {
+          clientLogger.warn('Failed to sync updated email to local storage', err);
+        }
       }
       setStep(3);
     } catch (err) {

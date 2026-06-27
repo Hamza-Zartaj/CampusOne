@@ -93,7 +93,7 @@ model Student {
   emergencyContact String?
   dateOfBirth      DateTime?
 
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamp(3)
   updatedAt DateTime @updatedAt
 
   @@index([studentId])
@@ -201,7 +201,7 @@ model AuditLog {
   description String?
   remarks     String?
 
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamp(3)
 
   @@index([performedBy])
   @@index([targetModel])

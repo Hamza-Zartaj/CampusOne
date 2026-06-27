@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ClipboardList, Plus, Trash2, ArrowRightLeft, X, Upload, Download, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { enrollmentAPI, offeringAPI, termAPI, userAPI } from '../../../utils/api';
+import clientLogger from '../../../utils/clientLogger';
 
 const inputClass = 'w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10';
 const labelClass = 'block text-sm font-medium text-slate-700 mb-1.5';
@@ -48,7 +49,9 @@ const EnrollmentManagement = () => {
     try {
       const res = await offeringAPI.getAll({ termId });
       setOfferings(res.data.data || []);
-    } catch {}
+    } catch (err) {
+      clientLogger.warn('Failed to load offerings by term', err);
+    }
   };
 
   const loadEnrollments = async () => {
@@ -77,7 +80,9 @@ const EnrollmentManagement = () => {
       setSearching(true);
       const res = await userAPI.searchStudents(q);
       setStudentResults(res.data.data || res.data.students || []);
-    } catch {} finally {
+    } catch (err) {
+      clientLogger.warn('Failed to search students for enrollment', err);
+    } finally {
       setSearching(false);
     }
   };
