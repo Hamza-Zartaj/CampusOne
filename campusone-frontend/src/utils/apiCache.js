@@ -1,3 +1,5 @@
+import clientLogger from './clientLogger';
+
 // Transparent GET-response cache layer for the axios api instance.
 // - Stores in sessionStorage (cleared when tab closes).
 // - TTL per route prefix; mutations invalidate related caches.
@@ -61,7 +63,8 @@ const readCache = (key, ttl) => {
       return null;
     }
     return data;
-  } catch {
+  } catch (err) {
+    clientLogger.warn('Ignoring unreadable API cache entry', err);
     return null;
   }
 };
@@ -79,7 +82,9 @@ const writeCache = (key, data) => {
       }
       keys.slice(0, Math.ceil(keys.length / 2)).forEach((k) => sessionStorage.removeItem(k));
       sessionStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
-    } catch {}
+    } catch (err) {
+      clientLogger.warn('Unable to recover API cache storage', err);
+    }
   }
 };
 

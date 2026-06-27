@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 import { deleteFile } from '../middleware/uploadMiddleware.js';
 import { uploadToBucket } from '../services/storageService.js';
@@ -28,7 +29,7 @@ export const getAdmissionSettings = async (req, res) => {
     }
     res.status(200).json({ success: true, data: settings });
   } catch (error) {
-    console.error('Error fetching admission settings:', error);
+    logger.error('Error fetching admission settings:', error);
     res.status(500).json({ success: false, message: 'Error fetching admission settings' });
   }
 };
@@ -63,7 +64,7 @@ export const updateAdmissionSettings = async (req, res) => {
     });
     res.status(200).json({ success: true, message: 'Admission settings updated successfully', data: settings });
   } catch (error) {
-    console.error('Error updating admission settings:', error);
+    logger.error('Error updating admission settings:', error);
     res.status(500).json({ success: false, message: 'Error updating admission settings' });
   }
 };
@@ -140,7 +141,7 @@ export const submitApplication = async (req, res) => {
         application.program
       );
     } catch (emailError) {
-      console.error('Email sending failed (non-blocking):', emailError);
+      logger.error('Email sending failed (non-blocking):', emailError);
     }
 
     res.status(201).json({
@@ -153,7 +154,7 @@ export const submitApplication = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error submitting application:', error);
+    logger.error('Error submitting application:', error);
     res.status(500).json({
       success: false,
       message: 'Error submitting application',
@@ -191,7 +192,7 @@ export const getAllApplications = async (req, res) => {
       total: count
     });
   } catch (error) {
-    console.error('Error fetching applications:', error);
+    logger.error('Error fetching applications:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching applications'
@@ -229,7 +230,7 @@ export const getApplication = async (req, res) => {
       data: application
     });
   } catch (error) {
-    console.error('Error fetching application:', error);
+    logger.error('Error fetching application:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching application'
@@ -287,7 +288,7 @@ export const updateApplicationStatus = async (req, res) => {
         application.applicationNumber,
         reviewNotes
       ).catch(emailError => {
-        console.error('Email sending failed (non-blocking):', emailError);
+        logger.error('Email sending failed (non-blocking):', emailError);
       });
     } else if (status === 'Accepted') {
       sendApplicationAcceptanceEmail(
@@ -296,7 +297,7 @@ export const updateApplicationStatus = async (req, res) => {
         application.applicationNumber,
         application.program
       ).catch(emailError => {
-        console.error('Email sending failed (non-blocking):', emailError);
+        logger.error('Email sending failed (non-blocking):', emailError);
       });
     } else if (status === 'Rejected') {
       sendApplicationRejectionEmail(
@@ -305,11 +306,11 @@ export const updateApplicationStatus = async (req, res) => {
         application.applicationNumber,
         reviewNotes
       ).catch(emailError => {
-        console.error('Email sending failed (non-blocking):', emailError);
+        logger.error('Email sending failed (non-blocking):', emailError);
       });
     }
   } catch (error) {
-    console.error('Error updating application status:', error);
+    logger.error('Error updating application status:', error);
     res.status(500).json({
       success: false,
       message: 'Error updating application status'
@@ -341,7 +342,7 @@ export const getApplicationStatistics = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching statistics:', error);
+    logger.error('Error fetching statistics:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching statistics'
@@ -357,10 +358,10 @@ export const uploadDocuments = async (req, res) => {
     const { id } = req.params;
     const { documentType } = req.body;
 
-    console.log(`[Upload Documents] Processing upload for application: ${id}`);
-    console.log(`[Upload Documents] Files received: ${req.files ? req.files.length : 0}`);
+    logger.info(`[Upload Documents] Processing upload for application: ${id}`);
+    logger.info(`[Upload Documents] Files received: ${req.files ? req.files.length : 0}`);
     if (req.files && req.files.length > 0) {
-      console.log(`[Upload Documents] Files details:`, req.files.map(f => ({ fieldname: f.fieldname, originalname: f.originalname, size: f.size })));
+      logger.info(`[Upload Documents] Files details:`, req.files.map(f => ({ fieldname: f.fieldname, originalname: f.originalname, size: f.size })));
     }
 
     // Parse file metadata from request body
@@ -368,9 +369,9 @@ export const uploadDocuments = async (req, res) => {
     if (req.body.fileMetadata) {
       try {
         fileMetadata = JSON.parse(req.body.fileMetadata);
-        console.log(`[Upload Documents] File metadata:`, fileMetadata);
+        logger.info(`[Upload Documents] File metadata:`, fileMetadata);
       } catch (error) {
-        console.error('[Upload Documents] Error parsing file metadata:', error);
+        logger.error('[Upload Documents] Error parsing file metadata:', error);
       }
     }
 
@@ -397,7 +398,7 @@ export const uploadDocuments = async (req, res) => {
 
     // Validate files were uploaded
     if (!req.files || req.files.length === 0) {
-      console.warn(`[Upload Documents] No files found in request for application ${id}`);
+      logger.warn(`[Upload Documents] No files found in request for application ${id}`);
       return res.status(400).json({
         success: false,
         message: 'No files uploaded'
@@ -430,36 +431,36 @@ export const uploadDocuments = async (req, res) => {
 
     // Map results to their respective schema fields
     uploadResults.forEach(({ file, publicUrl, fieldType }) => {
-      console.log(`[Upload Documents] Processing file: "${file.originalname}"`);
-      console.log(`[Upload Documents] Looking for metadata with fileName: "${file.originalname}"`);
-      console.log(`[Upload Documents] Found fieldType: "${fieldType}"`);
-      console.log(`[Upload Documents] File URL: ${publicUrl}`);
+      logger.info(`[Upload Documents] Processing file: "${file.originalname}"`);
+      logger.info(`[Upload Documents] Looking for metadata with fileName: "${file.originalname}"`);
+      logger.info(`[Upload Documents] Found fieldType: "${fieldType}"`);
+      logger.info(`[Upload Documents] File URL: ${publicUrl}`);
 
       if (!fieldType) {
-        console.warn(`[Upload Documents] WARNING: No metadata found for file "${file.originalname}". Will store in documents array only.`);
+        logger.warn(`[Upload Documents] WARNING: No metadata found for file "${file.originalname}". Will store in documents array only.`);
       }
 
       if (fieldType === 'cnic_front') {
         application.cnicFront = publicUrl;
-        console.log('[Upload Documents] ✓ Updated cnicFront');
+        logger.info('[Upload Documents] ✓ Updated cnicFront');
       } else if (fieldType === 'cnic_back') {
         application.cnicBack = publicUrl;
-        console.log('[Upload Documents] ✓ Updated cnicBack');
+        logger.info('[Upload Documents] ✓ Updated cnicBack');
       } else if (fieldType === 'domicile') {
         if (!application.address) application.address = {};
         application.address.domicileUpload = publicUrl;
-        console.log('[Upload Documents] ✓ Updated address.domicileUpload');
+        logger.info('[Upload Documents] ✓ Updated address.domicileUpload');
       } else if (fieldType === 'guardian_cnic') {
         if (!application.guardian) application.guardian = {};
         application.guardian.cnicUpload = publicUrl;
-        console.log('[Upload Documents] ✓ Updated guardian.cnicUpload');
+        logger.info('[Upload Documents] ✓ Updated guardian.cnicUpload');
       } else if (fieldType && fieldType.startsWith('transcript_')) {
         const index = parseInt(fieldType.split('_')[1]);
         if (application.educationRecords && application.educationRecords[index]) {
           application.educationRecords[index].transcript = publicUrl;
-          console.log(`[Upload Documents] ✓ Updated educationRecords[${index}].transcript`);
+          logger.info(`[Upload Documents] ✓ Updated educationRecords[${index}].transcript`);
         } else {
-          console.warn(`[Upload Documents] WARNING: educationRecords[${index}] does not exist`);
+          logger.warn(`[Upload Documents] WARNING: educationRecords[${index}] does not exist`);
         }
       }
     });
@@ -490,7 +491,7 @@ export const uploadDocuments = async (req, res) => {
       }
     });
 
-    console.log(`[Upload Documents] Successfully uploaded ${uploadedDocuments.length} files for application ${id}`);
+    logger.info(`[Upload Documents] Successfully uploaded ${uploadedDocuments.length} files for application ${id}`);
 
     res.status(200).json({
       success: true,
@@ -507,7 +508,7 @@ export const uploadDocuments = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error uploading documents:', error);
+    logger.error('Error uploading documents:', error);
     res.status(500).json({
       success: false,
       message: 'Error uploading documents',
@@ -570,7 +571,7 @@ export const deleteDocument = async (req, res) => {
       message: 'Document deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting document:', error);
+    logger.error('Error deleting document:', error);
     res.status(500).json({
       success: false,
       message: 'Error deleting document',
@@ -616,7 +617,7 @@ export const getApplicationDocuments = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching documents:', error);
+    logger.error('Error fetching documents:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching documents'
@@ -641,7 +642,7 @@ export const checkDuplicateEmail = async (req, res) => {
       message: existingEmail ? 'This email has already submitted an application' : 'Email is available'
     });
   } catch (error) {
-    console.error('Error checking email:', error);
+    logger.error('Error checking email:', error);
     res.status(500).json({
       success: false,
       message: 'Error checking email'
@@ -666,7 +667,7 @@ export const checkDuplicateCNIC = async (req, res) => {
       message: existingCNIC ? 'This CNIC has already submitted an application' : 'CNIC is available'
     });
   } catch (error) {
-    console.error('Error checking CNIC:', error);
+    logger.error('Error checking CNIC:', error);
     res.status(500).json({
       success: false,
       message: 'Error checking CNIC'
@@ -691,7 +692,7 @@ export const checkDuplicatePhone = async (req, res) => {
       message: existingPhone ? 'This phone number has already submitted an application' : 'Phone is available'
     });
   } catch (error) {
-    console.error('Error checking phone:', error);
+    logger.error('Error checking phone:', error);
     res.status(500).json({
       success: false,
       message: 'Error checking phone'
@@ -732,7 +733,7 @@ export const searchApplications = async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error('Error searching applications:', error);
+    logger.error('Error searching applications:', error);
     res.status(500).json({
       success: false,
       message: 'Error searching applications'

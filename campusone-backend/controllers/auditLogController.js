@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 
 // GET /api/audit-logs
@@ -78,7 +79,7 @@ export const getAuditLogs = async (req, res) => {
       data: enriched,
     });
   } catch (err) {
-    console.error('Error fetching audit logs:', err);
+    logger.error('Error fetching audit logs:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

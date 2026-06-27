@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import clientLogger from '../../../../utils/clientLogger';
 
 const API_SERVER_URL = 'http://localhost:5000';
 
@@ -48,7 +49,7 @@ const ApplicationDetail = ({
       setModalOpen(false);
       onClose();
     } catch (error) {
-      console.error('Error performing action:', error);
+      clientLogger.error('Error performing admission action', error);
     } finally {
       setProcessing(false);
     }

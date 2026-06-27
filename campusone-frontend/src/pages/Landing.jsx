@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Users, Award, CheckCircle, ArrowRight, UserPlus } from 'lucide-react';
 import { admissionAPI } from '../utils/api';
+import clientLogger from '../utils/clientLogger';
 import toast from 'react-hot-toast';
 
 const Landing = () => {
@@ -18,7 +19,7 @@ const Landing = () => {
       const response = await admissionAPI.getSettings();
       setAdmissionsOpen(response.data.data.isOpen);
     } catch (error) {
-      console.error('Error checking admission status:', error);
+      clientLogger.error('Error checking admission status', error);
     } finally {
       setLoading(false);
     }
@@ -35,7 +36,7 @@ const Landing = () => {
         setAdmissionsOpen(false);
       }
     } catch (error) {
-      console.error('Error checking admission status:', error);
+      clientLogger.error('Error checking admission status', error);
       toast.error('Unable to check admission status. Please try again.');
     }
   };

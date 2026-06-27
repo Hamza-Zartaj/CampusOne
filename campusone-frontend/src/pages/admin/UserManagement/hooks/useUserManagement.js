@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { userAPI } from '../../../../utils/api';
+import clientLogger from '../../../../utils/clientLogger';
 
 export const useUserManagement = () => {
   // Stats states
@@ -189,7 +190,7 @@ export const useUserManagement = () => {
         setSearchResults(response.data.data);
       }
     } catch (err) {
-      console.error('Search error:', err);
+      clientLogger.error('Search error', err);
       setSearchResults([]);
     } finally {
       setSearching(false);
@@ -307,7 +308,7 @@ export const useUserManagement = () => {
         setFilteredUsers(response.data.data);
       }
     } catch (err) {
-      console.error('Error fetching users:', err);
+      clientLogger.error('Error fetching users', err);
       setError(err.response?.data?.message || `Failed to fetch ${role}s`);
       setUsersList([]);
       setFilteredUsers([]);

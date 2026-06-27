@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 import { notify } from '../services/notificationService.js';
 import AuditLogger from '../services/auditLogger.js';
@@ -228,7 +229,7 @@ export const getMyLeaveStatus = async (req, res) => {
 
     res.json({ success: true, config: LEAVE_CONFIG, data: courses });
   } catch (err) {
-    console.error('[leave] my error:', err);
+    logger.error('[leave] my error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -315,7 +316,7 @@ export const submitLeaveApplication = async (req, res) => {
 
     res.status(201).json({ success: true, data: serializeLeaveApplication(application) });
   } catch (err) {
-    console.error('[leave] submit error:', err);
+    logger.error('[leave] submit error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -388,7 +389,7 @@ export const getOfferingLeaveStatus = async (req, res) => {
 
     res.json({ success: true, config: LEAVE_CONFIG, data: { rows, applications: applications.map(serializeLeaveApplication) } });
   } catch (err) {
-    console.error('[leave] offering error:', err);
+    logger.error('[leave] offering error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -475,7 +476,7 @@ const decideApplication = async (req, res, decision) => {
 
     res.json({ success: true, data: serializeLeaveApplication(updated) });
   } catch (err) {
-    console.error('[leave] decide error:', err);
+    logger.error('[leave] decide error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -493,6 +494,6 @@ export const reevaluateAfterAttendance = async ({ offeringId, studentIds, perfor
       await triggerDropOff({ studentId, offeringId, counter, performedById });
     }
   } catch (err) {
-    console.error('[leave] reevaluate error:', err);
+    logger.error('[leave] reevaluate error:', err);
   }
 };

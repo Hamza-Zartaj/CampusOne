@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { admissionAPI } from '../../utils/api';
+import clientLogger from '../../utils/clientLogger';
 
 // Import custom hooks
 import { useAdmissionForm } from './hooks/useAdmissionForm';
@@ -102,7 +103,7 @@ const AdmissionApplication = () => {
     try {
       setPrograms(MOCK_PROGRAMS);
     } catch (error) {
-      console.error('Error fetching programs:', error);
+      clientLogger.error('Error fetching programs', error);
       setPrograms(MOCK_PROGRAMS);
     }
   };
@@ -122,7 +123,7 @@ const AdmissionApplication = () => {
 
       setSettings(settingsData);
     } catch (error) {
-      console.error('Error checking admission status:', error);
+      clientLogger.error('Error checking admission status', error);
       toast.error('Unable to load admission information');
       setLoading(false);
       setTimeout(() => navigate('/'), 1000);
@@ -212,7 +213,7 @@ const AdmissionApplication = () => {
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
-      console.error('Error submitting application:', error);
+      clientLogger.error('Error submitting application', error);
       toast.error(error.response?.data?.message || 'Failed to submit application');
     } finally {
       setSubmitting(false);
@@ -223,56 +224,56 @@ const AdmissionApplication = () => {
   const uploadApplicationFiles = async (applicationId) => {
     const filesToUpload = [];
 
-    console.log('[File Upload] Starting file collection...');
-    console.log('[File Upload] formData.cnicFront:', formData.cnicFront);
-    console.log('[File Upload] formData.cnicBack:', formData.cnicBack);
-    console.log('[File Upload] formData.address?.domicileUpload:', formData.address?.domicileUpload);
-    console.log('[File Upload] formData.guardian?.cnicUpload:', formData.guardian?.cnicUpload);
-    console.log('[File Upload] formData.educationRecords:', formData.educationRecords);
+    clientLogger.debug('[File Upload] Starting file collection');
+    clientLogger.debug('[File Upload] formData.cnicFront', formData.cnicFront);
+    clientLogger.debug('[File Upload] formData.cnicBack', formData.cnicBack);
+    clientLogger.debug('[File Upload] formData.address?.domicileUpload', formData.address?.domicileUpload);
+    clientLogger.debug('[File Upload] formData.guardian?.cnicUpload', formData.guardian?.cnicUpload);
+    clientLogger.debug('[File Upload] formData.educationRecords', formData.educationRecords);
 
     // Collect all files from form data
     if (formData.cnicFront) {
-      console.log('[File Upload] Adding cnicFront:', formData.cnicFront.name);
+      clientLogger.debug('[File Upload] Adding cnicFront', formData.cnicFront.name);
       filesToUpload.push({ file: formData.cnicFront, type: 'cnic_front' });
     } else {
-      console.log('[File Upload] cnicFront is missing/null');
+      clientLogger.debug('[File Upload] cnicFront is missing/null');
     }
 
     if (formData.cnicBack) {
-      console.log('[File Upload] Adding cnicBack:', formData.cnicBack.name);
+      clientLogger.debug('[File Upload] Adding cnicBack', formData.cnicBack.name);
       filesToUpload.push({ file: formData.cnicBack, type: 'cnic_back' });
     } else {
-      console.log('[File Upload] cnicBack is missing/null');
+      clientLogger.debug('[File Upload] cnicBack is missing/null');
     }
 
     if (formData.address?.domicileUpload) {
-      console.log('[File Upload] Adding domicileUpload:', formData.address.domicileUpload.name);
+      clientLogger.debug('[File Upload] Adding domicileUpload', formData.address.domicileUpload.name);
       filesToUpload.push({ file: formData.address.domicileUpload, type: 'domicile' });
     } else {
-      console.log('[File Upload] domicileUpload is missing/null');
+      clientLogger.debug('[File Upload] domicileUpload is missing/null');
     }
 
     if (formData.guardian?.cnicUpload) {
-      console.log('[File Upload] Adding guardian.cnicUpload:', formData.guardian.cnicUpload.name);
+      clientLogger.debug('[File Upload] Adding guardian.cnicUpload', formData.guardian.cnicUpload.name);
       filesToUpload.push({ file: formData.guardian.cnicUpload, type: 'guardian_cnic' });
     } else {
-      console.log('[File Upload] guardian.cnicUpload is missing/null');
+      clientLogger.debug('[File Upload] guardian.cnicUpload is missing/null');
     }
     
     // Collect transcripts from education records
     formData.educationRecords.forEach((edu, index) => {
       if (edu.transcript) {
-        console.log(`[File Upload] Adding educationRecords[${index}].transcript:`, edu.transcript.name);
+        clientLogger.debug(`[File Upload] Adding educationRecords[${index}].transcript`, edu.transcript.name);
         filesToUpload.push({ file: edu.transcript, type: `transcript_${index}` });
       } else {
-        console.log(`[File Upload] educationRecords[${index}].transcript is missing/null`);
+        clientLogger.debug(`[File Upload] educationRecords[${index}].transcript is missing/null`);
       }
     });
 
-    console.log(`[File Upload] Total files to upload: ${filesToUpload.length}`);
+    clientLogger.debug(`[File Upload] Total files to upload: ${filesToUpload.length}`);
 
     if (filesToUpload.length === 0) {
-      console.log('No files to upload');
+      clientLogger.debug('No files to upload');
       return; // No files to upload
     }
 
@@ -282,7 +283,7 @@ const AdmissionApplication = () => {
       
       // Append each file to the 'documents' field and track metadata
       filesToUpload.forEach(({ file, type }) => {
-        console.log(`[File Upload] Appending file: "${file.name}" with type: "${type}"`);
+        clientLogger.debug(`[File Upload] Appending file: "${file.name}" with type: "${type}"`);
         formDataToSend.append('documents', file, file.name);
         fileMetadata.push({
           fileName: file.name,
@@ -291,19 +292,19 @@ const AdmissionApplication = () => {
       });
 
       // Send file metadata to backend so it knows which field each file belongs to
-      console.log('[File Upload] Metadata being sent:', fileMetadata);
+      clientLogger.debug('[File Upload] Metadata being sent', fileMetadata);
       formDataToSend.append('fileMetadata', JSON.stringify(fileMetadata));
 
       // Debug: Log FormData entries
-      console.log('FormData entries:');
+      clientLogger.debug('FormData entries');
       for (let pair of formDataToSend.entries()) {
         if (pair[0] !== 'documents') {
-          console.log(`  ${pair[0]}:`, pair[1]);
+          clientLogger.debug(`  ${pair[0]}:`, pair[1]);
         }
       }
-      console.log(`  documents: ${filesToUpload.length} file(s)`);
+      clientLogger.debug(`  documents: ${filesToUpload.length} file(s)`);
 
-      console.log(`Uploading ${filesToUpload.length} file(s) to application ${applicationId}`);
+      clientLogger.debug(`Uploading ${filesToUpload.length} file(s) to application ${applicationId}`);
       
       const response = await admissionAPI.uploadApplicationDocuments(applicationId, formDataToSend);
       
@@ -311,8 +312,8 @@ const AdmissionApplication = () => {
         toast.success(`Uploaded ${filesToUpload.length} file(s) successfully!`);
       }
     } catch (error) {
-      console.error('Error uploading files:', error);
-      console.error('Error response data:', error.response?.data);
+      clientLogger.error('Error uploading files', error);
+      clientLogger.error('Error upload response data', error.response?.data);
       toast.error('Some files could not be uploaded. You can upload them later.');
     }
   };

@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -19,7 +20,7 @@ class AuditLogger {
       });
       return logEntry;
     } catch (error) {
-      console.error('Audit log error:', error.message);
+      logger.error('Audit log error:', error.message);
       // Don't throw - audit logging should not break the main operation
       return null;
     }
@@ -43,7 +44,7 @@ class AuditLogger {
       });
       return { bulkOperationId, count: logs.count };
     } catch (error) {
-      console.error('Bulk audit log error:', error.message);
+      logger.error('Bulk audit log error:', error.message);
       return null;
     }
   }

@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 import { notify, notifyMany } from '../services/notificationService.js';
 import AuditLogger from '../services/auditLogger.js';
@@ -146,7 +147,7 @@ export const getMyEligibility = async (req, res) => {
     const result = await checkEligibility(student.id);
     res.json({ success: true, data: result });
   } catch (err) {
-    console.error('[ta] eligibility error:', err);
+    logger.error('[ta] eligibility error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -236,7 +237,7 @@ export const applyForTA = async (req, res) => {
 
     res.status(201).json({ success: true, data: application });
   } catch (err) {
-    console.error('[ta] apply error:', err);
+    logger.error('[ta] apply error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -429,7 +430,7 @@ export const approveApplication = async (req, res) => {
 
     res.json({ success: true, data: updated });
   } catch (err) {
-    console.error('[ta] approve error:', err);
+    logger.error('[ta] approve error:', err);
     res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
@@ -472,7 +473,7 @@ export const rejectApplication = async (req, res) => {
 
     res.json({ success: true, data: updated });
   } catch (err) {
-    console.error('[ta] reject error:', err);
+    logger.error('[ta] reject error:', err);
     res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
@@ -533,26 +534,43 @@ export const relieveAssignment = async (req, res) => {
 export const getAllAssignments = async (req, res) => {
   try {
     const { status, termId, offeringId } = req.query;
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 25));
     const where = {};
     if (status) where.status = status;
     if (offeringId) where.offeringId = offeringId;
     if (termId) where.offering = { termId };
 
-    const apps = await prisma.tAAssignment.findMany({
-      where,
-      include: {
-        student: { select: { studentId: true, currentSemester: true, user: { select: { name: true } } } },
-        offering: {
-          include: {
-            course: { select: { code: true, title: true } },
-            term: { select: { code: true } },
-            teacher: { select: { user: { select: { name: true } } } },
+    const [total, apps] = await Promise.all([
+      prisma.tAAssignment.count({ where }),
+      prisma.tAAssignment.findMany({
+        where,
+        include: {
+          student: { select: { studentId: true, currentSemester: true, user: { select: { name: true } } } },
+          offering: {
+            include: {
+              course: { select: { code: true, title: true } },
+              term: { select: { code: true } },
+              teacher: { select: { user: { select: { name: true } } } },
+            },
           },
         },
+        orderBy: [{ status: 'asc' }, { appliedAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+    res.json({
+      success: true,
+      count: apps.length,
+      data: apps,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
       },
-      orderBy: [{ status: 'asc' }, { appliedAt: 'desc' }],
     });
-    res.json({ success: true, count: apps.length, data: apps });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -114,7 +114,6 @@ const ThreadDetail = ({ threadId, currentUserId, onBack, onChange }) => {
           </div>
         )}
         {thread.replies.map((r) => {
-          const isMine = r.authorId === currentUserId;
           const isTeacher = r.author?.role === 'teacher';
           const isTA = r.author?.qnaIdentity?.isTA;
           return (
@@ -125,11 +124,9 @@ const ThreadDetail = ({ threadId, currentUserId, onBack, onChange }) => {
                   <AuthorBadge author={r.author} />
                   <span className="ml-2 text-xs text-slate-500">{fmtDateTime(r.createdAt)}</span>
                 </div>
-                {(isMine || true) && (
-                  <button onClick={() => handleDeleteReply(r.id)} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete">
-                    <Trash2 size={14} />
-                  </button>
-                )}
+                <button onClick={() => handleDeleteReply(r.id)} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete">
+                  <Trash2 size={14} />
+                </button>
               </div>
               <div className="text-slate-700 whitespace-pre-wrap">{r.body}</div>
             </div>

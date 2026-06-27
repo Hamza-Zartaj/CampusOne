@@ -6,6 +6,7 @@ import FirstTimeSetup from '../components/FirstTimeSetup';
 import TwoFactorVerification from '../components/TwoFactorVerification';
 import ForgotPassword from '../components/ForgotPassword';
 import PasswordReset from '../components/PasswordReset';
+import clientLogger from '../utils/clientLogger';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -109,11 +110,11 @@ export default function Login() {
         setFormData({ username: '', password: '' });
         
         // Navigate to dashboard immediately
-        console.log('Navigating to dashboard...');
+        clientLogger.debug('Navigating to dashboard');
         navigate('/dashboard');
       }
     } catch (err) {
-      console.error('Login error:', err);
+      clientLogger.error('Login error', err);
       
       let errorMessage = 'Login failed. Please check your credentials.';
       

@@ -24,7 +24,7 @@ const MarksUpload = () => {
   const toggleRelease = async (kind, released) => {
     setReleaseLoading((p) => ({ ...p, [kind]: true }));
     try {
-      await markComponentAPI.setReleased(offeringId, kind, released);
+      await markComponentAPI.setReleased(data.course.id, kind, released);
       setData((prev) => ({
         ...prev,
         course: {
@@ -34,7 +34,7 @@ const MarksUpload = () => {
           ),
         },
       }));
-      toast.success(released ? 'Released to students' : 'Hidden from students');
+      toast.success(released ? 'Released for this course' : 'Hidden for this course');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed');
     } finally {
@@ -172,7 +172,9 @@ const MarksUpload = () => {
               </button>
             ))}
           </div>
-          <p className="text-[11px] text-slate-400 mt-2">Hidden components show as &quot;—&quot; on the student portal until released.</p>
+          <p className="text-[11px] text-slate-400 mt-2">
+            These toggles are course-wide and apply to every offering of {data.course.code}. Hidden components show as &quot;—&quot; on the student portal until released.
+          </p>
         </div>
       )}
 

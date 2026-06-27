@@ -13,6 +13,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { announcementAPI, departmentAPI, programAPI } from '../../utils/api';
+import clientLogger from '../../utils/clientLogger';
 
 const inputClass =
   'w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] transition-all focus:outline-none focus:border-blue-500 focus:ring-[3px] focus:ring-blue-500/10';
@@ -70,7 +71,9 @@ const AnnouncementManagement = () => {
       const [d, p] = await Promise.all([departmentAPI.getAll(), programAPI.getAll()]);
       setDepartments(d.data.data || []);
       setPrograms(p.data.data || []);
-    } catch {}
+    } catch (err) {
+      clientLogger.warn('Failed to load announcement filter metadata', err);
+    }
   };
 
   const toggle = (arr, setArr, val) => {
@@ -89,7 +92,7 @@ const AnnouncementManagement = () => {
       setError('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load announcements');
-      console.error('Error loading announcements:', err);
+      clientLogger.error('Error loading announcements', err);
     } finally {
       setLoading(false);
     }
@@ -100,11 +103,6 @@ const AnnouncementManagement = () => {
 
     if (!title.trim() || !content.trim()) {
       setError('Please fill in all required fields');
-      return;
-    }
-
-    if (audience === 'specific_course' && !courseId) {
-      setError('Please select a course');
       return;
     }
 
@@ -142,7 +140,7 @@ const AnnouncementManagement = () => {
       setTimeout(() => setSuccess(''), 5000);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to send announcement');
-      console.error('Error sending announcement:', err);
+      clientLogger.error('Error sending announcement', err);
     } finally {
       setSending(false);
     }
@@ -160,7 +158,7 @@ const AnnouncementManagement = () => {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to delete announcement');
-      console.error('Error deleting announcement:', err);
+      clientLogger.error('Error deleting announcement', err);
     }
   };
 

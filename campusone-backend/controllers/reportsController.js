@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 
 const GRADE_POINTS = {
@@ -70,7 +71,7 @@ export const getOverview = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[reports] overview error:', err);
+    logger.error('[reports] overview error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -99,7 +100,7 @@ export const getEnrollmentByProgram = async (req, res) => {
 
     res.json({ success: true, data });
   } catch (err) {
-    console.error('[reports] enrollment-by-program error:', err);
+    logger.error('[reports] enrollment-by-program error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -131,7 +132,7 @@ export const getGradeDistribution = async (req, res) => {
 
     res.json({ success: true, data });
   } catch (err) {
-    console.error('[reports] grade-distribution error:', err);
+    logger.error('[reports] grade-distribution error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -179,7 +180,7 @@ export const getCoursePerformance = async (req, res) => {
 
     res.json({ success: true, data: rows });
   } catch (err) {
-    console.error('[reports] course-performance error:', err);
+    logger.error('[reports] course-performance error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -218,7 +219,7 @@ export const getTermTrends = async (req, res) => {
 
     res.json({ success: true, data });
   } catch (err) {
-    console.error('[reports] term-trends error:', err);
+    logger.error('[reports] term-trends error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -252,7 +253,7 @@ export const getAdmissionFunnel = async (req, res) => {
 
     res.json({ success: true, data });
   } catch (err) {
-    console.error('[reports] admission-funnel error:', err);
+    logger.error('[reports] admission-funnel error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -279,7 +280,7 @@ export const getAttendanceSummary = async (req, res) => {
       data: { ...summary, total, presentRate },
     });
   } catch (err) {
-    console.error('[reports] attendance-summary error:', err);
+    logger.error('[reports] attendance-summary error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

@@ -1,0 +1,2 @@
+ALTER TABLE "AuditLog"
+ALTER COLUMN "createdAt" TYPE TIMESTAMP(3);

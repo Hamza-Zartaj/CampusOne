@@ -538,8 +538,8 @@ export const markComponentAPI = {
   listForOffering: (offeringId) => api.get(`/offerings/${offeringId}/mark-components`),
   init:            (offeringId) => api.post(`/offerings/${offeringId}/mark-components/init`),
   update:          (id, data)   => api.put(`/mark-components/${id}`, data),
-  setReleased:     (offeringId, kind, released) =>
-    api.put(`/offerings/${offeringId}/grade-components/${kind}/release`, { released }),
+  setReleased:     (courseId, kind, released) =>
+    api.put(`/courses/${courseId}/grade-components/${kind}/release`, { released }),
 };
 
 // Lecture API

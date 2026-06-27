@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 
@@ -26,7 +27,7 @@ export const initSocket = (httpServer) => {
     socket.join(`user:${socket.userId}`);
   });
 
-  console.log('🔌 Socket.io initialized');
+  logger.info('🔌 Socket.io initialized');
   return io;
 };
 

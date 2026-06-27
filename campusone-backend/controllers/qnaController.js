@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 import { sendQnaQuestionEmail } from '../services/emailService.js';
 import { notify, TYPE } from '../services/notificationService.js';
@@ -150,7 +151,7 @@ export const getThreads = async (req, res) => {
     const enriched = await enrichThreads(threads.map((t) => ({ ...t, replies: [] })));
     res.json({ success: true, count: enriched.length, data: enriched });
   } catch (err) {
-    console.error('[qna] error:', err);
+    logger.error('[qna] error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -170,7 +171,7 @@ export const getThreadById = async (req, res) => {
     const [enriched] = await enrichThreads([thread]);
     res.json({ success: true, data: enriched });
   } catch (err) {
-    console.error('[qna] error:', err);
+    logger.error('[qna] error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -232,14 +233,14 @@ export const createThread = async (req, res) => {
           });
         }
       } catch (err) {
-        console.error('Q&A notify failed:', err.message);
+        logger.error('Q&A notify failed:', err.message);
       }
     })();
 
     const [enriched] = await enrichThreads([thread]);
     res.status(201).json({ success: true, data: enriched });
   } catch (err) {
-    console.error('[qna] error:', err);
+    logger.error('[qna] error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -285,7 +286,7 @@ export const createReply = async (req, res) => {
 
     res.status(201).json({ success: true, data: { ...reply, author } });
   } catch (err) {
-    console.error('[qna] error:', err);
+    logger.error('[qna] error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -318,7 +319,7 @@ export const updateThreadStatus = async (req, res) => {
 
     res.json({ success: true, data: updated });
   } catch (err) {
-    console.error('[qna] error:', err);
+    logger.error('[qna] error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -341,7 +342,7 @@ export const deleteThread = async (req, res) => {
     await prisma.qnaThread.delete({ where: { id: thread.id } });
     res.json({ success: true, message: 'Thread deleted' });
   } catch (err) {
-    console.error('[qna] error:', err);
+    logger.error('[qna] error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -367,7 +368,7 @@ export const deleteReply = async (req, res) => {
     await prisma.qnaReply.delete({ where: { id: req.params.replyId } });
     res.json({ success: true, message: 'Reply deleted' });
   } catch (err) {
-    console.error('[qna] error:', err);
+    logger.error('[qna] error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

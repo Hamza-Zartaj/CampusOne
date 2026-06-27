@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 import { emitToUser, emitToUsers } from './socketService.js';
 
@@ -56,7 +57,7 @@ export const notify = async ({ userId, type, title, body, linkUrl, metadata }) =
     emitToUser(userId, 'notification:new', notification);
     return notification;
   } catch (err) {
-    console.error('[notify] failed:', err.message);
+    logger.error('[notify] failed:', err.message);
     return null;
   }
 };
@@ -78,7 +79,7 @@ export const notifyMany = async ({ userIds, type, title, body, linkUrl, metadata
     emitToUsers(userIds, 'notification:new', { type, title, body, linkUrl, metadata });
     return result;
   } catch (err) {
-    console.error('[notifyMany] failed:', err.message);
+    logger.error('[notifyMany] failed:', err.message);
     return { count: 0 };
   }
 };

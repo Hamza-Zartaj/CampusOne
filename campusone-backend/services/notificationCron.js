@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import cron from 'node-cron';
 import prisma from '../prisma/client.js';
 import { notifyMany, TYPE } from './notificationService.js';
@@ -102,8 +103,8 @@ export const startNotificationCron = () => {
       await sendAssignmentDueSoon();
       await sendQuizOpeningSoon();
     } catch (err) {
-      console.error('[notification-cron] tick failed:', err.message);
+      logger.error('[notification-cron] tick failed:', err.message);
     }
   });
-  console.log('🕐 Notification cron started (hourly: assignment + quiz 24h reminders)');
+  logger.info('🕐 Notification cron started (hourly: assignment + quiz 24h reminders)');
 };

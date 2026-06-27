@@ -1,3 +1,4 @@
+import logger from './utils/logger.js';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -62,9 +63,9 @@ import prisma from './prisma/client.js';
 const connectDB = async () => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    console.log('✅ PostgreSQL (Prisma) Connected');
+    logger.info('✅ PostgreSQL (Prisma) Connected');
   } catch (error) {
-    console.error(`❌ Database Connection Error: ${error.message}`);
+    logger.error(`❌ Database Connection Error: ${error.message}`);
     process.exit(1);
   }
 };
@@ -133,7 +134,7 @@ app.use((req, res, next) => {
 
 // Global Error Handler
 app.use((err, req, res, next) => {
-  console.error('Error:', err.stack);
+  logger.error('Error:', err.stack);
   
   res.status(err.statusCode || 500).json({
     success: false,
@@ -148,6 +149,6 @@ const server = http.createServer(app);
 initSocket(server);
 startNotificationCron();
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`🚀 Server running on port ${PORT}`);
+  logger.info(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });

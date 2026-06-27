@@ -1,3 +1,4 @@
+import logger from './logger.js';
 import prisma from '../prisma/client.js';
 
 /**
@@ -31,7 +32,7 @@ export const auditLog = async ({ action, category, performedBy, performedByRole,
       },
     });
   } catch (err) {
-    console.error('[AuditLog] write failed:', err.message);
+    logger.error('[AuditLog] write failed:', err.message);
     return null;
   }
 };

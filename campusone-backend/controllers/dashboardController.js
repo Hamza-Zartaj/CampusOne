@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 import { computeGradePointAverage } from '../utils/grading.js';
 
@@ -78,7 +79,7 @@ export const getAdminDashboard = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[dashboard:admin]', err);
+    logger.error('[dashboard:admin]', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -205,7 +206,7 @@ export const getTeacherDashboard = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[dashboard:teacher]', err);
+    logger.error('[dashboard:teacher]', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -426,7 +427,7 @@ export const getStudentDashboard = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[dashboard:student]', err);
+    logger.error('[dashboard:student]', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

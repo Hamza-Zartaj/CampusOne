@@ -25,6 +25,7 @@ import { authAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import ManageTwoFactorModal from '../components/ManageTwoFactorModal';
+import clientLogger from '../utils/clientLogger';
 
 const Profile = () => {
   const [user, setUser] = useState(null);
@@ -55,7 +56,9 @@ const Profile = () => {
         const stored = JSON.parse(localStorage.getItem('user') || '{}');
         stored.profilePicture = null;
         localStorage.setItem('user', JSON.stringify(stored));
-      } catch {}
+      } catch (err) {
+        clientLogger.warn('Failed to sync removed profile picture to local storage', err);
+      }
       await fetchUserProfile();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to remove picture');
@@ -85,7 +88,9 @@ const Profile = () => {
         const stored = JSON.parse(localStorage.getItem('user') || '{}');
         stored.profilePicture = url;
         localStorage.setItem('user', JSON.stringify(stored));
-      } catch {}
+      } catch (err) {
+        clientLogger.warn('Failed to sync profile picture to local storage', err);
+      }
       await fetchUserProfile();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to upload picture');
@@ -120,7 +125,7 @@ const Profile = () => {
       // Initialize edit form
       initializeEditForm(userData);
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      clientLogger.error('Error fetching user profile', error);
       toast.error(error.response?.data?.message || 'Failed to load profile');
     } finally {
       setLoading(false);
@@ -234,7 +239,7 @@ const Profile = () => {
       setIsEditMode(false);
       await fetchUserProfile();
     } catch (error) {
-      console.error('Error updating profile:', error);
+      clientLogger.error('Error updating profile', error);
       toast.error(error.response?.data?.message || 'Failed to update profile');
     } finally {
       setIsSaving(false);

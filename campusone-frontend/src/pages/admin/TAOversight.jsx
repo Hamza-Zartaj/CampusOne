@@ -25,6 +25,7 @@ const TAOversight = () => {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTerm, setFilterTerm] = useState('');
   const [apps, setApps] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState(null);
   const [decision, setDecision] = useState(null);
@@ -39,12 +40,21 @@ const TAOversight = () => {
     taAPI.getAll({
       ...(filterStatus ? { status: filterStatus } : {}),
       ...(filterTerm ? { termId: filterTerm } : {}),
+      page: pagination.page,
+      limit: pagination.limit,
     })
-      .then((r) => setApps(r.data.data || []))
+      .then((r) => {
+        setApps(r.data.data || []);
+        setPagination((prev) => ({ ...prev, ...(r.data.pagination || {}) }));
+      })
       .catch(() => toast.error('Failed to load TA assignments'))
       .finally(() => setLoading(false));
   };
-  useEffect(load, [filterStatus, filterTerm]);
+  useEffect(load, [filterStatus, filterTerm, pagination.page, pagination.limit]);
+
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, [filterStatus, filterTerm]);
 
   const submitDecision = async () => {
     if (!reviewing || !decision) return;
@@ -198,6 +208,38 @@ const TAOversight = () => {
             </table>
           </div>
         )}
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-xs text-slate-500 m-0">
+          Showing {apps.length} of {pagination.total} assignments
+        </p>
+        <div className="flex items-center gap-2">
+          <select
+            value={pagination.limit}
+            onChange={(e) => setPagination((prev) => ({ ...prev, page: 1, limit: Number(e.target.value) }))}
+            className="py-1.5 px-2 rounded-lg border border-slate-200 text-xs bg-white"
+          >
+            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / page</option>)}
+          </select>
+          <button
+            onClick={() => setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
+            disabled={pagination.page <= 1}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span className="text-xs text-slate-500">
+            Page {pagination.page} of {pagination.totalPages}
+          </span>
+          <button
+            onClick={() => setPagination((prev) => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))}
+            disabled={pagination.page >= pagination.totalPages}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       {reviewing && (

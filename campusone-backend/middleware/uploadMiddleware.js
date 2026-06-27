@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import multer from 'multer';
 import path from 'path';
 
@@ -35,7 +36,7 @@ export const uploadAdmissionDocuments = multer({
 // Middleware to handle upload errors
 export const handleUploadErrors = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
-    console.error('[Upload Middleware] Multer error:', err.code, err.message);
+    logger.error('[Upload Middleware] Multer error:', err.code, err.message);
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
@@ -57,7 +58,7 @@ export const handleUploadErrors = (err, req, res, next) => {
   }
 
   if (err && err.message) {
-    console.error('[Upload Middleware] Upload error:', err.message);
+    logger.error('[Upload Middleware] Upload error:', err.message);
     return res.status(400).json({
       success: false,
       message: err.message

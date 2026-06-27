@@ -7,6 +7,7 @@ import TwoFactorVerification from './components/TwoFactorVerification';
 import ForgotPassword from './components/ForgotPassword';
 import PasswordReset from './components/PasswordReset';
 import SuperAdminRecovery from './components/SuperAdminRecovery';
+import clientLogger from '../../utils/clientLogger';
 
 function getDashboardPathForRole(role) {
   const normalizedRole = String(role || '').toLowerCase();
@@ -123,7 +124,7 @@ export default function Login() {
         navigate(getDashboardPathForRole(data.data.user.role));
       }
     } catch (err) {
-      console.error('Login error:', err);
+      clientLogger.error('Login error', err);
       
       let errorMessage = 'Login failed. Please check your credentials.';
       

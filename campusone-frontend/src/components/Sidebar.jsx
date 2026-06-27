@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { taAPI } from '../utils/api';
+import { getSocket } from '../utils/socket';
 import {
   LayoutDashboard,
   Users,
@@ -40,9 +41,28 @@ const Sidebar = ({ isOpen }) => {
   const [taActive, setTaActive] = useState([]);
   useEffect(() => {
     if (userRole !== 'student') return;
-    taAPI.getMyActive()
-      .then((r) => setTaActive(r.data.data || []))
-      .catch(() => setTaActive([]));
+    let alive = true;
+    const loadActiveTA = () => {
+      taAPI.getMyActive()
+        .then((r) => { if (alive) setTaActive(r.data.data || []); })
+        .catch(() => { if (alive) setTaActive([]); });
+    };
+    const onFocus = () => loadActiveTA();
+    const onNotification = (notification) => {
+      if (['TA_APPROVED', 'TA_DECISION', 'TA_RELIEVED'].includes(notification?.type)) {
+        loadActiveTA();
+      }
+    };
+
+    loadActiveTA();
+    window.addEventListener('focus', onFocus);
+    const socket = getSocket();
+    if (socket) socket.on('notification:new', onNotification);
+    return () => {
+      alive = false;
+      window.removeEventListener('focus', onFocus);
+      if (socket) socket.off('notification:new', onNotification);
+    };
   }, [userRole]);
   const hasActiveTA = taActive.length > 0;
 
