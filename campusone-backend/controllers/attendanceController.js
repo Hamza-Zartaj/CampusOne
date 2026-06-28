@@ -3,6 +3,17 @@ import { reevaluateAfterAttendance } from './leaveController.js';
 import { assertDateWithinTerm, parseDateOnly, toDateOnlyString } from '../utils/dateOnly.js';
 
 const VALID_ATTENDANCE_STATUSES = new Set(['PRESENT', 'ABSENT', 'LATE']);
+const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+const getTimetableMatch = async (offeringId, dateValue) => {
+  const dayOfWeek = DAY_CODES[dateValue.getUTCDay()];
+  const sessions = await prisma.classSession.findMany({
+    where: { offeringId, dayOfWeek },
+    include: { room: { select: { code: true } } },
+    orderBy: { slotIndex: 'asc' },
+  });
+  return { dayOfWeek, sessions };
+};
 
 // Allow teacher of offering, admin, or APPROVED TA (with optional permission gate).
 const assertCanViewOffering = async (user, offeringId, requiredTAPermission = 'VIEW_ROSTER') => {
@@ -54,6 +65,14 @@ export const markAttendance = async (req, res) => {
       const start = toDateOnlyString(offeringWithTerm.term.startDate);
       const end = toDateOnlyString(offeringWithTerm.term.endDate);
       return res.status(400).json({ success: false, message: `attendance date must be within term bounds (${start} to ${end})` });
+    }
+
+    const timetable = await getTimetableMatch(offeringId, dateValue);
+    if (!timetable.sessions.length) {
+      return res.status(400).json({
+        success: false,
+        message: `No scheduled lecture for this offering on ${timetable.dayOfWeek}. Attendance must match the timetable.`,
+      });
     }
 
     if (req.user.role === 'admin') {

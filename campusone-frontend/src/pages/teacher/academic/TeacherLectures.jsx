@@ -1,11 +1,72 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Trash2, Edit, Download, X, BookOpen, Calendar } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Plus, Trash2, Edit, Download, X, BookOpen, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { lectureAPI, offeringAPI } from '../../../utils/api';
 
 const inputClass = 'w-full py-2 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10';
 const labelClass = 'block text-sm font-medium text-slate-700 mb-1.5';
+const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const DAY_NAMES = {
+  MON: 'Monday',
+  TUE: 'Tuesday',
+  WED: 'Wednesday',
+  THU: 'Thursday',
+  FRI: 'Friday',
+  SAT: 'Saturday',
+  SUN: 'Sunday',
+};
+
+const formatDateInput = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateInput = (value) => {
+  const [year, month, day] = (value || '').split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
+
+const TODAY = formatDateInput(new Date());
+const toDateOnly = (value) => (value ? String(value).slice(0, 10) : '');
+const minDate = (a, b) => (a && b ? (a < b ? a : b) : a || b || '');
+const getDayCode = (dateString) => {
+  const date = parseDateInput(dateString);
+  return date ? DAY_CODES[date.getDay()] : null;
+};
+
+const getLatestScheduledDate = (offering) => {
+  const sessions = offering?.sessions || [];
+  const scheduledDays = new Set(sessions.map((session) => session.dayOfWeek));
+  if (!scheduledDays.size) return TODAY;
+
+  const termStart = toDateOnly(offering?.term?.startDate);
+  const termEnd = toDateOnly(offering?.term?.endDate);
+  const latestAllowed = minDate(TODAY, termEnd || TODAY) || TODAY;
+  const earliestAllowed = termStart || '1900-01-01';
+  const cursor = parseDateInput(latestAllowed);
+
+  for (let i = 0; i < 370 && cursor; i += 1) {
+    const key = formatDateInput(cursor);
+    if (key < earliestAllowed) break;
+    if (scheduledDays.has(DAY_CODES[cursor.getDay()])) return key;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  const forwardCursor = parseDateInput(termStart || TODAY);
+  const lastAllowed = termEnd || '2999-12-31';
+  for (let i = 0; i < 370 && forwardCursor; i += 1) {
+    const key = formatDateInput(forwardCursor);
+    if (key > lastAllowed) break;
+    if (scheduledDays.has(DAY_CODES[forwardCursor.getDay()])) return key;
+    forwardCursor.setDate(forwardCursor.getDate() + 1);
+  }
+
+  return latestAllowed;
+};
 
 const downloadFile = async (url, filename) => {
   try {
@@ -23,16 +84,42 @@ const downloadFile = async (url, filename) => {
 
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
 
-const LectureForm = ({ offeringId, existing, onClose, onSaved }) => {
-  const [date, setDate] = useState(existing?.date ? new Date(existing.date).toISOString().split('T')[0] : '');
+const LectureForm = ({ offeringId, offering, existing, onClose, onSaved }) => {
+  const [date, setDate] = useState(existing?.date ? toDateOnly(existing.date) : getLatestScheduledDate(offering));
   const [title, setTitle] = useState(existing?.title || '');
   const [description, setDescription] = useState(existing?.description || '');
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  const selectedDateState = useMemo(() => {
+    const dayOfWeek = getDayCode(date);
+    const timetableSessions = (offering?.sessions || []).filter((session) => session.dayOfWeek === dayOfWeek);
+    const termStart = toDateOnly(offering?.term?.startDate);
+    const termEnd = toDateOnly(offering?.term?.endDate);
+    const maxAllowed = termEnd || '';
+
+    let reason = '';
+    if (!offering) reason = 'Offering details are still loading.';
+    else if (!offering.sessions?.length) reason = 'No timetable slots are configured for this offering.';
+    else if (!date) reason = 'Select a lecture date.';
+    else if (termStart && date < termStart) reason = `Date is before the term start (${termStart}).`;
+    else if (termEnd && date > termEnd) reason = `Date is after the term end (${termEnd}).`;
+    else if (!timetableSessions.length) reason = `No ${DAY_NAMES[dayOfWeek] || 'scheduled'} slot exists for this offering.`;
+
+    return {
+      dayOfWeek,
+      timetableSessions,
+      minAllowed: termStart || '',
+      maxAllowed,
+      canSaveDate: !reason,
+      reason,
+    };
+  }, [date, offering]);
+
   const submit = async (e) => {
     e.preventDefault();
     if (!date || !title) { toast.error('Date and title required'); return; }
+    if (!selectedDateState.canSaveDate) { toast.error(selectedDateState.reason); return; }
     setSaving(true);
     try {
       const fd = new FormData();
@@ -62,7 +149,33 @@ const LectureForm = ({ offeringId, existing, onClose, onSaved }) => {
         <form onSubmit={submit} className="p-5 space-y-3">
           <div>
             <label className={labelClass}>Date *</label>
-            <input type="date" className={inputClass} value={date} onChange={(e) => setDate(e.target.value)} required />
+            <input
+              type="date"
+              className={inputClass}
+              value={date}
+              min={selectedDateState.minAllowed}
+              max={selectedDateState.maxAllowed}
+              onChange={(e) => setDate(e.target.value)}
+              required
+            />
+            <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${
+              selectedDateState.canSaveDate
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : 'border-amber-200 bg-amber-50 text-amber-800'
+            }`}>
+              <div className="flex items-start gap-2">
+                {selectedDateState.canSaveDate ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
+                <div>
+                  {selectedDateState.canSaveDate ? (
+                    <>
+                      <span className="font-semibold">{DAY_NAMES[selectedDateState.dayOfWeek]}</span>
+                      {' matches '}
+                      {selectedDateState.timetableSessions.map((session) => `slot ${session.slotIndex}${session.room?.code ? ` (${session.room.code})` : ''}`).join(', ')}.
+                    </>
+                  ) : selectedDateState.reason}
+                </div>
+              </div>
+            </div>
           </div>
           <div>
             <label className={labelClass}>Title *</label>
@@ -79,7 +192,7 @@ const LectureForm = ({ offeringId, existing, onClose, onSaved }) => {
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-medium border border-gray-200 bg-white text-slate-700 hover:bg-slate-50">Cancel</button>
-            <button type="submit" disabled={saving} className="inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+            <button type="submit" disabled={saving || !selectedDateState.canSaveDate} className="inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
               {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
@@ -98,9 +211,7 @@ const TeacherLectures = () => {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
 
-  useEffect(() => { load(); }, [offeringId]);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       const [offRes, lecRes] = await Promise.all([
@@ -114,7 +225,9 @@ const TeacherLectures = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [offeringId]);
+
+  useEffect(() => { load(); }, [load]);
 
   const remove = async (l) => {
     if (!confirm(`Delete lecture "${l.title}"?`)) return;
@@ -197,6 +310,7 @@ const TeacherLectures = () => {
       {showForm && (
         <LectureForm
           offeringId={offeringId}
+          offering={offering}
           existing={editing}
           onClose={() => { setShowForm(false); setEditing(null); }}
           onSaved={() => { setShowForm(false); setEditing(null); load(); }}

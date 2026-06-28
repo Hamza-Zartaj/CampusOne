@@ -10,6 +10,7 @@
  *   and similarity scanning
  * - quiz scenarios for draft, upcoming, live, in-progress, closed, automatic
  *   grading, manual grading, review, and violation auto-submission
+ * - timetable data with rooms, master schedule config, and weekly class sessions
  *
  * This script clears all application data before seeding.
  */
@@ -66,6 +67,68 @@ const createUser = ({ username, name, role, password }) => prisma.user.create({
     isActive: true,
   },
 });
+
+const createTimetableData = async (offeringId) => {
+  await prisma.scheduleConfig.create({
+    data: {
+      id: 'default',
+      lectureDurationMin: 90,
+      breakDurationMin: 15,
+      dayStartTime: '09:00',
+      workingDays: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'],
+      regularLecturesPerDay: 4,
+      maxTeacherLecturesPerDay: 3,
+      defaultSessionsPerCourse: 3,
+      dayOverrides: {
+        FRI: {
+          lecturesPerDay: 3,
+          jummahAfterSlot: 2,
+          jummahMin: 60,
+        },
+      },
+    },
+  });
+
+  const lectureHall = await prisma.room.create({
+    data: {
+      code: 'LH-101',
+      name: 'Main Lecture Hall',
+      type: 'LECTURE',
+      capacity: 60,
+      building: 'CS Block',
+      floor: 1,
+    },
+  });
+
+  await prisma.room.createMany({
+    data: [
+      {
+        code: 'LH-102',
+        name: 'Seminar Lecture Room',
+        type: 'SEMINAR',
+        capacity: 35,
+        building: 'CS Block',
+        floor: 1,
+      },
+      {
+        code: 'LAB-201',
+        name: 'Programming Lab',
+        type: 'LAB',
+        capacity: 40,
+        building: 'CS Block',
+        floor: 2,
+      },
+    ],
+  });
+
+  await prisma.classSession.createMany({
+    data: [
+      { offeringId, dayOfWeek: 'MON', slotIndex: 1, roomId: lectureHall.id },
+      { offeringId, dayOfWeek: 'WED', slotIndex: 2, roomId: lectureHall.id },
+      { offeringId, dayOfWeek: 'FRI', slotIndex: 1, roomId: lectureHall.id },
+    ],
+  });
+};
 
 const createAssignmentData = async (offeringId, students, teacherId) => {
   await prisma.assignment.create({
@@ -597,6 +660,7 @@ async function main() {
       capacity: 10,
     },
   });
+  await createTimetableData(offering.id);
 
   const studentRecords = [];
   for (const [index, [username, name, studentId]] of STUDENTS.entries()) {
@@ -633,6 +697,7 @@ async function main() {
   console.log('Teacher: teacher');
   console.log('Students: student01 through student10');
   console.log('Class: CS101 Programming Fundamentals, Section 1A');
+  console.log('Timetable: MON S1, WED S2, FRI S1 in LH-101');
   console.log('\nSuggested tests:');
   console.log('- student01: resume live quiz; view graded assignment and pending quiz result');
   console.log('- student02: start live quiz fresh; view fully graded closed quiz');

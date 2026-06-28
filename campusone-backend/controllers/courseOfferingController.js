@@ -2,7 +2,7 @@ import prisma from '../prisma/client.js';
 
 const offeringInclude = {
   course: { select: { id: true, code: true, title: true, creditHours: true, sessionType: true } },
-  term: { select: { id: true, code: true, season: true, academicYear: true } },
+  term: { select: { id: true, code: true, season: true, academicYear: true, startDate: true, endDate: true } },
   teacher: { select: { id: true, designation: true, user: { select: { name: true, email: true } } } },
   sessions: { include: { room: true }, orderBy: [{ dayOfWeek: 'asc' }, { slotIndex: 'asc' }] },
   _count: { select: { enrollments: true } },
