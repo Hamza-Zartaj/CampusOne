@@ -1,11 +1,12 @@
 /**
  * Focused CampusOne test seed.
  *
- * Creates one first-semester class with:
+ * Creates a focused two-semester test setup with:
  * - 1 super admin
  * - 1 teacher
- * - 10 students
- * - 1 active term, course, and offering
+ * - 10 students split between semester 1 and semester 3
+ * - 1 active term with 2 courses and offerings
+ * - 1 approved semester-3 TA assigned to the semester-1 offering
  * - assignment scenarios for draft, open, overdue, closed, grading, late work,
  *   and similarity scanning
  * - quiz scenarios for draft, upcoming, live, in-progress, closed, automatic
@@ -29,16 +30,16 @@ const at = ({ days = 0, hours = 0, minutes = 0 } = {}) => new Date(
 );
 
 const STUDENTS = [
-  ['student01', 'Ayesha Khan', 'FA26-BSCS-001'],
-  ['student02', 'Bilal Ahmed', 'FA26-BSCS-002'],
-  ['student03', 'Fatima Noor', 'FA26-BSCS-003'],
-  ['student04', 'Hamza Ali', 'FA26-BSCS-004'],
-  ['student05', 'Iqra Malik', 'FA26-BSCS-005'],
-  ['student06', 'Junaid Raza', 'FA26-BSCS-006'],
-  ['student07', 'Komal Shah', 'FA26-BSCS-007'],
-  ['student08', 'Mariam Tariq', 'FA26-BSCS-008'],
-  ['student09', 'Saad Hussain', 'FA26-BSCS-009'],
-  ['student10', 'Zara Siddiqui', 'FA26-BSCS-010'],
+  ['student01', 'Ayesha Khan', 'FA26-BSCS-001', 1, 'FA26'],
+  ['student02', 'Bilal Ahmed', 'FA26-BSCS-002', 1, 'FA26'],
+  ['student03', 'Fatima Noor', 'FA26-BSCS-003', 1, 'FA26'],
+  ['student04', 'Hamza Ali', 'FA26-BSCS-004', 1, 'FA26'],
+  ['student05', 'Iqra Malik', 'FA26-BSCS-005', 1, 'FA26'],
+  ['student06', 'Junaid Raza', 'FA25-BSCS-006', 3, 'FA25'],
+  ['student07', 'Komal Shah', 'FA25-BSCS-007', 3, 'FA25'],
+  ['student08', 'Mariam Tariq', 'FA25-BSCS-008', 3, 'FA25'],
+  ['student09', 'Saad Hussain', 'FA25-BSCS-009', 3, 'FA25'],
+  ['student10', 'Zara Siddiqui', 'FA25-BSCS-010', 3, 'FA25'],
 ];
 
 const clearDatabase = async () => {
@@ -68,7 +69,7 @@ const createUser = ({ username, name, role, password }) => prisma.user.create({
   },
 });
 
-const createTimetableData = async (offeringId) => {
+const createTimetableData = async (semesterOneOfferingId, semesterThreeOfferingId) => {
   await prisma.scheduleConfig.create({
     data: {
       id: 'default',
@@ -123,9 +124,12 @@ const createTimetableData = async (offeringId) => {
 
   await prisma.classSession.createMany({
     data: [
-      { offeringId, dayOfWeek: 'MON', slotIndex: 1, roomId: lectureHall.id },
-      { offeringId, dayOfWeek: 'WED', slotIndex: 2, roomId: lectureHall.id },
-      { offeringId, dayOfWeek: 'FRI', slotIndex: 1, roomId: lectureHall.id },
+      { offeringId: semesterOneOfferingId, dayOfWeek: 'MON', slotIndex: 1, roomId: lectureHall.id },
+      { offeringId: semesterOneOfferingId, dayOfWeek: 'WED', slotIndex: 2, roomId: lectureHall.id },
+      { offeringId: semesterOneOfferingId, dayOfWeek: 'FRI', slotIndex: 1, roomId: lectureHall.id },
+      { offeringId: semesterThreeOfferingId, dayOfWeek: 'TUE', slotIndex: 1, roomId: lectureHall.id },
+      { offeringId: semesterThreeOfferingId, dayOfWeek: 'THU', slotIndex: 2, roomId: lectureHall.id },
+      { offeringId: semesterThreeOfferingId, dayOfWeek: 'SAT', slotIndex: 1, roomId: lectureHall.id },
     ],
   });
 };
@@ -147,7 +151,7 @@ const createAssignmentData = async (offeringId, students, teacherId) => {
     data: {
       offeringId,
       title: 'Assignment 1: Control Flow',
-      description: 'Solve the conditional and loop exercises. Students 04-10 can submit this assignment from a clean state.',
+      description: 'Solve the conditional and loop exercises. Students 04-05 can submit this assignment from a clean state.',
       totalMarks: 20,
       dueDate: at({ days: 5 }),
       allowLate: true,
@@ -205,7 +209,6 @@ const createAssignmentData = async (offeringId, students, teacherId) => {
     },
   });
 
-  const duplicateText = 'The program reads ten numbers, stores them in an array, and prints the largest value.';
   await prisma.submission.createMany({
     data: [
       {
@@ -256,27 +259,6 @@ const createAssignmentData = async (offeringId, students, teacherId) => {
         gradedAt: at({ hours: -18 }),
         gradedBy: teacherId,
         status: 'GRADED',
-      },
-      {
-        assignmentId: closedAssignment.id,
-        studentId: students[5].id,
-        submissionText: duplicateText,
-        submittedAt: at({ days: -4 }),
-        status: 'SUBMITTED',
-      },
-      {
-        assignmentId: closedAssignment.id,
-        studentId: students[6].id,
-        submissionText: duplicateText,
-        submittedAt: at({ days: -4 }),
-        status: 'SUBMITTED',
-      },
-      {
-        assignmentId: closedAssignment.id,
-        studentId: students[7].id,
-        submissionText: 'Used sorting to find the largest value and documented the complexity.',
-        submittedAt: at({ days: -4 }),
-        status: 'SUBMITTED',
       },
     ],
   });
@@ -435,7 +417,7 @@ const createQuizData = async (offeringId, students) => {
     data: {
       offeringId,
       title: 'Live Quiz: Programming Basics',
-      description: 'Currently open. Student 01 has a resumable attempt; students 02-10 can start fresh.',
+      description: 'Currently open. Student 01 has a resumable attempt; students 02-05 can start fresh.',
       totalMarks: 10,
       durationMinutes: 30,
       startAt: at({ hours: -1 }),
@@ -536,16 +518,6 @@ const createQuizData = async (offeringId, students) => {
     shortMarks: 2,
     shortFeedback: 'Good answer; mention whole-program translation.',
   });
-  await createClosedAttempt({
-    quiz: closedQuiz,
-    questions: closedQuiz.questions,
-    studentId: students[5].id,
-    mcqAnswer: 2,
-    trueFalseAnswer: 1,
-    shortAnswer: 'A compiler and interpreter both execute source code.',
-    shortMarks: 1,
-    shortFeedback: 'Partially correct. Explain when translation happens.',
-  });
 };
 
 async function main() {
@@ -558,7 +530,7 @@ async function main() {
     data: {
       code: 'CS',
       name: 'Computer Science',
-      description: 'Focused first-semester testing department.',
+      description: 'Focused semester 1 and semester 3 testing department.',
     },
   });
 
@@ -608,7 +580,7 @@ async function main() {
       name: 'BS Computer Science',
       type: 'BACHELOR',
       totalSemesters: 8,
-      totalCredits: 3,
+      totalCredits: 6,
       departmentId: department.id,
     },
   });
@@ -617,10 +589,10 @@ async function main() {
       programId: program.id,
       version: '2026-TEST',
       effectiveFromYear: now.getUTCFullYear(),
-      totalCredits: 3,
+      totalCredits: 6,
     },
   });
-  const course = await prisma.course.create({
+  const semesterOneCourse = await prisma.course.create({
     data: {
       code: 'CS101',
       title: 'Programming Fundamentals',
@@ -630,16 +602,34 @@ async function main() {
       sessionType: 'LECTURE',
     },
   });
-  await prisma.curriculumCourse.create({
+  const semesterThreeCourse = await prisma.course.create({
     data: {
-      curriculumId: curriculum.id,
-      courseId: course.id,
-      semesterSlot: 1,
-      type: 'CORE',
+      code: 'CS201',
+      title: 'Data Structures',
+      description: 'Third-semester course used for the semester-3 student group.',
+      creditHours: 3,
+      departmentId: department.id,
+      sessionType: 'LECTURE',
     },
   });
+  await prisma.curriculumCourse.createMany({
+    data: [
+      {
+        curriculumId: curriculum.id,
+        courseId: semesterOneCourse.id,
+        semesterSlot: 1,
+        type: 'CORE',
+      },
+      {
+        curriculumId: curriculum.id,
+        courseId: semesterThreeCourse.id,
+        semesterSlot: 3,
+        type: 'CORE',
+      },
+    ],
+  });
 
-  const term = await prisma.term.create({
+  const currentTerm = await prisma.term.create({
     data: {
       code: 'FA26',
       season: 'FALL',
@@ -651,27 +641,79 @@ async function main() {
       isActive: true,
     },
   });
-  const offering = await prisma.courseOffering.create({
+  const previousTerm = await prisma.term.create({
     data: {
-      courseId: course.id,
-      termId: term.id,
-      teacherId: teacher.id,
-      section: '1A',
-      capacity: 10,
+      code: 'FA25',
+      season: 'FALL',
+      academicYear: '2025-2026',
+      startDate: at({ days: -395 }),
+      endDate: at({ days: -215 }),
+      registrationOpenAt: at({ days: -425 }),
+      registrationCloseAt: at({ days: -405 }),
+      isActive: false,
     },
   });
-  await createTimetableData(offering.id);
+  const semesterOneOffering = await prisma.courseOffering.create({
+    data: {
+      courseId: semesterOneCourse.id,
+      termId: currentTerm.id,
+      teacherId: teacher.id,
+      section: '1A',
+      capacity: 5,
+    },
+  });
+  const semesterThreeOffering = await prisma.courseOffering.create({
+    data: {
+      courseId: semesterThreeCourse.id,
+      termId: currentTerm.id,
+      teacherId: teacher.id,
+      section: '3A',
+      capacity: 5,
+    },
+  });
+  const previousSemesterOneOffering = await prisma.courseOffering.create({
+    data: {
+      courseId: semesterOneCourse.id,
+      termId: previousTerm.id,
+      teacherId: teacher.id,
+      section: '1A',
+      capacity: 5,
+      isActive: false,
+    },
+  });
+  await createTimetableData(semesterOneOffering.id, semesterThreeOffering.id);
+  await prisma.semesterIncharge.createMany({
+    data: [
+      {
+        teacherId: teacher.id,
+        programId: program.id,
+        batch: 'FA26',
+        academicYear: currentTerm.academicYear,
+        semesterNumber: 1,
+        status: 'active',
+      },
+      {
+        teacherId: teacher.id,
+        programId: program.id,
+        batch: 'FA25',
+        academicYear: currentTerm.academicYear,
+        semesterNumber: 3,
+        status: 'active',
+      },
+    ],
+  });
 
-  const studentRecords = [];
-  for (const [index, [username, name, studentId]] of STUDENTS.entries()) {
+  const semesterOneStudents = [];
+  const semesterThreeStudents = [];
+  for (const [index, [username, name, studentId, currentSemester, batch]] of STUDENTS.entries()) {
     const user = await createUser({ username, name, role: 'student', password });
     const student = await prisma.student.create({
       data: {
         userId: user.id,
         studentId,
-        enrollmentYear: 2026,
-        batch: 'FA26',
-        currentSemester: 1,
+        enrollmentYear: currentSemester === 3 ? 2025 : 2026,
+        batch,
+        currentSemester,
         programId: program.id,
         curriculumId: curriculum.id,
         departmentId: department.id,
@@ -681,28 +723,75 @@ async function main() {
     await prisma.enrollment.create({
       data: {
         studentId: student.id,
-        offeringId: offering.id,
+        offeringId: currentSemester === 1 ? semesterOneOffering.id : semesterThreeOffering.id,
         status: 'ENROLLED',
       },
     });
-    studentRecords.push(student);
+    if (currentSemester === 3) {
+      await prisma.enrollment.create({
+        data: {
+          studentId: student.id,
+          offeringId: previousSemesterOneOffering.id,
+          status: 'COMPLETED',
+          assignmentMarks: 92,
+          midMarks: 18,
+          finalMarks: 45,
+          totalMarks: 92,
+          gradeLetter: 'A',
+          gradePoints: 4,
+          completedAt: at({ days: -220 }),
+        },
+      });
+      semesterThreeStudents.push(student);
+    } else {
+      semesterOneStudents.push(student);
+    }
   }
 
-  await createAssignmentData(offering.id, studentRecords, teacher.id);
-  await createQuizData(offering.id, studentRecords);
+  const taStudent = semesterThreeStudents[0];
+  await prisma.tAAssignment.create({
+    data: {
+      studentId: taStudent.id,
+      offeringId: semesterOneOffering.id,
+      status: 'APPROVED',
+      permissions: [
+        'VIEW_ROSTER',
+        'MARK_ATTENDANCE',
+        'GRADE_ASSIGNMENTS',
+        'GRADE_QUIZZES',
+        'ANSWER_QNA',
+        'UPLOAD_RESOURCES',
+      ],
+      appliedSemester: taStudent.currentSemester,
+      targetSemesterMin: 1,
+      targetSemesterMax: 1,
+      reason: 'Seeded TA for Programming Fundamentals.',
+      reviewNotes: 'Approved in seed data.',
+      reviewedBy: teacherUser.id,
+      reviewedAt: at({ days: -1 }),
+      startedAt: at({ days: -1 }),
+    },
+  });
+
+  await createAssignmentData(semesterOneOffering.id, semesterOneStudents, teacher.id);
+  await createQuizData(semesterOneOffering.id, semesterOneStudents);
 
   console.log('\nFocused CampusOne test database is ready.');
   console.log(`Default password: ${PASSWORD}`);
   console.log('Admin:   admin');
   console.log('Teacher: teacher');
   console.log('Students: student01 through student10');
-  console.log('Class: CS101 Programming Fundamentals, Section 1A');
-  console.log('Timetable: MON S1, WED S2, FRI S1 in LH-101');
+  console.log('Semester 1: student01-student05 enrolled in CS101 Programming Fundamentals, Section 1A');
+  console.log('Semester 3: student06-student10 enrolled in CS201 Data Structures, Section 3A');
+  console.log('TA: student06 is approved for CS101 Programming Fundamentals');
+  console.log('CS101 timetable: MON S1, WED S2, FRI S1 in LH-101');
+  console.log('CS201 timetable: TUE S1, THU S2, SAT S1 in LH-101');
   console.log('\nSuggested tests:');
   console.log('- student01: resume live quiz; view graded assignment and pending quiz result');
   console.log('- student02: start live quiz fresh; view fully graded closed quiz');
   console.log('- student03: inspect auto-submitted quiz with three violations');
-  console.log('- student04-student10: clean accounts for new assignment and quiz attempts');
+  console.log('- student04-student05: clean semester-1 accounts for new assignment and quiz attempts');
+  console.log('- student06: use the TA workspace for CS101 while enrolled in semester-3 CS201');
 }
 
 main()
