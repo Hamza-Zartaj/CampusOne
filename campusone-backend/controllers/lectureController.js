@@ -1,11 +1,42 @@
 import prisma from '../prisma/client.js';
 import { uploadToBucket, isStorageConfigured } from '../services/storageService.js';
 import { notifyMany, TYPE } from '../services/notificationService.js';
+import { assertDateWithinTerm, parseDateOnly, toDateOnlyString } from '../utils/dateOnly.js';
+
+const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+const assertLectureDateMatchesTimetable = async (offering, dateString) => {
+  const dateValue = parseDateOnly(dateString);
+  if (!dateValue) {
+    return { ok: false, message: 'date must be a real calendar date in YYYY-MM-DD format' };
+  }
+
+  if (!assertDateWithinTerm(dateString, offering.term)) {
+    const start = toDateOnlyString(offering.term.startDate);
+    const end = toDateOnlyString(offering.term.endDate);
+    return { ok: false, message: `lecture date must be within term bounds (${start} to ${end})` };
+  }
+
+  const dayOfWeek = DAY_CODES[dateValue.getUTCDay()];
+  const sessions = await prisma.classSession.findMany({
+    where: { offeringId: offering.id, dayOfWeek },
+    orderBy: { slotIndex: 'asc' },
+  });
+
+  if (!sessions.length) {
+    return {
+      ok: false,
+      message: `No scheduled lecture slot for this offering on ${dayOfWeek}. Lecture date must match the timetable.`,
+    };
+  }
+
+  return { ok: true, dateValue, sessions };
+};
 
 const assertOfferingAccess = async (offeringId, user) => {
   const offering = await prisma.courseOffering.findUnique({
     where: { id: offeringId },
-    include: { teacher: true, course: { select: { code: true } } },
+    include: { teacher: true, term: true, course: { select: { code: true } } },
   });
   if (!offering) return { ok: false, code: 404, message: 'Offering not found' };
   if (user.role === 'admin') return { ok: true, offering };
@@ -43,6 +74,8 @@ export const createLecture = async (req, res) => {
     }
     const access = await assertOfferingAccess(offeringId, req.user);
     if (!access.ok) return res.status(access.code).json({ success: false, message: access.message });
+    const dateCheck = await assertLectureDateMatchesTimetable(access.offering, date);
+    if (!dateCheck.ok) return res.status(400).json({ success: false, message: dateCheck.message });
 
     let materialUrl = null, materialName = null;
     if (req.file) {
@@ -57,7 +90,7 @@ export const createLecture = async (req, res) => {
     const lecture = await prisma.lecture.create({
       data: {
         offeringId,
-        date: new Date(date),
+        date: dateCheck.dateValue,
         title,
         description: description || null,
         materialUrl,
@@ -97,6 +130,12 @@ export const updateLecture = async (req, res) => {
     if (!access.ok) return res.status(access.code).json({ success: false, message: access.message });
 
     const { date, title, description } = req.body;
+    let dateValue;
+    if (date) {
+      const dateCheck = await assertLectureDateMatchesTimetable(access.offering, date);
+      if (!dateCheck.ok) return res.status(400).json({ success: false, message: dateCheck.message });
+      dateValue = dateCheck.dateValue;
+    }
     let materialUrl = existing.materialUrl;
     let materialName = existing.materialName;
     if (req.file) {
@@ -107,7 +146,7 @@ export const updateLecture = async (req, res) => {
     const updated = await prisma.lecture.update({
       where: { id: req.params.id },
       data: {
-        date: date ? new Date(date) : undefined,
+        date: dateValue,
         title: title || undefined,
         description: description !== undefined ? description : undefined,
         materialUrl,
