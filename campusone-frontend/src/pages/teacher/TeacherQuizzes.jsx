@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
   HelpCircle, Plus, Search, Calendar, Clock, Users, Edit3, Trash2,
   Eye, X, Loader2, Award, FileSpreadsheet, ListChecks, Download,
   Sparkles, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { quizAPI, offeringAPI } from '../../utils/api';
+import { quizAPI, offeringAPI, taAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
 
 const STATUS_CONFIG = {
@@ -595,6 +596,8 @@ const ManualGrade = ({ ans, maxMarks, onSave }) => {
 
 // ─── Attempt Detail Modal ───────────────────────────────────────────────────
 const AttemptDetailModal = ({ attemptId, onClose, onBack }) => {
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const canReviewTAGrades = currentUser.role === 'teacher' || currentUser.role === 'admin';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -607,11 +610,31 @@ const AttemptDetailModal = ({ attemptId, onClose, onBack }) => {
 
   const grade = async (answerId, marks, feedback) => {
     try {
-      await quizAPI.gradeAnswer(answerId, { marksAwarded: marks, feedback });
-      toast.success('Saved');
+      const response = await quizAPI.gradeAnswer(answerId, { marksAwarded: marks, feedback });
+      toast.success(response.data.pendingApproval ? 'Saved for teacher approval' : 'Saved');
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to grade');
+    }
+  };
+
+  const approvePendingGrade = async (pendingId) => {
+    try {
+      await quizAPI.approvePendingGrade(pendingId);
+      toast.success('TA quiz grade approved');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Approval failed');
+    }
+  };
+
+  const rejectPendingGrade = async (pendingId) => {
+    try {
+      await quizAPI.rejectPendingGrade(pendingId);
+      toast.success('TA quiz grade rejected');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Rejection failed');
     }
   };
 
@@ -656,6 +679,36 @@ const AttemptDetailModal = ({ attemptId, onClose, onBack }) => {
                   <div className="space-y-2">
                     <div className="text-xs text-slate-500">Expected: <span className="text-slate-700">{q.correctAnswer}</span></div>
                     <div className="bg-slate-50 p-2 rounded text-sm">Student: {ans?.answer || <em className="text-slate-400">No answer</em>}</div>
+                    {canReviewTAGrades && (ans?.taPendingGrades || []).filter((pending) => pending.status === 'PENDING').map((pending) => (
+                      <div key={pending.id} className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="m-0 text-xs font-semibold text-amber-800">
+                              Pending TA grade: {pending.marksAwarded}/{q.marks}
+                            </p>
+                            <p className="m-0 mt-0.5 text-[11px] text-amber-700">
+                              {pending.taStudent?.user?.name || 'TA'}{pending.feedback ? ` · ${pending.feedback}` : ''}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => approvePendingGrade(pending.id)}
+                              className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => rejectPendingGrade(pending.id)}
+                              className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                     <ManualGrade ans={ans} maxMarks={q.marks} onSave={(m, f) => grade(ans.id, m, f)} />
                   </div>
                 )}
@@ -721,11 +774,15 @@ const AttemptsModal = ({ quiz, onClose }) => {
 
 // ─── MAIN PAGE ──────────────────────────────────────────────────────────────
 const TeacherQuizzes = () => {
+  const [searchParams] = useSearchParams();
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const canManageCoursework = currentUser.role === 'teacher' || currentUser.role === 'admin';
+  const initialOfferingId = searchParams.get('offeringId') || '';
   const [quizzes, setQuizzes] = useState([]);
   const [offerings, setOfferings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filterOffering, setFilterOffering] = useState('');
+  const [filterOffering, setFilterOffering] = useState(initialOfferingId);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewingAttempts, setViewingAttempts] = useState(null);
@@ -733,7 +790,13 @@ const TeacherQuizzes = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [qRes, oRes] = await Promise.all([quizAPI.getAll(), offeringAPI.getMy()]);
+      const [qRes, oRes] = await Promise.all([
+        quizAPI.getAll(filterOffering ? { offeringId: filterOffering } : {}),
+        offeringAPI.getMy().catch(async () => {
+          const active = await taAPI.getMyActive();
+          return { data: { data: (active.data.data || []).map((assignment) => assignment.offering) } };
+        }),
+      ]);
       setQuizzes(qRes.data.data);
       setOfferings(oRes.data.data);
     } catch (err) {
@@ -741,7 +804,7 @@ const TeacherQuizzes = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterOffering]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -800,12 +863,12 @@ const TeacherQuizzes = () => {
               <p className="text-slate-600 m-0">Create quizzes with anti-cheat protection</p>
             </div>
           </div>
-          <button
+          {canManageCoursework && <button
             onClick={() => { setEditing(null); setShowModal(true); }}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             <Plus size={16} /> Create Quiz
-          </button>
+          </button>}
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6 flex flex-wrap gap-3">
@@ -860,8 +923,8 @@ const TeacherQuizzes = () => {
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button onClick={() => setViewingAttempts(q)} className="p-2 text-slate-600 hover:bg-slate-50 rounded-lg" title="View attempts"><Eye size={16} /></button>
-                      <button onClick={() => handleEdit(q)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit"><Edit3 size={16} /></button>
-                      <button onClick={() => handleDelete(q.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Delete"><Trash2 size={16} /></button>
+                      {canManageCoursework && <button onClick={() => handleEdit(q)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit"><Edit3 size={16} /></button>}
+                      {canManageCoursework && <button onClick={() => handleDelete(q.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Delete"><Trash2 size={16} /></button>}
                     </div>
                   </div>
                 </div>
@@ -871,7 +934,7 @@ const TeacherQuizzes = () => {
         )}
       </div>
 
-      {showModal && (
+      {canManageCoursework && showModal && (
         <QuizModal
           offerings={offerings}
           initial={editing}

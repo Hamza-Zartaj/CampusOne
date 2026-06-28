@@ -35,6 +35,71 @@ const verifyTeacherOwnsQuiz = async (userId, quizId) => {
   return { teacher, quiz };
 };
 
+const getApprovedTAAssignment = async ({ userId, offeringId, permission }) => {
+  const student = await prisma.student.findUnique({ where: { userId } });
+  if (!student) return null;
+  const ta = await prisma.tAAssignment.findUnique({
+    where: { studentId_offeringId: { studentId: student.id, offeringId } },
+    include: { offering: { include: { teacher: { select: { userId: true } }, course: { select: { code: true } } } } },
+  });
+  if (!ta || ta.status !== 'APPROVED' || !ta.permissions.includes(permission)) return null;
+  return { student, ta };
+};
+
+const verifyQuizGradingAccess = async (user, quizId) => {
+  const quiz = await prisma.quiz.findUnique({
+    where: { id: quizId },
+    include: {
+      offering: {
+        include: {
+          teacher: { select: { id: true, userId: true } },
+          course: { select: { code: true, title: true } },
+          term: { select: { code: true, isActive: true, endDate: true } },
+        },
+      },
+    },
+  });
+  if (!quiz) return { error: 'Quiz not found', status: 404 };
+  if (user.role === 'admin') return { quiz };
+  if (user.role === 'teacher') {
+    const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } });
+    if (!teacher || quiz.offering.teacherId !== teacher.id) return { error: 'Not your quiz', status: 403 };
+    return { quiz, teacher };
+  }
+  if (user.role === 'student') {
+    const taAccess = await getApprovedTAAssignment({
+      userId: user.id,
+      offeringId: quiz.offeringId,
+      permission: 'GRADE_QUIZZES',
+    });
+    if (!taAccess) return { error: 'Not authorised to grade quizzes for this offering', status: 403 };
+    return { quiz, taAccess };
+  }
+  return { error: 'Not authorised', status: 403 };
+};
+
+const recomputeAttemptScores = async (tx, attemptId) => {
+  const allAnswers = await tx.quizAnswer.findMany({
+    where: { attemptId },
+    include: { question: { select: { type: true } } },
+  });
+  const autoScore = allAnswers
+    .filter((entry) => entry.question.type !== 'SHORT')
+    .reduce((sum, entry) => sum + (entry.marksAwarded || 0), 0);
+  const manualScore = allAnswers
+    .filter((entry) => entry.question.type === 'SHORT' && entry.isCorrect !== null)
+    .reduce((sum, entry) => sum + (entry.marksAwarded || 0), 0);
+  const pending = allAnswers.filter(
+    (entry) => entry.question.type === 'SHORT' && entry.isCorrect === null
+  ).length;
+  const totalScore = autoScore + manualScore;
+  const attempt = await tx.quizAttempt.update({
+    where: { id: attemptId },
+    data: { autoGradedScore: autoScore, manualScore, totalScore },
+  });
+  return { attempt, totalScore, manualPending: pending };
+};
+
 // ─── TEACHER ENDPOINTS ────────────────────────────────────────────────────────
 
 // GET /api/quizzes?offeringId=
@@ -43,15 +108,31 @@ export const getQuizzes = async (req, res) => {
     const { offeringId } = req.query;
     const where = {};
 
-    const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
-    if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
+    if (req.user.role === 'teacher') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+      if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
 
-    if (offeringId) {
-      const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher.id } });
-      if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
+      if (offeringId) {
+        const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher.id } });
+        if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
+        where.offeringId = offeringId;
+      } else {
+        where.offering = { teacherId: teacher.id };
+      }
+    } else if (req.user.role === 'student' && offeringId) {
+      const taAccess = await getApprovedTAAssignment({
+        userId: req.user.id,
+        offeringId,
+        permission: 'GRADE_QUIZZES',
+      });
+      if (!taAccess) return res.status(403).json({ success: false, message: 'Not authorised for this offering' });
       where.offeringId = offeringId;
+    } else if (req.user.role === 'admin' && offeringId) {
+      where.offeringId = offeringId;
+    } else if (req.user.role === 'admin') {
+      // admin may list all quizzes
     } else {
-      where.offering = { teacherId: teacher.id };
+      return res.status(400).json({ success: false, message: 'offeringId is required for TA quiz access' });
     }
 
     const quizzes = await prisma.quiz.findMany({
@@ -270,7 +351,7 @@ export const downloadQuizImportTemplate = async (req, res) => {
 // GET /api/quizzes/:id/attempts  — teacher views all attempts
 export const getQuizAttempts = async (req, res) => {
   try {
-    const check = await verifyTeacherOwnsQuiz(req.user.id, req.params.id);
+    const check = await verifyQuizGradingAccess(req.user, req.params.id);
     if (check.error) return res.status(check.status).json({ success: false, message: check.error });
 
     const attempts = await prisma.quizAttempt.findMany({
@@ -293,16 +374,36 @@ export const getAttemptDetail = async (req, res) => {
     const attempt = await prisma.quizAttempt.findUnique({
       where: { id: req.params.attemptId },
       include: {
-        quiz: { include: { offering: { select: { teacherId: true } }, questions: { orderBy: { order: 'asc' } } } },
+        quiz: {
+          include: {
+            offering: {
+              include: {
+                teacher: { select: { id: true, userId: true } },
+                course: { select: { code: true, title: true } },
+              },
+            },
+            questions: { orderBy: { order: 'asc' } },
+          },
+        },
         student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } },
-        answers: { include: { question: true } },
+        answers: {
+          include: {
+            question: true,
+            taPendingGrades: {
+              where: req.user.role === 'student' ? { taStudent: { is: { userId: req.user.id } } } : undefined,
+              include: { taStudent: { select: { id: true, studentId: true, user: { select: { name: true } } } } },
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+        },
       },
     });
     if (!attempt) return res.status(404).json({ success: false, message: 'Attempt not found' });
 
-    const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
-    if (attempt.quiz.offering.teacherId !== teacher?.id) {
-      return res.status(403).json({ success: false, message: 'Not your quiz' });
+    const check = await verifyQuizGradingAccess(req.user, attempt.quizId);
+    if (check.error) return res.status(check.status).json({ success: false, message: check.error });
+    if (check.taAccess && check.taAccess.student.id === attempt.studentId) {
+      return res.status(403).json({ success: false, message: 'Teaching assistants cannot grade their own quiz attempt' });
     }
 
     res.json({ success: true, data: attempt });
@@ -314,9 +415,6 @@ export const getAttemptDetail = async (req, res) => {
 // PUT /api/quizzes/answers/:answerId/grade  — teacher grades a SHORT answer
 export const gradeAnswer = async (req, res) => {
   try {
-    const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
-    if (!teacher) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
-
     const answer = await prisma.quizAnswer.findUnique({
       where: { id: req.params.answerId },
       include: {
@@ -326,21 +424,27 @@ export const gradeAnswer = async (req, res) => {
             quiz: {
               include: {
                 offering: {
-                  select: {
-                    teacherId: true,
+                  include: {
+                    teacher: { select: { id: true, userId: true } },
+                    course: { select: { code: true } },
                     term: { select: { code: true, isActive: true, endDate: true } },
                   },
                 },
               },
             },
+            student: { select: { userId: true } },
           },
         },
       },
     });
     if (!answer) return res.status(404).json({ success: false, message: 'Answer not found' });
-    if (answer.attempt.quiz.offering.teacherId !== teacher.id) {
-      return res.status(403).json({ success: false, message: 'Not your quiz' });
+
+    const access = await verifyQuizGradingAccess(req.user, answer.attempt.quizId);
+    if (access.error) return res.status(access.status).json({ success: false, message: access.error });
+    if (access.taAccess && access.taAccess.student.id === answer.attempt.studentId) {
+      return res.status(403).json({ success: false, message: 'Teaching assistants cannot grade their own quiz attempt' });
     }
+
     const gradingWindowError = getGradingWindowError(answer.attempt.quiz.offering.term);
     if (gradingWindowError) {
       return res.status(409).json({ success: false, code: 'GRADE_WINDOW_CLOSED', message: gradingWindowError });
@@ -359,6 +463,45 @@ export const gradeAnswer = async (req, res) => {
     }
     const feedback = req.body.feedback === undefined ? null : String(req.body.feedback).trim().slice(0, 4000);
 
+    if (access.taAccess) {
+      const pending = await prisma.tAPendingGrade.upsert({
+        where: { answerId_taStudentId: { answerId: answer.id, taStudentId: access.taAccess.student.id } },
+        create: {
+          answerId: answer.id,
+          taStudentId: access.taAccess.student.id,
+          marksAwarded: requestedMarks,
+          feedback: feedback || null,
+        },
+        update: {
+          marksAwarded: requestedMarks,
+          feedback: feedback || null,
+          status: 'PENDING',
+          reviewedBy: null,
+          reviewedAt: null,
+          reviewNotes: null,
+          appliedGrade: null,
+        },
+      });
+
+      if (answer.attempt.quiz.offering.teacher?.userId) {
+        await notify({
+          userId: answer.attempt.quiz.offering.teacher.userId,
+          type: TYPE.GENERAL,
+          title: 'TA quiz grade pending approval',
+          body: `${req.user.name} graded a short answer in ${answer.attempt.quiz.title}. Review it before students see the mark.`,
+          linkUrl: '/teacher/quizzes',
+          metadata: { pendingGradeId: pending.id, answerId: answer.id, attemptId: answer.attemptId, quizId: answer.attempt.quizId },
+        });
+      }
+
+      return res.json({
+        success: true,
+        pendingApproval: true,
+        message: 'Quiz grade saved for teacher approval',
+        data: pending,
+      });
+    }
+
     const { updated, total, manualPending } = await prisma.$transaction(async (tx) => {
       await tx.quizAnswer.update({
         where: { id: req.params.answerId },
@@ -369,26 +512,8 @@ export const gradeAnswer = async (req, res) => {
         },
       });
 
-      const allAnswers = await tx.quizAnswer.findMany({
-        where: { attemptId: answer.attemptId },
-        include: { question: { select: { type: true } } },
-      });
-      const autoScore = allAnswers
-        .filter((entry) => entry.question.type !== 'SHORT')
-        .reduce((sum, entry) => sum + (entry.marksAwarded || 0), 0);
-      const manualScore = allAnswers
-        .filter((entry) => entry.question.type === 'SHORT' && entry.isCorrect !== null)
-        .reduce((sum, entry) => sum + (entry.marksAwarded || 0), 0);
-      const pending = allAnswers.filter(
-        (entry) => entry.question.type === 'SHORT' && entry.isCorrect === null
-      ).length;
-      const totalScore = autoScore + manualScore;
-      const attemptUpdate = await tx.quizAttempt.update({
-        where: { id: answer.attemptId },
-        data: { autoGradedScore: autoScore, manualScore, totalScore },
-      });
-
-      return { updated: attemptUpdate, total: totalScore, manualPending: pending };
+      const recomputed = await recomputeAttemptScores(tx, answer.attemptId);
+      return { updated: recomputed.attempt, total: recomputed.totalScore, manualPending: recomputed.manualPending };
     });
 
     // Notify the student
@@ -419,6 +544,149 @@ export const gradeAnswer = async (req, res) => {
         manualPending,
       },
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const assertCanReviewPendingQuizGrade = async (user, pendingId) => {
+  const pending = await prisma.tAPendingGrade.findUnique({
+    where: { id: pendingId },
+    include: {
+      taStudent: { select: { userId: true, user: { select: { name: true } } } },
+      answer: {
+        include: {
+          question: true,
+          attempt: {
+            include: {
+              student: { select: { userId: true } },
+              quiz: {
+                include: {
+                  offering: {
+                    include: {
+                      teacher: { select: { id: true, userId: true } },
+                      course: { select: { code: true } },
+                      term: { select: { code: true, isActive: true, endDate: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!pending || !pending.answer) return { error: 404, message: 'Pending quiz grade not found' };
+  if (pending.status !== 'PENDING') return { error: 409, message: `Pending grade is already ${pending.status.toLowerCase()}` };
+  if (user.role === 'admin') return { pending };
+  const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } });
+  if (!teacher || pending.answer.attempt.quiz.offering.teacherId !== teacher.id) {
+    return { error: 403, message: 'Not authorised to review this grade' };
+  }
+  return { pending };
+};
+
+// PUT /api/quizzes/pending-grades/:id/approve
+export const approvePendingQuizGrade = async (req, res) => {
+  try {
+    const access = await assertCanReviewPendingQuizGrade(req.user, req.params.id);
+    if (access.error) return res.status(access.error).json({ success: false, message: access.message });
+    const { pending } = access;
+
+    const gradingWindowError = getGradingWindowError(pending.answer.attempt.quiz.offering.term);
+    if (gradingWindowError) {
+      return res.status(409).json({ success: false, code: 'GRADE_WINDOW_CLOSED', message: gradingWindowError });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.quizAnswer.update({
+        where: { id: pending.answerId },
+        data: {
+          marksAwarded: pending.marksAwarded,
+          isCorrect: pending.marksAwarded === pending.answer.question.marks,
+          feedback: pending.feedback,
+        },
+      });
+      const recomputed = await recomputeAttemptScores(tx, pending.answer.attemptId);
+      const updatedPending = await tx.tAPendingGrade.update({
+        where: { id: pending.id },
+        data: {
+          status: 'APPROVED',
+          reviewedBy: req.user.id,
+          reviewedAt: new Date(),
+          reviewNotes: req.body.reviewNotes ? String(req.body.reviewNotes).trim().slice(0, 1000) : null,
+          appliedGrade: pending.marksAwarded,
+        },
+      });
+      return { ...recomputed, pendingGrade: updatedPending };
+    });
+
+    if (pending.answer.attempt.student?.userId) {
+      await notify({
+        userId: pending.answer.attempt.student.userId,
+        type: TYPE.QUIZ_GRADED,
+        title: `Quiz graded: ${pending.answer.attempt.quiz.title}`,
+        body: result.manualPending > 0
+          ? `${result.totalScore} / ${pending.answer.attempt.quiz.totalMarks} so far · ${result.manualPending} answer(s) pending`
+          : `${result.totalScore} / ${pending.answer.attempt.quiz.totalMarks}`,
+        linkUrl: '/student/quizzes',
+        metadata: { quizId: pending.answer.attempt.quizId, attemptId: pending.answer.attemptId },
+      });
+    }
+    if (pending.taStudent?.userId) {
+      await notify({
+        userId: pending.taStudent.userId,
+        type: TYPE.GENERAL,
+        title: 'TA quiz grade approved',
+        body: `${pending.answer.attempt.quiz.title}: ${pending.marksAwarded} mark(s) approved.`,
+        linkUrl: '/student/ta',
+        metadata: { pendingGradeId: pending.id, answerId: pending.answerId },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...result.attempt,
+        pendingGrade: result.pendingGrade,
+        gradingStatus: result.manualPending > 0 ? 'PENDING_MANUAL' : 'FINAL',
+        manualPending: result.manualPending,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// PUT /api/quizzes/pending-grades/:id/reject
+export const rejectPendingQuizGrade = async (req, res) => {
+  try {
+    const access = await assertCanReviewPendingQuizGrade(req.user, req.params.id);
+    if (access.error) return res.status(access.error).json({ success: false, message: access.message });
+    const { pending } = access;
+    const updated = await prisma.tAPendingGrade.update({
+      where: { id: pending.id },
+      data: {
+        status: 'REJECTED',
+        reviewedBy: req.user.id,
+        reviewedAt: new Date(),
+        reviewNotes: req.body.reviewNotes ? String(req.body.reviewNotes).trim().slice(0, 1000) : null,
+      },
+    });
+
+    if (pending.taStudent?.userId) {
+      await notify({
+        userId: pending.taStudent.userId,
+        type: TYPE.GENERAL,
+        title: 'TA quiz grade rejected',
+        body: pending.answer?.attempt?.quiz?.title || 'A pending TA quiz grade was rejected.',
+        linkUrl: '/student/ta',
+        metadata: { pendingGradeId: pending.id, answerId: pending.answerId },
+      });
+    }
+
+    res.json({ success: true, data: updated });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

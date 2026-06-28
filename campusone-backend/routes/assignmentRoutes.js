@@ -10,6 +10,8 @@ import {
   deleteAssignment,
   getSubmissions,
   gradeSubmission,
+  approvePendingSubmissionGrade,
+  rejectPendingSubmissionGrade,
   submitAssignment,
   getMySubmission,
 } from '../controllers/assignmentController.js';
@@ -53,6 +55,8 @@ router.post('/:id/submit', authenticate, upload.single('file'), submitAssignment
 router.get('/:id/my-submission', authenticate, getMySubmission);
 
 // Grade a specific submission
+router.put('/pending-grades/:id/approve', authenticate, authorize('teacher', 'admin'), approvePendingSubmissionGrade);
+router.put('/pending-grades/:id/reject', authenticate, authorize('teacher', 'admin'), rejectPendingSubmissionGrade);
 router.put('/submissions/:id/grade', authenticate, gradeSubmission);
 
 export default router;

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   FileText, Plus, Search, Calendar, Clock, Users,
   CheckCircle, AlertCircle, ChevronDown, ChevronUp,
   Edit3, Trash2, Eye, Download, X, Loader2, Award,
   Lock, LockOpen, ScanSearch, ShieldCheck, AlertTriangle, Save, Upload,
 } from 'lucide-react';
-import { assignmentAPI, offeringAPI } from '../../utils/api';
+import { assignmentAPI, offeringAPI, taAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
 
 const STATUS_CONFIG = {
@@ -291,6 +292,8 @@ const SimilarityResults = ({ report }) => {
 };
 
 const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => {
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const canReviewTAGrades = currentUser.role === 'teacher' || currentUser.role === 'admin';
   const [currentAssignment, setCurrentAssignment] = useState(assignment);
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -301,7 +304,8 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
   const [changingStatus, setChangingStatus] = useState(false);
   const [savingGradeId, setSavingGradeId] = useState(null);
 
-  useEffect(() => {
+  const loadSubmissions = useCallback(() => {
+    setLoading(true);
     Promise.all([
       assignmentAPI.getSubmissions(assignment.id),
       assignmentAPI.getLatestSimilarityReport(assignment.id),
@@ -313,6 +317,10 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
       .catch(() => toast.error('Failed to load submissions'))
       .finally(() => setLoading(false));
   }, [assignment.id]);
+
+  useEffect(() => {
+    loadSubmissions();
+  }, [loadSubmissions]);
 
   const runSimilarityScan = async () => {
     setScanning(true);
@@ -361,14 +369,39 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
 
     setSavingGradeId(subId);
     try {
-      await assignmentAPI.gradeSubmission(subId, { obtainedMarks: numericMarks, feedback });
-      setSubmissions((prev) => prev.map((s) => s.id === subId ? { ...s, status: 'GRADED', obtainedMarks: numericMarks, feedback } : s));
+      const response = await assignmentAPI.gradeSubmission(subId, { obtainedMarks: numericMarks, feedback });
+      if (response.data.pendingApproval) {
+        toast.success('Grade saved for teacher approval');
+        loadSubmissions();
+      } else {
+        setSubmissions((prev) => prev.map((s) => s.id === subId ? { ...s, status: 'GRADED', obtainedMarks: numericMarks, feedback } : s));
+        toast.success('Grade saved');
+      }
       setGradingId(null);
-      toast.success('Grade saved');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Grade save failed');
     } finally {
       setSavingGradeId(null);
+    }
+  };
+
+  const approvePendingGrade = async (pendingId) => {
+    try {
+      await assignmentAPI.approvePendingGrade(pendingId);
+      toast.success('TA grade approved');
+      loadSubmissions();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Approval failed');
+    }
+  };
+
+  const rejectPendingGrade = async (pendingId) => {
+    try {
+      await assignmentAPI.rejectPendingGrade(pendingId);
+      toast.success('TA grade rejected');
+      loadSubmissions();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Rejection failed');
     }
   };
 
@@ -439,6 +472,36 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
 
                 {sub.submissionText && <p className="text-sm text-slate-600 mb-2 line-clamp-2">{sub.submissionText}</p>}
                 {sub.feedback && <p className="text-xs text-green-700 bg-green-50 rounded p-2 mb-2">{sub.feedback}</p>}
+                {canReviewTAGrades && (sub.taPendingGrades || []).filter((pending) => pending.status === 'PENDING').map((pending) => (
+                  <div key={pending.id} className="mb-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="m-0 text-xs font-semibold text-amber-800">
+                          Pending TA grade: {pending.marksAwarded}/{currentAssignment.totalMarks}
+                        </p>
+                        <p className="m-0 mt-0.5 text-[11px] text-amber-700">
+                          {pending.taStudent?.user?.name || 'TA'}{pending.feedback ? ` · ${pending.feedback}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => approvePendingGrade(pending.id)}
+                          className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => rejectPendingGrade(pending.id)}
+                          className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
 
                 {!isGrading ? (
                   <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
@@ -510,11 +573,15 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const TeacherAssignments = () => {
+  const [searchParams] = useSearchParams();
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const canManageCoursework = currentUser.role === 'teacher' || currentUser.role === 'admin';
+  const initialOfferingId = searchParams.get('offeringId') || '';
   const [assignments, setAssignments] = useState([]);
   const [offerings, setOfferings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterOffering, setFilterOffering] = useState('');
+  const [filterOffering, setFilterOffering] = useState(initialOfferingId);
   const [filterStatus, setFilterStatus] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -536,7 +603,13 @@ const TeacherAssignments = () => {
   }, [filterOffering]);
 
   useEffect(() => {
-    offeringAPI.getMy().then((r) => setOfferings(r.data.data)).catch(() => {});
+    offeringAPI.getMy()
+      .then((r) => setOfferings(r.data.data))
+      .catch(() => {
+        taAPI.getMyActive().then((r) => {
+          setOfferings((r.data.data || []).map((assignment) => assignment.offering));
+        }).catch(() => {});
+      });
   }, []);
 
   useEffect(() => { loadAssignments(); }, [loadAssignments]);
@@ -614,12 +687,12 @@ const TeacherAssignments = () => {
           <h1 className="text-[28px] font-bold text-slate-800 m-0 max-md:text-2xl">Assignments</h1>
           <p className="text-sm text-slate-500 m-0 mt-1">Create and manage course assignments</p>
         </div>
-        <button
+        {canManageCoursework && <button
           onClick={() => setShowModal(true)}
           className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
         >
           <Plus size={18} /> Create Assignment
-        </button>
+        </button>}
       </div>
 
       <div className="mb-5 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 max-sm:grid-cols-2">
@@ -705,15 +778,15 @@ const TeacherAssignments = () => {
                     >
                       <Eye size={17} />
                     </button>
-                    <button
+                    {canManageCoursework && <button
                       type="button"
                       title="Edit assignment"
                       onClick={() => setEditTarget(a)}
                       className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
                     >
                       <Edit3 size={17} />
-                    </button>
-                    {a.status !== 'DRAFT' && (
+                    </button>}
+                    {canManageCoursework && a.status !== 'DRAFT' && (
                       <button
                         type="button"
                         title={a.status === 'CLOSED' ? 'Reopen submissions' : 'Close submissions'}
@@ -726,7 +799,7 @@ const TeacherAssignments = () => {
                           : a.status === 'CLOSED' ? <LockOpen size={17} /> : <Lock size={17} />}
                       </button>
                     )}
-                    <button
+                    {canManageCoursework && <button
                       type="button"
                       title="Delete assignment"
                       onClick={() => handleDelete(a.id)}
@@ -734,7 +807,7 @@ const TeacherAssignments = () => {
                       className="rounded-lg p-2 text-slate-500 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                     >
                       {deletingId === a.id ? <Loader2 size={17} className="animate-spin" /> : <Trash2 size={17} />}
-                    </button>
+                    </button>}
                   </div>
                   <div className="flex items-center gap-4 max-sm:w-full max-sm:justify-between">
                     <div className="text-right">
@@ -764,12 +837,12 @@ const TeacherAssignments = () => {
                         className="inline-flex items-center gap-1.5 py-2 px-4 border border-gray-200 rounded-lg text-sm font-medium bg-white text-slate-700 hover:bg-slate-50">
                         <Eye size={16} /> View Submissions ({subCount})
                       </button>
-                      <button
+                      {canManageCoursework && <button
                         onClick={() => setEditTarget(a)}
                         className="inline-flex items-center gap-1.5 py-2 px-4 border border-gray-200 rounded-lg text-sm font-medium bg-white text-slate-700 hover:bg-slate-50">
                         <Edit3 size={16} /> Edit
-                      </button>
-                      {a.status !== 'DRAFT' && (
+                      </button>}
+                      {canManageCoursework && a.status !== 'DRAFT' && (
                         <button
                           onClick={() => handleSubmissionStatus(a)}
                           disabled={changingStatusId === a.id}
@@ -785,12 +858,12 @@ const TeacherAssignments = () => {
                           {a.status === 'CLOSED' ? 'Reopen Submissions' : 'Close Submissions'}
                         </button>
                       )}
-                      <button
+                      {canManageCoursework && <button
                         onClick={() => handleDelete(a.id)}
                         disabled={deletingId === a.id}
                         className="inline-flex items-center gap-1.5 py-2 px-4 border border-red-200 rounded-lg text-sm font-medium bg-white text-red-600 hover:bg-red-50 disabled:opacity-50">
                         {deletingId === a.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={16} />} Delete
-                      </button>
+                      </button>}
                     </div>
                   </div>
                 )}
@@ -808,10 +881,10 @@ const TeacherAssignments = () => {
         </div>
       )}
 
-      {showModal && (
+      {canManageCoursework && showModal && (
         <AssignmentModal offerings={offerings} initial={null} onClose={() => setShowModal(false)} onSave={handleCreate} />
       )}
-      {editTarget && (
+      {canManageCoursework && editTarget && (
         <AssignmentModal offerings={offerings} initial={editTarget} onClose={() => setEditTarget(null)} onSave={handleUpdate} />
       )}
       {submissionsFor && (

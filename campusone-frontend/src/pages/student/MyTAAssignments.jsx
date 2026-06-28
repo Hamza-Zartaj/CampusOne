@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   GraduationCap, CheckCircle2, XCircle, Clock, AlertCircle, Plus, X,
-  BookOpen, Award, Users,
+  BookOpen, Award, Users, Upload, Download, Trash2, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { taAPI } from '../../utils/api';
@@ -26,6 +27,117 @@ const PERM_LABEL = {
   ANSWER_QNA:         'Answer Q&A',
   UPLOAD_RESOURCES:   'Upload resources',
   VIEW_ROSTER:        'View roster',
+};
+
+const TAResourcePanel = ({ assignment }) => {
+  const [resources, setResources] = useState([]);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const loadResources = () => {
+    setLoading(true);
+    taAPI.listResources(assignment.offering.id)
+      .then((response) => setResources(response.data.data || []))
+      .catch(() => toast.error('Failed to load resources'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(loadResources, [assignment.offering.id]);
+
+  const uploadResource = async (event) => {
+    event.preventDefault();
+    if (!title.trim() || !file) {
+      toast.error('Title and file are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append('offeringId', assignment.offering.id);
+      formData.append('title', title.trim());
+      if (description.trim()) formData.append('description', description.trim());
+      formData.append('file', file);
+      await taAPI.uploadResource(formData);
+      toast.success('Resource uploaded');
+      setTitle('');
+      setDescription('');
+      setFile(null);
+      loadResources();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Upload failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteResource = async (resourceId) => {
+    if (!confirm('Delete this resource?')) return;
+    try {
+      await taAPI.deleteResource(resourceId);
+      toast.success('Resource deleted');
+      loadResources();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Delete failed');
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <form onSubmit={uploadResource} className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+        <input
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="Resource title"
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500"
+        />
+        <input
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          placeholder="Description optional"
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500"
+        />
+        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+          <Upload size={14} />
+          {file?.name ? 'Change file' : 'Choose file'}
+          <input type="file" className="sr-only" onChange={(event) => setFile(event.target.files[0])} />
+        </label>
+        {file?.name && <div className="text-xs text-slate-500 md:col-span-2">{file.name}</div>}
+        <button
+          type="submit"
+          disabled={saving}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+          Upload
+        </button>
+      </form>
+      <div className="mt-3 space-y-2">
+        {loading ? (
+          <div className="py-3 text-xs text-slate-400">Loading resources...</div>
+        ) : resources.length === 0 ? (
+          <div className="py-3 text-xs text-slate-400">No TA resources uploaded yet.</div>
+        ) : resources.map((resource) => (
+          <div key={resource.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-2">
+            <div className="min-w-0">
+              <p className="m-0 truncate text-sm font-medium text-slate-800">{resource.title}</p>
+              <p className="m-0 text-xs text-slate-500">{resource.fileName}</p>
+            </div>
+            <div className="flex items-center gap-1">
+              <a href={resource.fileUrl} target="_blank" rel="noreferrer" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50" title="Download">
+                <Download size={15} />
+              </a>
+              <button type="button" onClick={() => deleteResource(resource.id)} className="rounded-lg p-2 text-red-500 hover:bg-red-50" title="Delete">
+                <Trash2 size={15} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 const MyTAAssignments = () => {
@@ -169,6 +281,25 @@ const MyTAAssignments = () => {
                         </span>
                       ))}
                     </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(a.permissions || []).includes('GRADE_ASSIGNMENTS') && (
+                        <Link
+                          to={`/teacher/assignments?offeringId=${a.offering.id}`}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                        >
+                          <Award size={13} /> Grade assignments
+                        </Link>
+                      )}
+                      {(a.permissions || []).includes('GRADE_QUIZZES') && (
+                        <Link
+                          to={`/teacher/quizzes?offeringId=${a.offering.id}`}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                        >
+                          <BookOpen size={13} /> Grade quizzes
+                        </Link>
+                      )}
+                    </div>
+                    {(a.permissions || []).includes('UPLOAD_RESOURCES') && <TAResourcePanel assignment={a} />}
                   </div>
                   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${STATUS_CHIP[a.status]}`}>
                     <StatusIcon s={a.status} /> Active

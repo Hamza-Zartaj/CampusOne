@@ -387,6 +387,8 @@ export const assignmentAPI = {
   runSimilarityScan: (id) => api.post(`/assignments/${id}/similarity/scan`),
   getLatestSimilarityReport: (id) => api.get(`/assignments/${id}/similarity/latest`),
   gradeSubmission: (submissionId, data) => api.put(`/assignments/submissions/${submissionId}/grade`, data),
+  approvePendingGrade: (pendingId, data = {}) => api.put(`/assignments/pending-grades/${pendingId}/approve`, data),
+  rejectPendingGrade: (pendingId, data = {}) => api.put(`/assignments/pending-grades/${pendingId}/reject`, data),
   // Student
   getMy: () => api.get('/assignments/my'),
   submit: (id, formData) => api.post(`/assignments/${id}/submit`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
@@ -413,6 +415,8 @@ export const quizAPI = {
   getAttempts: (id) => api.get(`/quizzes/${id}/attempts`),
   getAttemptDetail: (attemptId) => api.get(`/quizzes/teacher/attempts/${attemptId}`),
   gradeAnswer: (answerId, data) => api.put(`/quizzes/answers/${answerId}/grade`, data),
+  approvePendingGrade: (pendingId, data = {}) => api.put(`/quizzes/pending-grades/${pendingId}/approve`, data),
+  rejectPendingGrade: (pendingId, data = {}) => api.put(`/quizzes/pending-grades/${pendingId}/reject`, data),
   // Student
   getMy: () => api.get('/quizzes/my'),
   start: (id) => api.post(`/quizzes/${id}/start`),
@@ -461,6 +465,9 @@ export const taAPI = {
   approve: (id, data) => api.put(`/ta/applications/${id}/approve`, data),
   reject: (id, reviewNotes) => api.put(`/ta/applications/${id}/reject`, { reviewNotes }),
   relieve: (id, reviewNotes) => api.put(`/ta/applications/${id}/relieve`, { reviewNotes }),
+  listResources: (offeringId) => api.get('/ta/resources', { params: { offeringId } }),
+  uploadResource: (formData) => api.post('/ta/resources', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  deleteResource: (id) => api.delete(`/ta/resources/${id}`),
   // Admin
   getAll: (params = {}) => api.get('/ta', { params }),
 };

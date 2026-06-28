@@ -247,6 +247,9 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Serializable TA approval with active-assignment cap revalidation
 - [x] Offering-scoped TA permissions
 - [x] TA access to attendance, assignment grading, Q&A, and roster operations
+- [x] `GRADE_QUIZZES` authorizes approved TAs to review quiz attempts and save manual quiz grades for teacher approval
+- [x] TA assignment and quiz grades are saved as pending recommendations until a teacher/admin approves them into official student-visible marks
+- [x] `UPLOAD_RESOURCES` authorizes approved TAs to upload offering resources; enrolled students see them in My Courses
 - [x] Student, teacher, and admin TA pages
 - [x] TA oversight pagination across backend API and admin UI
 - [x] Sidebar TA status refreshes on focus and relevant socket notification events
@@ -280,6 +283,8 @@ Checks run through June 28, 2026:
 - **Quiz frontend production build:** passes
 - **Quiz database schema push:** passes; the local database includes draft-first quizzes and persistent attempt question order
 - **Changed backend controller/middleware/service/util imports and syntax:** pass
+- **Changed backend routes syntax:** pass
+- **TA pending-grade/resource schema and Prisma Client generation:** pass
 - **Grading-window boundary checks:** pass
 - **Serializable transaction retry check:** passes
 - **Earlier P0 local Supabase reset and seed baseline:** passed before the current Docker shutdown
@@ -340,12 +345,6 @@ This table replaces the previous audit document.
 Only open work belongs here. Move an item to the verified feature inventory or resolved audit status when completed.
 
 ### Deferred product features
-
-- [ ] **Wire `GRADE_QUIZZES` into quiz authorization**  
-  The permission exists in the schema and TA approval UI, but the quiz controllers do not currently check or grant it.
-
-- [ ] **TA resource uploads**  
-  `UPLOAD_RESOURCES` exists as a permission value and appears in UI choices, but no resource upload endpoint or TA resource page exists.
 
 - [ ] **Inbound Q&A email replies**  
   Parse supported inbound email webhooks and create `QnaReply` records with a clear email source.
