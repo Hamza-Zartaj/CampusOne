@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
+import OpenAI from 'openai';
 import pdf from 'pdf-parse/lib/pdf-parse.js';
 import mammoth from 'mammoth';
 
@@ -7,6 +8,11 @@ const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const SHINGLE_SIZE = 5;
 const LEXICAL_THRESHOLD = 0.35;
 const MIN_LEXICAL_TOKENS = 30;
+const SEMANTIC_THRESHOLD = 0.78;
+const MIN_SEMANTIC_TEXT_LENGTH = 120;
+const MAX_EMBEDDING_INPUT_CHARS = 12_000;
+const MAX_SEMANTIC_MATCHES = 30;
+const MAX_AI_EXPLANATIONS = 5;
 
 export const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
@@ -19,6 +25,14 @@ export const normalizeSimilarityText = (value) => String(value || '')
   .trim();
 
 const tokenize = (text) => normalizeSimilarityText(text).split(' ').filter(Boolean);
+
+const chunk = (items, size) => {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+};
 
 export const createShingles = (text, size = SHINGLE_SIZE) => {
   const tokens = tokenize(text);
@@ -190,6 +204,224 @@ export const analyzeSubmissionsStageOne = async (submissions) => {
       exactTextPairs: matches.filter((match) => match.exactText).length,
       lexicalPairs: matches.filter((match) => match.matchType === 'HIGH_LEXICAL').length,
       unsupportedCount: unsupported.length,
+    },
+  };
+};
+
+const vectorLiteral = (embedding) => `[${embedding.map((value) => Number(value).toFixed(8)).join(',')}]`;
+
+const assertAIConfigured = () => {
+  if (!process.env.OPENAI_API_KEY) {
+    const error = new Error('Stage 2 AI scan is not configured yet. Add OPENAI_API_KEY to campusone-backend/.env and restart the backend.');
+    error.code = 'AI_NOT_CONFIGURED';
+    throw error;
+  }
+};
+
+const generateSubmissionEmbeddings = async (prepared, model) => {
+  assertAIConfigured();
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const embeddings = new Map();
+
+  for (const group of chunk(prepared, 32)) {
+    const response = await client.embeddings.create({
+      model,
+      input: group.map((entry) => entry.normalizedText.slice(0, MAX_EMBEDDING_INPUT_CHARS)),
+    });
+
+    response.data.forEach((item, index) => {
+      const embedding = item.embedding;
+      if (!Array.isArray(embedding) || embedding.length !== 1536) {
+        const error = new Error('The configured embedding model must return 1536-dimensional vectors for pgvector storage.');
+        error.code = 'AI_INVALID_EMBEDDING';
+        throw error;
+      }
+      embeddings.set(group[index].submission.id, embedding);
+    });
+  }
+
+  return embeddings;
+};
+
+const cacheEmbeddings = async ({ prisma, assignmentId, prepared, model, embeddings }) => {
+  for (const entry of prepared) {
+    const embedding = embeddings.get(entry.submission.id);
+    if (!embedding) continue;
+    const id = `simemb_${crypto.randomUUID().replace(/-/g, '')}`;
+    const textPreview = entry.normalizedText.slice(0, 500);
+    const embeddingText = vectorLiteral(embedding);
+
+    await prisma.$executeRaw`
+      INSERT INTO "assignment_similarity_embeddings"
+        ("id", "assignmentId", "submissionId", "model", "textHash", "textPreview", "embedding", "createdAt", "updatedAt")
+      VALUES
+        (${id}, ${assignmentId}, ${entry.submission.id}, ${model}, ${entry.normalizedTextHash}, ${textPreview}, ${embeddingText}::vector, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT ("assignmentId", "submissionId", "model", "textHash")
+      DO UPDATE SET
+        "textPreview" = EXCLUDED."textPreview",
+        "embedding" = EXCLUDED."embedding",
+        "updatedAt" = CURRENT_TIMESTAMP
+    `;
+
+    await prisma.$executeRaw`
+      DELETE FROM "assignment_similarity_embeddings"
+      WHERE "assignmentId" = ${assignmentId}
+        AND "submissionId" = ${entry.submission.id}
+        AND "model" = ${model}
+        AND "textHash" <> ${entry.normalizedTextHash}
+    `;
+  }
+};
+
+const fetchSemanticCandidates = async ({ prisma, assignmentId, model }) => prisma.$queryRaw`
+  SELECT
+    left_embedding."submissionId" AS "submissionAId",
+    right_embedding."submissionId" AS "submissionBId",
+    1 - (left_embedding."embedding" <=> right_embedding."embedding") AS "semanticScore"
+  FROM "assignment_similarity_embeddings" left_embedding
+  JOIN "assignment_similarity_embeddings" right_embedding
+    ON left_embedding."assignmentId" = right_embedding."assignmentId"
+   AND left_embedding."submissionId" < right_embedding."submissionId"
+   AND left_embedding."model" = right_embedding."model"
+  WHERE left_embedding."assignmentId" = ${assignmentId}
+    AND left_embedding."model" = ${model}
+    AND 1 - (left_embedding."embedding" <=> right_embedding."embedding") >= ${SEMANTIC_THRESHOLD}
+  ORDER BY "semanticScore" DESC
+  LIMIT ${MAX_SEMANTIC_MATCHES}
+`;
+
+const buildSemanticPassages = (leftText, rightText) => ([
+  leftText.slice(0, 350),
+  rightText.slice(0, 350),
+].filter(Boolean));
+
+const explainSemanticMatch = async ({ left, right, score }) => {
+  assertAIConfigured();
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const model = process.env.OPENAI_SIMILARITY_MODEL
+    || process.env.OPENAI_CHEAP_MODEL
+    || process.env.OPENAI_QUIZ_MODEL
+    || 'gpt-5.4-nano';
+
+  const response = await client.responses.create({
+    model,
+    input: [
+      {
+        role: 'system',
+        content: [
+          'You help teachers review assignment similarity evidence.',
+          'Compare the two excerpts and explain the likely conceptual overlap in two concise sentences.',
+          'Do not accuse students or call the work plagiarism.',
+          'Mention that the teacher should review the original submissions.',
+        ].join(' '),
+      },
+      {
+        role: 'user',
+        content: [
+          `Semantic similarity score: ${Math.round(score * 100)}%`,
+          `Submission A excerpt:\n${left.normalizedText.slice(0, 1400)}`,
+          `Submission B excerpt:\n${right.normalizedText.slice(0, 1400)}`,
+        ].join('\n\n'),
+      },
+    ],
+    max_output_tokens: 220,
+  });
+
+  return {
+    explanation: String(response.output_text || '').trim().slice(0, 1000),
+    model,
+    usage: response.usage ? {
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      totalTokens: response.usage.total_tokens,
+    } : null,
+  };
+};
+
+export const analyzeSubmissionsStageTwo = async ({
+  prisma,
+  assignmentId,
+  stageOneReport,
+  submissions,
+  includeExplanations = true,
+}) => {
+  const prepared = [];
+  for (const submission of submissions) {
+    const entry = await prepareSubmissionForSimilarity(submission);
+    if (entry.normalizedText.length >= MIN_SEMANTIC_TEXT_LENGTH && entry.normalizedTextHash) {
+      prepared.push(entry);
+    }
+  }
+
+  const model = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
+  const preparedById = new Map(prepared.map((entry) => [entry.submission.id, entry]));
+  const stageOnePairs = new Set((stageOneReport.matches || [])
+    .filter((match) => match.matchType !== 'SEMANTIC')
+    .map((match) => [match.submissionAId, match.submissionBId].sort().join(':')));
+
+  if (prepared.length < 2) {
+    return {
+      matches: [],
+      summary: {
+        semanticComparedSubmissions: prepared.length,
+        semanticPairs: 0,
+        semanticThreshold: SEMANTIC_THRESHOLD,
+        stage2Model: model,
+        stage2CompletedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  const embeddings = await generateSubmissionEmbeddings(prepared, model);
+  await cacheEmbeddings({ prisma, assignmentId, prepared, model, embeddings });
+
+  const candidates = await fetchSemanticCandidates({ prisma, assignmentId, model });
+  const semanticMatches = candidates
+    .filter((candidate) => {
+      const pairKey = [candidate.submissionAId, candidate.submissionBId].sort().join(':');
+      return !stageOnePairs.has(pairKey)
+        && preparedById.has(candidate.submissionAId)
+        && preparedById.has(candidate.submissionBId);
+    })
+    .map((candidate) => {
+      const left = preparedById.get(candidate.submissionAId);
+      const right = preparedById.get(candidate.submissionBId);
+      const score = Number(candidate.semanticScore);
+      return {
+        submissionAId: candidate.submissionAId,
+        submissionBId: candidate.submissionBId,
+        matchType: 'SEMANTIC',
+        exactFile: false,
+        exactText: false,
+        lexicalScore: 0,
+        semanticScore: score,
+        combinedScore: score,
+        matchedPassages: buildSemanticPassages(left.normalizedText, right.normalizedText),
+      };
+    });
+
+  if (includeExplanations) {
+    for (const match of semanticMatches.slice(0, MAX_AI_EXPLANATIONS)) {
+      const explanation = await explainSemanticMatch({
+        left: preparedById.get(match.submissionAId),
+        right: preparedById.get(match.submissionBId),
+        score: match.semanticScore,
+      });
+      match.aiExplanation = explanation.explanation;
+      match.aiModel = explanation.model;
+      match.aiUsage = explanation.usage;
+    }
+  }
+
+  return {
+    matches: semanticMatches,
+    summary: {
+      semanticComparedSubmissions: prepared.length,
+      semanticPairs: semanticMatches.length,
+      semanticThreshold: SEMANTIC_THRESHOLD,
+      aiExplainedPairs: semanticMatches.filter((match) => match.aiExplanation).length,
+      stage2Model: model,
+      stage2CompletedAt: new Date().toISOString(),
     },
   };
 };

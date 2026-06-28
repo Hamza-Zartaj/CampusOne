@@ -17,7 +17,9 @@ import {
 } from '../controllers/assignmentController.js';
 import {
   getLatestSimilarityReport,
+  reviewSimilarityMatch,
   runStageOneSimilarityScan,
+  runStageTwoSimilarityScan,
 } from '../controllers/assignmentSimilarityController.js';
 
 const router = express.Router();
@@ -48,6 +50,8 @@ router.put('/:id', authenticate, upload.single('file'), updateAssignment);
 router.delete('/:id', authenticate, deleteAssignment);
 router.get('/:id/submissions', authenticate, getSubmissions);
 router.post('/:id/similarity/scan', authenticate, authorize('teacher'), runStageOneSimilarityScan);
+router.post('/:id/similarity/ai-scan', authenticate, authorize('teacher'), runStageTwoSimilarityScan);
+router.put('/:id/similarity/matches/:matchId/review', authenticate, authorize('teacher'), reviewSimilarityMatch);
 router.get('/:id/similarity/latest', authenticate, authorize('teacher'), getLatestSimilarityReport);
 
 // Submission routes (scoped under assignment)

@@ -553,6 +553,14 @@ enum SimilarityMatchType {
   EXACT_FILE
   EXACT_TEXT
   HIGH_LEXICAL
+  SEMANTIC
+}
+
+enum SimilarityReviewDecision {
+  PENDING
+  CONFIRMED
+  DISMISSED
+  NEEDS_DISCUSSION
 }
 
 model Assignment {
@@ -569,6 +577,7 @@ model Assignment {
   offering          CourseOffering     @relation(fields: [offeringId], references: [id])
   submissions       Submission[]
   similarityReports SimilarityReport[]
+  similarityEmbeddings SimilarityEmbedding[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -625,6 +634,7 @@ model Submission {
   student            Student           @relation(fields: [studentId], references: [id])
   similarityMatchesA SimilarityMatch[] @relation("SimilaritySubmissionA")
   similarityMatchesB SimilarityMatch[] @relation("SimilaritySubmissionB")
+  similarityEmbeddings SimilarityEmbedding[]
   taPendingGrades    TAPendingGrade[]  @relation("PendingSubmissionGrade")
 
   submittedAt DateTime @default(now())
@@ -694,12 +704,17 @@ model SimilarityMatch {
   exactFile       Boolean @default(false)
   exactText       Boolean @default(false)
   lexicalScore    Float   @default(0)
+  semanticScore   Float   @default(0)
   combinedScore   Float   @default(0)
   matchedPassages Json    @default("[]")
+  aiExplanation   String?
+  aiModel         String?
+  aiUsage         Json?
 
   report      SimilarityReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   submissionA Submission       @relation("SimilaritySubmissionA", fields: [submissionAId], references: [id], onDelete: Cascade)
   submissionB Submission       @relation("SimilaritySubmissionB", fields: [submissionBId], references: [id], onDelete: Cascade)
+  review      SimilarityMatchReview?
 
   createdAt DateTime @default(now())
 
@@ -707,6 +722,43 @@ model SimilarityMatch {
   @@index([reportId, combinedScore])
   @@index([submissionAId])
   @@index([submissionBId])
+}
+
+model SimilarityMatchReview {
+  id           String                   @id @default(cuid())
+  matchId      String                   @unique
+  decision     SimilarityReviewDecision @default(PENDING)
+  notes        String?
+  reviewedById String
+  reviewedAt   DateTime                 @default(now())
+
+  match SimilarityMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([decision])
+  @@index([reviewedById])
+}
+
+model SimilarityEmbedding {
+  id           String                  @id @default(cuid())
+  assignmentId String
+  submissionId String
+  model        String
+  textHash     String
+  textPreview  String?
+  embedding    Unsupported("vector(1536)")
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assignmentId, submissionId, model, textHash])
+  @@index([assignmentId, model])
+  @@map("assignment_similarity_embeddings")
 }
 
 // ============ QUIZ MANAGEMENT ============
