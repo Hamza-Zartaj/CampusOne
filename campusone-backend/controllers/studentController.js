@@ -29,10 +29,15 @@ export const courseDetail = async (req, res) => {
     });
     if (!enrollment) return res.status(404).json({ success: false, message: 'You are not enrolled in this offering' });
 
-    const [lectures, attendance, assignments, quizzes] = await Promise.all([
+    const [lectures, taResources, attendance, assignments, quizzes] = await Promise.all([
       prisma.lecture.findMany({
         where: { offeringId },
         orderBy: { date: 'desc' },
+      }),
+      prisma.tAResource.findMany({
+        where: { offeringId },
+        include: { uploadedBy: { select: { studentId: true, user: { select: { name: true } } } } },
+        orderBy: { createdAt: 'desc' },
       }),
       prisma.attendance.findMany({
         where: { offeringId, studentId: student.id },
@@ -143,6 +148,7 @@ export const courseDetail = async (req, res) => {
           gradeLetter: enrollment.gradeLetter,
         },
         lectures,
+        taResources,
         attendance: { records: attendance, summary: att },
         markComponents: myMarks,
         assignments,

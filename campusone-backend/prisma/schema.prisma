@@ -86,6 +86,8 @@ model Student {
   leaveApplications LeaveApplication[]
   fines             Fine[]
   taAssignments     TAAssignment[]
+  taPendingGrades   TAPendingGrade[]
+  taResources       TAResource[]
 
   // Personal Info
   phone            String?
@@ -464,6 +466,7 @@ model CourseOffering {
   sessions          ClassSession[]
   lectures          Lecture[]
   announcements     Announcement[]
+  taResources       TAResource[]
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -532,6 +535,12 @@ enum SubmissionStatus {
   SUBMITTED
   LATE
   GRADED
+}
+
+enum TAPendingGradeStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum SimilarityReportStatus {
@@ -616,6 +625,7 @@ model Submission {
   student            Student           @relation(fields: [studentId], references: [id])
   similarityMatchesA SimilarityMatch[] @relation("SimilaritySubmissionA")
   similarityMatchesB SimilarityMatch[] @relation("SimilaritySubmissionB")
+  taPendingGrades    TAPendingGrade[]  @relation("PendingSubmissionGrade")
 
   submittedAt DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -623,6 +633,35 @@ model Submission {
   @@unique([assignmentId, studentId])
   @@index([assignmentId])
   @@index([studentId])
+}
+
+model TAPendingGrade {
+  id          String @id @default(cuid())
+  taStudentId String
+
+  submissionId String?
+  answerId     String?
+
+  marksAwarded Float
+  feedback     String?
+  status       TAPendingGradeStatus @default(PENDING)
+
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  reviewNotes   String?
+  appliedGrade  Float?
+
+  taStudent  Student     @relation(fields: [taStudentId], references: [id])
+  submission Submission? @relation("PendingSubmissionGrade", fields: [submissionId], references: [id], onDelete: Cascade)
+  answer     QuizAnswer? @relation("PendingQuizAnswerGrade", fields: [answerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([submissionId, taStudentId])
+  @@unique([answerId, taStudentId])
+  @@index([status, createdAt])
+  @@index([taStudentId])
 }
 
 model SimilarityReport {
@@ -770,6 +809,7 @@ model QuizAnswer {
 
   attempt  QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   question QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  taPendingGrades TAPendingGrade[] @relation("PendingQuizAnswerGrade")
 
   @@unique([attemptId, questionId])
   @@index([attemptId])
@@ -919,10 +959,36 @@ model TAAssignment {
 
   student  Student        @relation(fields: [studentId], references: [id])
   offering CourseOffering @relation(fields: [offeringId], references: [id])
+  resources TAResource[]
 
   @@unique([studentId, offeringId])
   @@index([offeringId, status])
   @@index([studentId, status])
+}
+
+model TAResource {
+  id         String @id @default(cuid())
+  offeringId String
+  taAssignmentId String
+  uploadedByStudentId String
+
+  title       String
+  description String?
+  fileUrl     String
+  fileName    String
+  filePath    String?
+  mimeType    String?
+
+  offering CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  taAssignment TAAssignment @relation(fields: [taAssignmentId], references: [id], onDelete: Cascade)
+  uploadedBy Student @relation(fields: [uploadedByStudentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([offeringId, createdAt])
+  @@index([taAssignmentId])
+  @@index([uploadedByStudentId])
 }
 
 // ============ NOTIFICATIONS ============

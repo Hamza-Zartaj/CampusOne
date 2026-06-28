@@ -6,6 +6,17 @@ import { getGradingWindowError } from '../utils/gradingWindow.js';
 
 const BUCKET = 'assignments';
 
+const getApprovedTAAssignment = async ({ userId, offeringId, permission }) => {
+  const student = await prisma.student.findUnique({ where: { userId } });
+  if (!student) return null;
+  const ta = await prisma.tAAssignment.findUnique({
+    where: { studentId_offeringId: { studentId: student.id, offeringId } },
+    include: { offering: { include: { teacher: { select: { userId: true } }, course: { select: { code: true, title: true } } } } },
+  });
+  if (!ta || ta.status !== 'APPROVED' || !ta.permissions.includes(permission)) return null;
+  return { student, ta };
+};
+
 const assignmentInclude = {
   offering: {
     select: {
@@ -46,8 +57,18 @@ export const getAssignments = async (req, res) => {
       } else {
         where.offering = { teacherId: teacher.id };
       }
-    } else if (offeringId) {
+    } else if (req.user.role === 'student' && offeringId) {
+      const taAccess = await getApprovedTAAssignment({
+        userId: req.user.id,
+        offeringId,
+        permission: 'GRADE_ASSIGNMENTS',
+      });
+      if (!taAccess) return res.status(403).json({ success: false, message: 'Not authorised for this offering' });
       where.offeringId = offeringId;
+    } else if (req.user.role === 'admin' && offeringId) {
+      where.offeringId = offeringId;
+    } else if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Not authorised' });
     }
 
     const assignments = await prisma.assignment.findMany({
@@ -266,6 +287,11 @@ export const getSubmissions = async (req, res) => {
       where: { assignmentId: req.params.id },
       include: {
         student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } },
+        taPendingGrades: {
+          where: req.user.role === 'student' ? { taStudent: { is: { userId: req.user.id } } } : undefined,
+          include: { taStudent: { select: { id: true, studentId: true, user: { select: { name: true } } } } },
+          orderBy: { createdAt: 'desc' },
+        },
       },
       orderBy: { submittedAt: 'asc' },
     });
@@ -330,11 +356,63 @@ export const gradeSubmission = async (req, res) => {
     }
 
     const { obtainedMarks, feedback } = req.body;
+    const requestedMarks = Number(obtainedMarks);
+    if (!Number.isFinite(requestedMarks) || requestedMarks < 0 || requestedMarks > submission.assignment.totalMarks) {
+      return res.status(400).json({
+        success: false,
+        message: `obtainedMarks must be between 0 and ${submission.assignment.totalMarks}`,
+      });
+    }
+    const cleanFeedback = feedback === undefined ? null : String(feedback).trim().slice(0, 4000);
+
+    if (isTAGrader) {
+      const pending = await prisma.tAPendingGrade.upsert({
+        where: { submissionId_taStudentId: { submissionId: submission.id, taStudentId: graderId } },
+        create: {
+          submissionId: submission.id,
+          taStudentId: graderId,
+          marksAwarded: requestedMarks,
+          feedback: cleanFeedback,
+        },
+        update: {
+          marksAwarded: requestedMarks,
+          feedback: cleanFeedback,
+          status: 'PENDING',
+          reviewedBy: null,
+          reviewedAt: null,
+          reviewNotes: null,
+          appliedGrade: null,
+        },
+      });
+
+      const teacher = await prisma.teacher.findUnique({
+        where: { id: submission.assignment.offering.teacherId },
+        select: { userId: true },
+      });
+      if (teacher?.userId) {
+        await notify({
+          userId: teacher.userId,
+          type: TYPE.GENERAL,
+          title: 'TA grade pending approval',
+          body: `${req.user.name} graded ${submission.assignment.title}. Review it before students see the mark.`,
+          linkUrl: '/teacher/assignments',
+          metadata: { pendingGradeId: pending.id, submissionId: submission.id, assignmentId: submission.assignmentId },
+        });
+      }
+
+      return res.json({
+        success: true,
+        pendingApproval: true,
+        message: 'Grade saved for teacher approval',
+        data: pending,
+      });
+    }
+
     const updated = await prisma.submission.update({
       where: { id: req.params.id },
       data: {
-        obtainedMarks: obtainedMarks !== undefined ? +obtainedMarks : undefined,
-        feedback: feedback ?? undefined,
+        obtainedMarks: requestedMarks,
+        feedback: cleanFeedback,
         status: 'GRADED',
         gradedAt: new Date(),
         gradedBy: graderId,
@@ -359,6 +437,134 @@ export const gradeSubmission = async (req, res) => {
         });
       }
     })();
+
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const assertCanReviewPendingSubmissionGrade = async (user, pendingId) => {
+  const pending = await prisma.tAPendingGrade.findUnique({
+    where: { id: pendingId },
+    include: {
+      taStudent: { select: { userId: true, user: { select: { name: true } } } },
+      submission: {
+        include: {
+          student: { select: { userId: true } },
+          assignment: {
+            include: {
+              offering: {
+                include: {
+                  teacher: { select: { id: true, userId: true } },
+                  course: { select: { code: true } },
+                  term: { select: { code: true, isActive: true, endDate: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!pending || !pending.submission) return { error: 404, message: 'Pending grade not found' };
+  if (pending.status !== 'PENDING') return { error: 409, message: `Pending grade is already ${pending.status.toLowerCase()}` };
+  if (user.role === 'admin') return { pending };
+  const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } });
+  if (!teacher || pending.submission.assignment.offering.teacherId !== teacher.id) {
+    return { error: 403, message: 'Not authorised to review this grade' };
+  }
+  return { pending };
+};
+
+// PUT /api/assignments/pending-grades/:id/approve
+export const approvePendingSubmissionGrade = async (req, res) => {
+  try {
+    const access = await assertCanReviewPendingSubmissionGrade(req.user, req.params.id);
+    if (access.error) return res.status(access.error).json({ success: false, message: access.message });
+    const { pending } = access;
+
+    const gradingWindowError = getGradingWindowError(pending.submission.assignment.offering.term);
+    if (gradingWindowError) {
+      return res.status(409).json({ success: false, code: 'GRADE_WINDOW_CLOSED', message: gradingWindowError });
+    }
+
+    const [updatedSubmission, updatedPending] = await prisma.$transaction([
+      prisma.submission.update({
+        where: { id: pending.submissionId },
+        data: {
+          obtainedMarks: pending.marksAwarded,
+          feedback: pending.feedback,
+          status: 'GRADED',
+          gradedAt: new Date(),
+          gradedBy: pending.taStudentId,
+        },
+      }),
+      prisma.tAPendingGrade.update({
+        where: { id: pending.id },
+        data: {
+          status: 'APPROVED',
+          reviewedBy: req.user.id,
+          reviewedAt: new Date(),
+          reviewNotes: req.body.reviewNotes ? String(req.body.reviewNotes).trim().slice(0, 1000) : null,
+          appliedGrade: pending.marksAwarded,
+        },
+      }),
+    ]);
+
+    if (pending.submission.student?.userId) {
+      await notify({
+        userId: pending.submission.student.userId,
+        type: TYPE.ASSIGNMENT_GRADED,
+        title: `Assignment graded: ${pending.submission.assignment.title}`,
+        body: `${pending.submission.assignment.offering.course.code} · ${updatedSubmission.obtainedMarks} / ${pending.submission.assignment.totalMarks}`,
+        linkUrl: '/student/assignments',
+        metadata: { assignmentId: pending.submission.assignmentId, submissionId: updatedSubmission.id },
+      });
+    }
+    if (pending.taStudent?.userId) {
+      await notify({
+        userId: pending.taStudent.userId,
+        type: TYPE.GENERAL,
+        title: 'TA grade approved',
+        body: `${pending.submission.assignment.title}: ${pending.marksAwarded} mark(s) approved.`,
+        linkUrl: '/student/ta',
+        metadata: { pendingGradeId: pending.id, submissionId: pending.submissionId },
+      });
+    }
+
+    res.json({ success: true, data: { submission: updatedSubmission, pendingGrade: updatedPending } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// PUT /api/assignments/pending-grades/:id/reject
+export const rejectPendingSubmissionGrade = async (req, res) => {
+  try {
+    const access = await assertCanReviewPendingSubmissionGrade(req.user, req.params.id);
+    if (access.error) return res.status(access.error).json({ success: false, message: access.message });
+    const { pending } = access;
+    const updated = await prisma.tAPendingGrade.update({
+      where: { id: pending.id },
+      data: {
+        status: 'REJECTED',
+        reviewedBy: req.user.id,
+        reviewedAt: new Date(),
+        reviewNotes: req.body.reviewNotes ? String(req.body.reviewNotes).trim().slice(0, 1000) : null,
+      },
+    });
+
+    if (pending.taStudent?.userId) {
+      await notify({
+        userId: pending.taStudent.userId,
+        type: TYPE.GENERAL,
+        title: 'TA grade rejected',
+        body: pending.submission?.assignment?.title || 'A pending TA grade was rejected.',
+        linkUrl: '/student/ta',
+        metadata: { pendingGradeId: pending.id, submissionId: pending.submissionId },
+      });
+    }
 
     res.json({ success: true, data: updated });
   } catch (err) {

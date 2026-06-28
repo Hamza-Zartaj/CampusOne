@@ -12,6 +12,8 @@ import {
   getQuizAttempts,
   getAttemptDetail,
   gradeAnswer,
+  approvePendingQuizGrade,
+  rejectPendingQuizGrade,
 } from '../controllers/quizController.js';
 import {
   getMyQuizzes,
@@ -47,7 +49,7 @@ router.post('/attempts/:attemptId/submit', authenticate, authorize('student'), s
 router.get('/attempts/:attemptId/result', authenticate, authorize('student'), getMyAttemptResult);
 
 // ─── TEACHER routes ──────────────────────────────────────────────────
-router.get('/', authenticate, authorize('teacher'), getQuizzes);
+router.get('/', authenticate, authorize('teacher', 'student', 'admin'), getQuizzes);
 router.post('/', authenticate, authorize('teacher'), createQuiz);
 router.post('/ai/generate', authenticate, authorize('teacher'), generateAIQuizQuestions);
 router.get('/import-excel/template', authenticate, authorize('teacher'), downloadQuizImportTemplate);
@@ -55,8 +57,10 @@ router.post('/import-excel', authenticate, authorize('teacher'), excelUpload.sin
 router.get('/:id', authenticate, authorize('teacher'), getQuizById);
 router.put('/:id', authenticate, authorize('teacher'), updateQuiz);
 router.delete('/:id', authenticate, authorize('teacher'), deleteQuiz);
-router.get('/:id/attempts', authenticate, authorize('teacher'), getQuizAttempts);
-router.get('/teacher/attempts/:attemptId', authenticate, authorize('teacher'), getAttemptDetail);
-router.put('/answers/:answerId/grade', authenticate, authorize('teacher'), gradeAnswer);
+router.get('/:id/attempts', authenticate, authorize('teacher', 'student', 'admin'), getQuizAttempts);
+router.get('/teacher/attempts/:attemptId', authenticate, authorize('teacher', 'student', 'admin'), getAttemptDetail);
+router.put('/answers/:answerId/grade', authenticate, authorize('teacher', 'student', 'admin'), gradeAnswer);
+router.put('/pending-grades/:id/approve', authenticate, authorize('teacher', 'admin'), approvePendingQuizGrade);
+router.put('/pending-grades/:id/reject', authenticate, authorize('teacher', 'admin'), rejectPendingQuizGrade);
 
 export default router;

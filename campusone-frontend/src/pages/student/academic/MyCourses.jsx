@@ -312,6 +312,43 @@ const MyCourses = () => {
             )}
           </Section>
 
+          {/* TA Resources */}
+          <Section icon={FileText} title="TA Resources" count={detail.taResources?.length || 0}>
+            {!detail.taResources || detail.taResources.length === 0 ? (
+              <EmptyRow msg="No TA resources uploaded yet." />
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="text-left px-4 py-2.5 font-semibold">Title</th>
+                    <th className="text-left px-4 py-2.5 font-semibold">Uploaded By</th>
+                    <th className="text-left px-4 py-2.5 font-semibold">Date</th>
+                    <th className="text-center px-4 py-2.5 font-semibold">File</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {detail.taResources.map((resource) => (
+                    <tr key={resource.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-2.5">
+                        <div className="font-medium text-slate-800">{resource.title}</div>
+                        {resource.description && <div className="mt-0.5 text-xs text-slate-500">{resource.description}</div>}
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-600 text-xs">
+                        {resource.uploadedBy?.user?.name || resource.uploadedBy?.studentId || 'TA'}
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-600 text-xs">{fmtDate(resource.createdAt)}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        <button onClick={() => downloadFile(resource.fileUrl, resource.fileName)} className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs">
+                          <Download size={13} />{resource.fileName || 'download'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Section>
+
           {/* Attendance */}
           {courseHeader.sessionType !== 'PROJECT' && (
             <Section icon={CalendarCheck} title="Attendance" count={detail.attendance.records.length}>
