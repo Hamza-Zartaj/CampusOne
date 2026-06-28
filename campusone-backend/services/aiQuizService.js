@@ -6,32 +6,16 @@ import { validateQuestions } from '../utils/quizValidation.js';
 const MIXES = new Set(['BALANCED', 'MCQ_ONLY', 'MCQ_TRUE_FALSE', 'ALL_TYPES']);
 const DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'HARD', 'MIXED']);
 
-const buildQuestionSchema = () => z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal('MCQ'),
-    questionText: z.string().min(1),
-    options: z.array(z.string().min(1)).length(4),
-    correctAnswer: z.number().int().min(0).max(3),
-    marks: z.number().positive().max(100),
-  }),
-  z.object({
-    type: z.literal('TRUE_FALSE'),
-    questionText: z.string().min(1),
-    options: z.tuple([z.literal('True'), z.literal('False')]),
-    correctAnswer: z.number().int().min(0).max(1),
-    marks: z.number().positive().max(100),
-  }),
-  z.object({
-    type: z.literal('SHORT'),
-    questionText: z.string().min(1),
-    options: z.array(z.string()).length(0),
-    correctAnswer: z.string().min(1),
-    marks: z.number().positive().max(100),
-  }),
-]);
+const buildQuestionSchema = () => z.object({
+  type: z.enum(['MCQ', 'TRUE_FALSE', 'SHORT']),
+  questionText: z.string(),
+  options: z.array(z.string()),
+  correctAnswer: z.string(),
+  marks: z.number(),
+});
 
 export const buildAIQuizResponseSchema = (questionCount) => z.object({
-  questions: z.array(buildQuestionSchema()).length(questionCount),
+  questions: z.array(buildQuestionSchema()),
 });
 
 export const validateAIQuizRequest = (body) => {
@@ -121,7 +105,9 @@ export const generateQuizQuestions = async ({
           'Use the course code and title only as context. Do not claim to have read course files.',
           'MCQs must have exactly four distinct, plausible options and one unambiguous answer.',
           'TRUE_FALSE options must be exactly ["True", "False"].',
+          'For MCQ and TRUE_FALSE questions, correctAnswer must be the zero-based option index as a string.',
           'SHORT correctAnswer must be a concise expected answer suitable as a grading reference.',
+          'SHORT options must be an empty array.',
           'Avoid trick questions, vague wording, repeated questions, and "all/none of the above".',
           'Do not include markdown, numbering prefixes, or answer hints in questionText.',
         ].join(' '),
@@ -145,7 +131,7 @@ export const generateQuizQuestions = async ({
     max_output_tokens: Math.min(16_000, 800 + questionCount * 500),
   });
 
-  if (!response.output_parsed?.questions) {
+  if (!response.output_parsed?.questions || response.output_parsed.questions.length !== questionCount) {
     const error = new Error('The AI did not return usable quiz questions. Please adjust the prompt and try again.');
     error.code = 'AI_INVALID_OUTPUT';
     throw error;
