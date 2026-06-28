@@ -34,7 +34,7 @@ The application is a mature, feature-heavy codebase. Most major product areas ar
 - Supabase Storage
 - Resend email
 - Multer and XLSX
-- `pdf-parse` and Mammoth for text-only assignment similarity extraction
+- `pdf-parse`, Mammoth, pgvector, and OpenAI embeddings for assignment similarity analysis
 
 ### Frontend
 
@@ -68,7 +68,6 @@ CampusOne/
 |       `-- utils/         API client, cache, permissions, sockets
 |-- supabase/              Local Supabase configuration
 |-- README.md              Setup and quick-start guide
-|-- AI_IMPLEMENTATION.md   AI quiz and assignment-similarity architecture
 `-- Project_context.md     Canonical tracker and project reference
 ```
 
@@ -189,6 +188,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Participation marks
 - [x] Assignment submission links in grade details
 - [x] Lectures and Supabase-hosted materials
+- [x] Lecture create/update dates are backend-validated against term bounds and the offering `ClassSession` timetable
 
 ### Assignments and attendance
 
@@ -200,9 +200,14 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Exact file hash, normalized text hash, and local lexical-overlap detection
 - [x] Text-only TXT, PDF, and DOCX extraction with unsupported/no-text reporting
 - [x] Persistent similarity reports with stale-snapshot detection
+- [x] Assignment similarity Stage 2 is teacher-triggered from a fresh Stage 1 report, not chained automatically
+- [x] Stage 2 caches pgvector text embeddings and flags semantic matches only for pairs Stage 1 did not already resolve
+- [x] Stage 2 can add concise AI explanations for the strongest semantic matches
+- [x] Teacher review decisions for similarity matches are stored and audit-logged
 - [x] Submission grading and feedback
 - [x] TA self-grading prevention for assignment submissions
 - [x] Attendance batch marking
+- [x] Attendance batch marking is backend-validated against term bounds and the offering `ClassSession` timetable
 - [x] Attendance sessions and summaries
 - [x] Student attendance view
 - [x] Low-attendance flag below 75%
@@ -296,7 +301,8 @@ Checks run through June 28, 2026:
 - **Frontend production build:** passes
 - **Frontend build size:** route-level splitting reduced the initial app chunk to about 373 KB before gzip
 - **Frontend build warnings:** API/socket mixed static and dynamic imports still produce one Vite warning, but the oversized entry warning is gone
-- **Frontend lint:** passes with **0 errors and 54 warnings**
+- **Assignment similarity Stage 2:** Prisma schema validation, Prisma Client generation, changed backend syntax checks, and frontend production build pass
+- **Frontend lint:** passes with **0 errors and 52 warnings**
 
 Remaining lint warnings:
 
@@ -349,9 +355,6 @@ Only open work belongs here. Move an item to the verified feature inventory or r
 - [ ] **Inbound Q&A email replies**  
   Parse supported inbound email webhooks and create `QnaReply` records with a clear email source.
 
-- [ ] **Assignment similarity/plagiarism service**
-  **Stage 1 is implemented.** Continue with Stage 2 from `AI_IMPLEMENTATION.md`: use cached text embeddings for unresolved candidate matches, optional LLM explanations for only the strongest passages, teacher review records, and audit logs. Ignore images and keep results as review evidence rather than automatic misconduct verdicts.
-
 - [ ] **Advanced quiz monitoring**  
   Optional screen-sharing capture and webcam snapshots with explicit user permission and a defined privacy policy.
 
@@ -370,6 +373,7 @@ Only open work belongs here. Move an item to the verified feature inventory or r
 - Mutations affecting cached GET endpoints must invalidate the matching API cache prefixes.
 - Notification changes may involve database rows, Socket.IO, cron metadata, email, and client state.
 - Uploaded files should use Supabase Storage rather than local persistent uploads.
+- Attendance and lecture dates must not be treated as free-form dates; backend mutations must validate term bounds and the offering `ClassSession` timetable.
 - Database invariants should be enforced in the schema when concurrency can bypass controller checks.
 - Avoid destructive `db:reset` unless data loss is explicitly intended.
 
@@ -394,6 +398,7 @@ OPENAI_API_KEY=...
 OPENAI_QUIZ_MODEL=gpt-5.4-mini
 OPENAI_CHEAP_MODEL=gpt-5.4-nano
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_SIMILARITY_MODEL=gpt-5.4-nano
 ```
 
 Frontend:
@@ -402,7 +407,7 @@ Frontend:
 VITE_API_URL=http://localhost:5000/api
 ```
 
-The variable is documented but is not yet consumed by the current API client; see future task `A5`.
+`VITE_API_URL` is consumed by the frontend API client, with a same-origin `/api` fallback.
 
 ## 12. Common Commands
 

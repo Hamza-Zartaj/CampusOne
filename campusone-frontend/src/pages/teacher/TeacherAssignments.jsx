@@ -207,13 +207,20 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
 };
 
 // ─── Submissions Panel ────────────────────────────────────────────────────────
-const SimilarityResults = ({ report }) => {
+const SimilarityResults = ({ report, onReview, reviewingMatchId }) => {
   const [expanded, setExpanded] = useState(true);
   const summary = report.summary || {};
   const labels = {
     EXACT_FILE: 'Identical file',
     EXACT_TEXT: 'Identical text',
     HIGH_LEXICAL: 'High text overlap',
+    SEMANTIC: 'Semantic similarity',
+  };
+  const reviewLabels = {
+    CONFIRMED: 'Confirmed',
+    DISMISSED: 'Dismissed',
+    NEEDS_DISCUSSION: 'Discuss',
+    PENDING: 'Pending',
   };
 
   return (
@@ -223,9 +230,10 @@ const SimilarityResults = ({ report }) => {
         <div className="flex items-center gap-2">
           <ShieldCheck size={18} className="text-violet-600" />
           <div>
-            <p className="m-0 text-sm font-semibold text-slate-800">Stage 1 similarity results</p>
+            <p className="m-0 text-sm font-semibold text-slate-800">Assignment similarity results</p>
             <p className="m-0 text-xs text-slate-500">
               {summary.flaggedPairs || 0} flagged of {summary.comparedPairs || 0} compared pairs
+              {summary.semanticPairs ? ` - ${summary.semanticPairs} semantic` : ''}
               {report.isStale ? ' · report is stale' : ''}
             </p>
           </div>
@@ -240,7 +248,7 @@ const SimilarityResults = ({ report }) => {
               ['Exact files', summary.exactFilePairs || 0],
               ['Exact text', summary.exactTextPairs || 0],
               ['High overlap', summary.lexicalPairs || 0],
-              ['Unsupported', summary.unsupportedCount || 0],
+              ['Semantic', summary.semanticPairs || 0],
             ].map(([label, value]) => (
               <div key={label} className="rounded-lg bg-slate-50 px-3 py-2">
                 <p className="m-0 text-lg font-bold text-slate-800">{value}</p>
@@ -264,7 +272,9 @@ const SimilarityResults = ({ report }) => {
                       {match.submissionB.student.user.name}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">{labels[match.matchType]}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        match.matchType === 'SEMANTIC' ? 'bg-violet-50 text-violet-700' : 'bg-red-50 text-red-700'
+                      }`}>{labels[match.matchType]}</span>
                       <span className="text-sm font-bold text-slate-700">{Math.round(match.combinedScore * 100)}%</span>
                     </div>
                   </div>
@@ -276,6 +286,33 @@ const SimilarityResults = ({ report }) => {
                       Shared phrase: “{match.matchedPassages[0]}”
                     </p>
                   )}
+                  {match.aiExplanation && (
+                    <p className="m-0 mt-2 rounded bg-violet-50 px-2 py-1.5 text-xs text-violet-800">
+                      {match.aiExplanation}
+                    </p>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {match.review?.decision && match.review.decision !== 'PENDING' && (
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                        {reviewLabels[match.review.decision]}
+                      </span>
+                    )}
+                    {[
+                      ['CONFIRMED', 'Confirm'],
+                      ['DISMISSED', 'Dismiss'],
+                      ['NEEDS_DISCUSSION', 'Discuss'],
+                    ].map(([decision, label]) => (
+                      <button
+                        key={decision}
+                        type="button"
+                        onClick={() => onReview?.(match.id, decision)}
+                        disabled={reviewingMatchId === match.id}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {reviewingMatchId === match.id ? 'Saving...' : label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -300,7 +337,9 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
   const [gradingId, setGradingId] = useState(null);
   const [gradeForm, setGradeForm] = useState({});
   const [similarityReport, setSimilarityReport] = useState(null);
-  const [scanning, setScanning] = useState(false);
+  const [scanningStageOne, setScanningStageOne] = useState(false);
+  const [scanningStageTwo, setScanningStageTwo] = useState(false);
+  const [reviewingMatchId, setReviewingMatchId] = useState(null);
   const [changingStatus, setChangingStatus] = useState(false);
   const [savingGradeId, setSavingGradeId] = useState(null);
 
@@ -323,7 +362,7 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
   }, [loadSubmissions]);
 
   const runSimilarityScan = async () => {
-    setScanning(true);
+    setScanningStageOne(true);
     try {
       const response = await assignmentAPI.runSimilarityScan(assignment.id);
       setSimilarityReport(response.data.data);
@@ -331,7 +370,33 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
     } catch (error) {
       toast.error(error.response?.data?.message || 'Similarity scan failed');
     } finally {
-      setScanning(false);
+      setScanningStageOne(false);
+    }
+  };
+
+  const runSimilarityAIScan = async () => {
+    setScanningStageTwo(true);
+    try {
+      const response = await assignmentAPI.runSimilarityAIScan(assignment.id, { includeExplanations: true });
+      setSimilarityReport(response.data.data);
+      toast.success('Stage 2 AI scan completed');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Stage 2 AI scan failed');
+    } finally {
+      setScanningStageTwo(false);
+    }
+  };
+
+  const reviewSimilarityMatch = async (matchId, decision) => {
+    setReviewingMatchId(matchId);
+    try {
+      const response = await assignmentAPI.reviewSimilarityMatch(assignment.id, matchId, { decision });
+      setSimilarityReport(response.data.data);
+      toast.success('Review saved');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Review save failed');
+    } finally {
+      setReviewingMatchId(null);
     }
   };
 
@@ -405,6 +470,11 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
     }
   };
 
+  const scanBusy = scanningStageOne || scanningStageTwo;
+  const canRunStageTwo = Boolean(similarityReport)
+    && !similarityReport.isStale
+    && currentAssignment.status === 'CLOSED';
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
@@ -416,7 +486,7 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
           <div className="flex items-center gap-2">
             <button
               onClick={changeSubmissionStatus}
-              disabled={changingStatus || scanning}
+              disabled={changingStatus || scanBusy}
               className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                 currentAssignment.status === 'CLOSED'
                   ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
@@ -430,12 +500,21 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
             </button>
             <button
               onClick={runSimilarityScan}
-              disabled={scanning || changingStatus || loading || submissions.length < 2 || currentAssignment.status !== 'CLOSED'}
+              disabled={scanningStageOne || scanningStageTwo || changingStatus || loading || submissions.length < 2 || currentAssignment.status !== 'CLOSED'}
               title={currentAssignment.status !== 'CLOSED' ? 'Close submissions before scanning' : 'Run local Stage 1 checks'}
               className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {scanning ? <Loader2 size={14} className="animate-spin" /> : <ScanSearch size={14} />}
-              {scanning ? 'Scanning…' : similarityReport ? 'Scan Again' : 'Check Similarity'}
+              {scanningStageOne ? <Loader2 size={14} className="animate-spin" /> : <ScanSearch size={14} />}
+              {scanningStageOne ? 'Scanning...' : similarityReport ? 'Stage 1 Again' : 'Stage 1 Local Scan'}
+            </button>
+            <button
+              onClick={runSimilarityAIScan}
+              disabled={scanningStageTwo || scanningStageOne || changingStatus || loading || !canRunStageTwo}
+              title={!similarityReport ? 'Run Stage 1 first' : similarityReport.isStale ? 'Run Stage 1 again before Stage 2' : 'Run Stage 2 AI semantic scan'}
+              className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {scanningStageTwo ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+              {scanningStageTwo ? 'AI scanning...' : 'Stage 2 AI Scan'}
             </button>
             <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"><X size={20} /></button>
           </div>
@@ -447,7 +526,13 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
               <span>Close submissions here before running similarity checks.</span>
             </div>
           )}
-          {similarityReport && <SimilarityResults report={similarityReport} />}
+          {similarityReport && (
+            <SimilarityResults
+              report={similarityReport}
+              onReview={reviewSimilarityMatch}
+              reviewingMatchId={reviewingMatchId}
+            />
+          )}
           {loading ? (
             <div className="flex items-center justify-center py-12 text-slate-400"><Loader2 size={24} className="animate-spin" /></div>
           ) : submissions.length === 0 ? (

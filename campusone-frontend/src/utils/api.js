@@ -385,6 +385,8 @@ export const assignmentAPI = {
   delete: (id) => api.delete(`/assignments/${id}`),
   getSubmissions: (id) => api.get(`/assignments/${id}/submissions`),
   runSimilarityScan: (id) => api.post(`/assignments/${id}/similarity/scan`),
+  runSimilarityAIScan: (id, data = {}) => api.post(`/assignments/${id}/similarity/ai-scan`, data),
+  reviewSimilarityMatch: (assignmentId, matchId, data) => api.put(`/assignments/${assignmentId}/similarity/matches/${matchId}/review`, data),
   getLatestSimilarityReport: (id) => api.get(`/assignments/${id}/similarity/latest`),
   gradeSubmission: (submissionId, data) => api.put(`/assignments/submissions/${submissionId}/grade`, data),
   approvePendingGrade: (pendingId, data = {}) => api.put(`/assignments/pending-grades/${pendingId}/approve`, data),
