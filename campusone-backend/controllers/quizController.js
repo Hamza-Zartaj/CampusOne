@@ -3,6 +3,7 @@ import { notify, notifyMany, TYPE } from '../services/notificationService.js';
 import { getGradingWindowError } from '../utils/gradingWindow.js';
 import { validateQuizPayload } from '../utils/quizValidation.js';
 import { createQuizImportTemplate, parseQuizQuestionsWorkbook } from '../utils/quizExcel.js';
+import { syncQuizAttemptMark, validateCourseworkSlot } from '../utils/courseworkMarks.js';
 
 const quizInclude = {
   offering: {
@@ -96,7 +97,19 @@ const recomputeAttemptScores = async (tx, attemptId) => {
   const attempt = await tx.quizAttempt.update({
     where: { id: attemptId },
     data: { autoGradedScore: autoScore, manualScore, totalScore },
+    include: {
+      quiz: {
+        select: {
+          offeringId: true,
+          componentIndex: true,
+          title: true,
+          endAt: true,
+          totalMarks: true,
+        },
+      },
+    },
   });
+  await syncQuizAttemptMark({ client: tx, attempt, totalScore, manualPending: pending });
   return { attempt, totalScore, manualPending: pending };
 };
 
@@ -174,7 +187,7 @@ export const getQuizById = async (req, res) => {
 // POST /api/quizzes
 export const createQuiz = async (req, res) => {
   try {
-    const { offeringId } = req.body;
+    const { offeringId, componentIndex } = req.body;
     if (!offeringId || !req.body.title || !req.body.startAt || !req.body.endAt) {
       return res.status(400).json({ success: false, message: 'offeringId, title, startAt, endAt are required' });
     }
@@ -189,10 +202,19 @@ export const createQuiz = async (req, res) => {
       return res.status(400).json({ success: false, message: error.message });
     }
     const totalMarks = validated.questions.reduce((sum, question) => sum + question.marks, 0);
+    const slot = await validateCourseworkSlot({
+      client: prisma,
+      offeringId,
+      kind: 'QUIZ',
+      componentIndex,
+      model: 'quiz',
+    });
+    if (slot.error) return res.status(400).json({ success: false, message: slot.error });
 
     const quiz = await prisma.quiz.create({
       data: {
         offeringId,
+        componentIndex: slot.index,
         title: validated.title,
         description: validated.description ?? null,
         durationMinutes: validated.durationMinutes ?? 30,
@@ -260,8 +282,19 @@ export const updateQuiz = async (req, res) => {
     const totalMarks = validated.questions
       ? validated.questions.reduce((sum, question) => sum + question.marks, 0)
       : undefined;
+    const nextComponentIndex = req.body.componentIndex !== undefined ? req.body.componentIndex : check.quiz.componentIndex;
+    const slot = await validateCourseworkSlot({
+      client: prisma,
+      offeringId: check.quiz.offeringId,
+      kind: 'QUIZ',
+      componentIndex: nextComponentIndex,
+      model: 'quiz',
+      excludeId: check.quiz.id,
+    });
+    if (slot.error) return res.status(400).json({ success: false, message: slot.error });
 
     const data = {
+      componentIndex: slot.index,
       title: validated.title,
       description: validated.description,
       durationMinutes: validated.durationMinutes,
