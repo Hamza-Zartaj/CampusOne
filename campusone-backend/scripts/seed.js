@@ -18,6 +18,7 @@
 
 import bcrypt from 'bcryptjs';
 import prisma from '../prisma/client.js';
+import { getTemplate } from '../utils/gradeTemplates.js';
 
 const PASSWORD = 'Campus@123';
 const now = new Date();
@@ -67,6 +68,13 @@ const createUser = ({ username, name, role, password }) => prisma.user.create({
     isFirstLogin: false,
     isActive: true,
   },
+});
+
+const configureCourseGrading = (course) => prisma.courseGradeComponent.createMany({
+  data: getTemplate(course.sessionType).map((component) => ({
+    ...component,
+    courseId: course.id,
+  })),
 });
 
 const createTimetableData = async (semesterOneOfferingId, semesterThreeOfferingId) => {
@@ -138,6 +146,7 @@ const createAssignmentData = async (offeringId, students, teacherId) => {
   await prisma.assignment.create({
     data: {
       offeringId,
+      componentIndex: 1,
       title: 'Draft: Variables Practice',
       description: 'Draft assignment used to test editing and publishing.',
       totalMarks: 10,
@@ -150,6 +159,7 @@ const createAssignmentData = async (offeringId, students, teacherId) => {
   const openAssignment = await prisma.assignment.create({
     data: {
       offeringId,
+      componentIndex: 2,
       title: 'Assignment 1: Control Flow',
       description: 'Solve the conditional and loop exercises. Students 04-05 can submit this assignment from a clean state.',
       totalMarks: 20,
@@ -188,6 +198,7 @@ const createAssignmentData = async (offeringId, students, teacherId) => {
   await prisma.assignment.create({
     data: {
       offeringId,
+      componentIndex: 3,
       title: 'Late Submission Test',
       description: 'Published and overdue with late submissions enabled. Use an unsubmitted student to test the late workflow.',
       totalMarks: 15,
@@ -200,6 +211,7 @@ const createAssignmentData = async (offeringId, students, teacherId) => {
   const closedAssignment = await prisma.assignment.create({
     data: {
       offeringId,
+      componentIndex: 4,
       title: 'Assignment 2: Problem Solving',
       description: 'Closed assignment containing graded, ungraded, late, and duplicate-text submissions.',
       totalMarks: 25,
@@ -357,6 +369,7 @@ const createQuizData = async (offeringId, students) => {
   await prisma.quiz.create({
     data: {
       offeringId,
+      componentIndex: 1,
       title: 'Draft Quiz: Variables',
       description: 'Draft quiz for testing edit, question management, Excel import, publish, and delete.',
       totalMarks: 10,
@@ -382,6 +395,7 @@ const createQuizData = async (offeringId, students) => {
   await prisma.quiz.create({
     data: {
       offeringId,
+      componentIndex: 2,
       title: 'Upcoming Quiz: Selection Statements',
       description: 'Published but not yet open.',
       totalMarks: 10,
@@ -416,6 +430,7 @@ const createQuizData = async (offeringId, students) => {
   const liveQuiz = await prisma.quiz.create({
     data: {
       offeringId,
+      componentIndex: 3,
       title: 'Live Quiz: Programming Basics',
       description: 'Currently open. Student 01 has a resumable attempt; students 02-05 can start fresh.',
       totalMarks: 10,
@@ -458,6 +473,7 @@ const createQuizData = async (offeringId, students) => {
   const closedQuiz = await prisma.quiz.create({
     data: {
       offeringId,
+      componentIndex: 4,
       title: 'Closed Quiz: Foundations',
       description: 'Completed attempts for automatic grading, manual grading, review, and violation testing.',
       totalMarks: 10,
@@ -612,6 +628,9 @@ async function main() {
       sessionType: 'LECTURE',
     },
   });
+  await configureCourseGrading(semesterOneCourse);
+  await configureCourseGrading(semesterThreeCourse);
+
   await prisma.curriculumCourse.createMany({
     data: [
       {
