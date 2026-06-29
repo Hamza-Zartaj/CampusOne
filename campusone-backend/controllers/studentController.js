@@ -1,5 +1,6 @@
 import prisma from '../prisma/client.js';
 import { buildTranscriptData } from '../utils/transcript.js';
+import { computeWeightedBreakdown } from '../utils/grading.js';
 
 // GET /api/students/me/course-detail/:offeringId
 // Bundle endpoint for the My Courses page.
@@ -107,36 +108,7 @@ export const courseDetail = async (req, res) => {
       }
     }
 
-    let runningEarned = 0;
-    let runningPossible = 0;
-    const breakdown = [];
-    for (const cmp of components) {
-      const mine = enrollment.markComponents.filter((m) => m.kind === cmp.kind);
-      const graded = mine.filter((m) => m.obtainedMarks != null);
-      let pct = null;
-      if (cmp.marksReleased && graded.length > 0) {
-        if (cmp.aggregation === 'AVERAGE') {
-          const sumObtained = graded.reduce((s, m) => s + m.obtainedMarks, 0);
-          const sumTotal = graded.reduce((s, m) => s + m.totalMarks, 0);
-          pct = sumTotal > 0 ? sumObtained / sumTotal : 0;
-        } else {
-          pct = graded[0].totalMarks > 0 ? graded[0].obtainedMarks / graded[0].totalMarks : 0;
-        }
-        runningEarned += pct * cmp.weightPercent;
-        runningPossible += cmp.weightPercent;
-      }
-      breakdown.push({
-        kind: cmp.kind,
-        label: cmp.label,
-        weightPercent: cmp.weightPercent,
-        marksReleased: cmp.marksReleased,
-        gradedCount: graded.length,
-        totalCount: cmp.count,
-        earnedPercent: pct != null ? +(pct * 100).toFixed(2) : null,
-        contribution: pct != null ? +(pct * cmp.weightPercent).toFixed(2) : null,
-      });
-    }
-    const runningPercent = runningPossible > 0 ? +(runningEarned / runningPossible * 100).toFixed(2) : null;
+    const runningGrade = computeWeightedBreakdown(components, enrollment.markComponents, { releasedOnly: true });
 
     res.json({
       success: true,
@@ -154,9 +126,9 @@ export const courseDetail = async (req, res) => {
         assignments,
         quizzes,
         runningGrade: {
-          earnedPercent: runningPercent,
-          gradedWeight: runningPossible,
-          breakdown,
+          earnedPercent: runningGrade.earnedPercent,
+          gradedWeight: runningGrade.gradedWeight,
+          breakdown: runningGrade.breakdown,
         },
       },
     });

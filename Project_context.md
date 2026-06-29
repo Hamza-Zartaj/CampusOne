@@ -2,7 +2,7 @@
 
 > **Canonical project tracker and source of truth**
 >
-> Last verified: **June 28, 2026**
+> Last verified: **June 29, 2026**
 >
 > Update this file whenever a feature, architectural rule, known issue, or future task changes. Do not create a separate audit or to-do document.
 
@@ -185,6 +185,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Per-kind marks visibility controls
 - [x] Course-wide mark release endpoint and UI copy make the release scope explicit
 - [x] Student grade-breakdown view
+- [x] Shared grading helper averages `AVERAGE` components, so multi-slot quiz/assignment components contribute only their configured weight
 - [x] Participation marks
 - [x] Assignment submission links in grade details
 - [x] Lectures and Supabase-hosted materials
@@ -193,6 +194,8 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 ### Assignments and attendance
 
 - [x] Assignment CRUD
+- [x] Assignment create/edit flow links each assignment to a configured grade-component slot and blocks creation beyond the configured count
+- [x] Assignment grading syncs official submission marks into the matching lecturer marks-grid cell
 - [x] Assignment file upload
 - [x] Student submission and resubmission
 - [x] Teacher Close/Reopen Submissions control with backend enforcement
@@ -216,6 +219,8 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 ### Quizzes
 
 - [x] Quiz and question CRUD
+- [x] Quiz create/edit flow links each quiz to a configured grade-component slot and blocks creation beyond the configured count
+- [x] Quiz raw scores are scaled into the grade-component total before syncing to the lecturer marks grid
 - [x] Excel question import with a verified downloadable sample template
 - [x] Prompt-based AI quiz question generation
 - [x] Compact AI generator with course-name context and editable draft output
@@ -234,6 +239,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Manual answer grading
 - [x] Correct separation of automatic and manual scores
 - [x] Pending-manual-grading result state
+- [x] Mixed auto/manual quizzes do not sync a marks-grid grade until all short-answer questions are graded
 - [x] Tab/window and fullscreen violation tracking
 - [x] Copy, paste, context-menu, and common developer-tool shortcut blocking
 - [x] Violation-based automatic submission
@@ -281,7 +287,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 
 ## 7. Verification Snapshot
 
-Checks run through June 28, 2026:
+Checks run through June 29, 2026:
 
 - **Prisma schema:** valid
 - **Prisma Client generation:** passes
@@ -300,6 +306,8 @@ Checks run through June 28, 2026:
 - **Backend health endpoint:** OK with database connected
 - **Frontend development server:** HTTP 200
 - **Frontend production build:** passes
+- **Coursework grade-slot linking:** Prisma schema validation, changed backend syntax checks, and frontend production build pass
+- **Quiz score scaling and averaged component weighting:** changed backend syntax checks and frontend production build pass
 - **Frontend build size:** route-level splitting reduced the initial app chunk to about 373 KB before gzip
 - **Frontend build warnings:** API/socket mixed static and dynamic imports still produce one Vite warning, but the oversized entry warning is gone
 - **Assignment similarity Stage 2:** Prisma schema validation, Prisma Client generation, changed backend syntax checks, and frontend production build pass
@@ -371,6 +379,10 @@ Only open work belongs here. Move an item to the verified feature inventory or r
 - Admin roles and admin permissions are separate concepts.
 - A TA operation must verify approved status, offering scope, required permission, and self-action restrictions.
 - `CourseGradeComponent` defines grading structure; `MarkComponent` stores individual scores.
+- Assignment and quiz records use `componentIndex` to link coursework to the matching `MarkComponent` slot.
+- Quiz attempts may have any raw total; official marks-grid sync scales the raw quiz score to the configured quiz component total.
+- Quizzes with pending short-answer grading must leave the linked marks-grid cell blank until all manual grading is complete.
+- `AVERAGE` grade components average graded slot percentages before applying `weightPercent`; they must not sum every slot as separate final-weight marks.
 - Mutations affecting cached GET endpoints must invalidate the matching API cache prefixes.
 - Notification changes may involve database rows, Socket.IO, cron metadata, email, and client state.
 - Uploaded files should use Supabase Storage rather than local persistent uploads.

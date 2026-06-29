@@ -35,9 +35,10 @@ const daysUntil = (dateStr, status) => {
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 // ─── Create / Edit Modal ──────────────────────────────────────────────────────
-const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
+const AssignmentModal = ({ offerings, assignments = [], initial, onClose, onSave }) => {
   const [form, setForm] = useState({
     offeringId: initial?.offeringId ?? '',
+    componentIndex: initial?.componentIndex ?? '',
     title: initial?.title ?? '',
     description: initial?.description ?? '',
     totalMarks: initial?.totalMarks ?? 100,
@@ -49,6 +50,48 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
   const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const selectedOffering = offerings.find((offering) => offering.id === form.offeringId);
+  const assignmentComponent = selectedOffering?.course?.gradeComponents?.find((component) => component.kind === 'ASSIGNMENT');
+  const existingCount = assignments.filter(
+    (assignment) => assignment.offeringId === form.offeringId && assignment.id !== initial?.id
+  ).length;
+  const usedIndexes = new Set(
+    assignments
+      .filter((assignment) => assignment.offeringId === form.offeringId && assignment.id !== initial?.id)
+      .map((assignment) => Number(assignment.componentIndex))
+      .filter(Boolean)
+  );
+  const slotOptions = assignmentComponent
+    ? Array.from({ length: assignmentComponent.count }, (_, index) => index + 1)
+    : [];
+  const limitReached = Boolean(assignmentComponent) && existingCount >= assignmentComponent.count;
+
+  const handleOfferingChange = (offeringId) => {
+    const offering = offerings.find((item) => item.id === offeringId);
+    const component = offering?.course?.gradeComponents?.find((item) => item.kind === 'ASSIGNMENT');
+    const existing = assignments.filter((assignment) => assignment.offeringId === offeringId && assignment.id !== initial?.id);
+    const taken = new Set(existing.map((assignment) => Number(assignment.componentIndex)).filter(Boolean));
+    const hasRoom = component && existing.length < component.count;
+    const firstAvailable = component
+      ? Array.from({ length: component.count }, (_, index) => index + 1).find((slot) => hasRoom && !taken.has(slot))
+      : '';
+
+    setForm((current) => ({
+      ...current,
+      offeringId,
+      componentIndex: firstAvailable || '',
+      totalMarks: component?.totalPerInstance ?? current.totalMarks,
+    }));
+  };
+
+  const handleSlotChange = (componentIndex) => {
+    setForm((current) => ({
+      ...current,
+      componentIndex,
+      totalMarks: assignmentComponent?.totalPerInstance ?? current.totalMarks,
+    }));
+  };
+
   const fieldClass = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10 disabled:bg-slate-50';
   const labelClass = 'mb-1.5 block text-sm font-semibold text-slate-700';
 
@@ -56,6 +99,10 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
     e.preventDefault();
     if (!form.offeringId || !form.title || !form.dueDate) {
       toast.error('Course, title, and due date are required');
+      return;
+    }
+    if (assignmentComponent && !form.componentIndex) {
+      toast.error('Select an assignment number');
       return;
     }
     setSaving(true);
@@ -89,7 +136,7 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
               <label className={labelClass}>Course Offering</label>
               <select
                 value={form.offeringId}
-                onChange={(e) => set('offeringId', e.target.value)}
+                onChange={(e) => handleOfferingChange(e.target.value)}
                 required
                 disabled={!!initial}
                 className={fieldClass}
@@ -98,6 +145,27 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
                 {offerings.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.course?.code} — {o.course?.title} (Sec {o.section}) · {o.term?.code}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Assignment Number</label>
+              <select
+                value={form.componentIndex}
+                onChange={(e) => handleSlotChange(e.target.value)}
+                required={!!assignmentComponent}
+                disabled={!assignmentComponent}
+                className={fieldClass}
+              >
+                <option value="">
+                  {assignmentComponent
+                    ? (limitReached ? 'Assignment limit reached' : 'Select assignment number...')
+                    : 'No assignment component configured'}
+                </option>
+                {slotOptions.map((slot) => (
+                  <option key={slot} value={slot} disabled={limitReached || usedIndexes.has(slot)}>
+                    Assignment {slot}{limitReached || usedIndexes.has(slot) ? ' (used)' : ''}
                   </option>
                 ))}
               </select>
@@ -131,6 +199,7 @@ const AssignmentModal = ({ offerings, initial, onClose, onSave }) => {
                 <input
                   type="number" value={form.totalMarks} onChange={(e) => set('totalMarks', e.target.value)}
                   min={1} max={1000}
+                  disabled={!!assignmentComponent}
                   className={fieldClass}
                 />
               </div>
@@ -846,6 +915,12 @@ const TeacherAssignments = () => {
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                       <span>{a.offering?.course?.code} — {a.offering?.course?.title} (Sec {a.offering?.section})</span>
                       <span>&middot;</span>
+                      {a.componentIndex && (
+                        <>
+                          <span>Assignment {a.componentIndex}</span>
+                          <span>&middot;</span>
+                        </>
+                      )}
                       <span className="flex items-center gap-1"><Calendar size={12} /> {fmtDate(a.dueDate)}</span>
                       <span>&middot;</span>
                       {daysUntil(a.dueDate, a.status)}
@@ -967,10 +1042,10 @@ const TeacherAssignments = () => {
       )}
 
       {canManageCoursework && showModal && (
-        <AssignmentModal offerings={offerings} initial={null} onClose={() => setShowModal(false)} onSave={handleCreate} />
+        <AssignmentModal assignments={assignments} offerings={offerings} initial={null} onClose={() => setShowModal(false)} onSave={handleCreate} />
       )}
       {canManageCoursework && editTarget && (
-        <AssignmentModal offerings={offerings} initial={editTarget} onClose={() => setEditTarget(null)} onSave={handleUpdate} />
+        <AssignmentModal assignments={assignments} offerings={offerings} initial={editTarget} onClose={() => setEditTarget(null)} onSave={handleUpdate} />
       )}
       {submissionsFor && (
         <SubmissionsPanel

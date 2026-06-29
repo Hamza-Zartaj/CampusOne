@@ -1,4 +1,5 @@
 import prisma from '../prisma/client.js';
+import { syncQuizAttemptMark } from '../utils/courseworkMarks.js';
 
 // Strip correctAnswer from questions before sending to student
 const sanitizeQuestion = (q) => ({
@@ -413,6 +414,7 @@ const finalizeAttempt = async (attemptId, status, extra = {}, finalAnswers = [])
         ...extra,
       },
     });
+    await syncQuizAttemptMark({ client: tx, attempt, totalScore: autoScore, manualPending });
 
     return {
       ...updated,

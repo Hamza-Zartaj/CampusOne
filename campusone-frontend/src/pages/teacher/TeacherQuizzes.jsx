@@ -110,9 +110,10 @@ const QuestionEditor = ({ question, index, onChange, onRemove }) => {
 };
 
 // ─── Quiz Modal ─────────────────────────────────────────────────────────────
-const QuizModal = ({ offerings, initial, onClose, onSave }) => {
+const QuizModal = ({ offerings, quizzes = [], initial, onClose, onSave }) => {
   const [form, setForm] = useState({
     offeringId: initial?.offeringId ?? '',
+    componentIndex: initial?.componentIndex ?? '',
     title: initial?.title ?? '',
     description: initial?.description ?? '',
     durationMinutes: initial?.durationMinutes ?? 30,
@@ -204,6 +205,35 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
   };
 
   const selectedOffering = offerings.find((offering) => offering.id === form.offeringId);
+  const quizComponent = selectedOffering?.course?.gradeComponents?.find((component) => component.kind === 'QUIZ');
+  const existingCount = quizzes.filter((quiz) => quiz.offeringId === form.offeringId && quiz.id !== initial?.id).length;
+  const usedIndexes = new Set(
+    quizzes
+      .filter((quiz) => quiz.offeringId === form.offeringId && quiz.id !== initial?.id)
+      .map((quiz) => Number(quiz.componentIndex))
+      .filter(Boolean)
+  );
+  const slotOptions = quizComponent
+    ? Array.from({ length: quizComponent.count }, (_, index) => index + 1)
+    : [];
+  const limitReached = Boolean(quizComponent) && existingCount >= quizComponent.count;
+
+  const handleOfferingChange = (offeringId) => {
+    const offering = offerings.find((item) => item.id === offeringId);
+    const component = offering?.course?.gradeComponents?.find((item) => item.kind === 'QUIZ');
+    const existing = quizzes.filter((quiz) => quiz.offeringId === offeringId && quiz.id !== initial?.id);
+    const taken = new Set(existing.map((quiz) => Number(quiz.componentIndex)).filter(Boolean));
+    const hasRoom = component && existing.length < component.count;
+    const firstAvailable = component
+      ? Array.from({ length: component.count }, (_, index) => index + 1).find((slot) => hasRoom && !taken.has(slot))
+      : '';
+
+    setForm((current) => ({
+      ...current,
+      offeringId,
+      componentIndex: firstAvailable || '',
+    }));
+  };
 
   const handleAIGenerate = async () => {
     if (!form.offeringId) {
@@ -242,6 +272,10 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
     e.preventDefault();
     if (!form.offeringId || !form.title || !form.startAt || !form.endAt) {
       toast.error('Course, title, start, and end times are required');
+      return;
+    }
+    if (quizComponent && !form.componentIndex) {
+      toast.error('Select a quiz number');
       return;
     }
     if (questions.length === 0) {
@@ -307,7 +341,7 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
               <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Course Offering</label>
               <select
                 value={form.offeringId}
-                onChange={(e) => set('offeringId', e.target.value)}
+                onChange={(e) => handleOfferingChange(e.target.value)}
                 required disabled={!!initial}
                 className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500 disabled:bg-slate-50"
               >
@@ -315,6 +349,28 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
                 {offerings.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.course?.code} — {o.course?.title} (Sec {o.section}) · {o.term?.code}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Quiz Number</label>
+              <select
+                value={form.componentIndex}
+                onChange={(e) => set('componentIndex', e.target.value)}
+                required={!!quizComponent}
+                disabled={!quizComponent}
+                className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500 disabled:bg-slate-50"
+              >
+                <option value="">
+                  {quizComponent
+                    ? (limitReached ? 'Quiz limit reached' : 'Select quiz number...')
+                    : 'No quiz component configured'}
+                </option>
+                {slotOptions.map((slot) => (
+                  <option key={slot} value={slot} disabled={limitReached || usedIndexes.has(slot)}>
+                    Quiz {slot}{limitReached || usedIndexes.has(slot) ? ' (used)' : ''}
                   </option>
                 ))}
               </select>
@@ -408,7 +464,9 @@ const QuizModal = ({ offerings, initial, onClose, onSave }) => {
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                 <div>
                   <h3 className="text-base font-semibold text-slate-800 m-0">Questions ({questions.length})</h3>
-                  <p className="text-xs text-slate-500">Total marks: {totalMarks}</p>
+                  <p className="text-xs text-slate-500">
+                    Total marks: {totalMarks}{quizComponent ? ` · Grade column /${quizComponent.totalPerInstance}` : ''}
+                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
@@ -915,6 +973,7 @@ const TeacherQuizzes = () => {
                       </p>
                       <div className="flex items-center flex-wrap gap-4 mt-3 text-sm text-slate-600">
                         <span className="inline-flex items-center gap-1"><ListChecks size={14} /> {q._count?.questions ?? 0} questions</span>
+                        {q.componentIndex && <span className="inline-flex items-center gap-1">Quiz {q.componentIndex}</span>}
                         <span className="inline-flex items-center gap-1"><Award size={14} /> {q.totalMarks} marks</span>
                         <span className="inline-flex items-center gap-1"><Clock size={14} /> {q.durationMinutes} min</span>
                         <span className="inline-flex items-center gap-1"><Users size={14} /> {q._count?.attempts ?? 0} attempts</span>
@@ -936,6 +995,7 @@ const TeacherQuizzes = () => {
 
       {canManageCoursework && showModal && (
         <QuizModal
+          quizzes={quizzes}
           offerings={offerings}
           initial={editing}
           onClose={() => { setShowModal(false); setEditing(null); }}

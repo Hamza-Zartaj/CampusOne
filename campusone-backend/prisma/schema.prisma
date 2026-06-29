@@ -566,6 +566,7 @@ enum SimilarityReviewDecision {
 model Assignment {
   id            String           @id @default(cuid())
   offeringId    String
+  componentIndex Int?
   title         String
   description   String?
   totalMarks    Float            @default(100)
@@ -583,6 +584,7 @@ model Assignment {
   updatedAt DateTime @updatedAt
 
   @@index([offeringId])
+  @@unique([offeringId, componentIndex])
   @@index([dueDate])
   @@index([status])
 }
@@ -784,6 +786,7 @@ enum QuizAttemptStatus {
 model Quiz {
   id               String     @id @default(cuid())
   offeringId       String
+  componentIndex   Int?
   title            String
   description      String?
   totalMarks       Float      @default(0)
@@ -803,6 +806,7 @@ model Quiz {
   updatedAt DateTime @updatedAt
 
   @@index([offeringId])
+  @@unique([offeringId, componentIndex])
   @@index([status])
   @@index([startAt])
 }

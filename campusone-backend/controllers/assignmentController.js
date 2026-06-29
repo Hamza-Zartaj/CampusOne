@@ -3,6 +3,7 @@ import { uploadToStorage, deleteFromStorage, pathFromUrl } from '../utils/supaba
 import { v4 as uuidv4 } from 'uuid';
 import { notify, notifyMany, TYPE } from '../services/notificationService.js';
 import { getGradingWindowError } from '../utils/gradingWindow.js';
+import { syncCourseworkMark, validateCourseworkSlot } from '../utils/courseworkMarks.js';
 
 const BUCKET = 'assignments';
 
@@ -132,13 +133,22 @@ export const createAssignment = async (req, res) => {
     const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
     if (!teacher) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
 
-    const { offeringId, title, description, totalMarks, dueDate, allowLate, status } = req.body;
+    const { offeringId, title, description, totalMarks, dueDate, allowLate, status, componentIndex } = req.body;
     if (!offeringId || !title || !dueDate) {
       return res.status(400).json({ success: false, message: 'offeringId, title, and dueDate are required' });
     }
 
     const offering = await prisma.courseOffering.findFirst({ where: { id: offeringId, teacherId: teacher.id } });
     if (!offering) return res.status(403).json({ success: false, message: 'Not your offering' });
+
+    const slot = await validateCourseworkSlot({
+      client: prisma,
+      offeringId,
+      kind: 'ASSIGNMENT',
+      componentIndex,
+      model: 'assignment',
+    });
+    if (slot.error) return res.status(400).json({ success: false, message: slot.error });
 
     let attachmentUrl = null;
     if (req.file) {
@@ -150,9 +160,10 @@ export const createAssignment = async (req, res) => {
     const assignment = await prisma.assignment.create({
       data: {
         offeringId,
+        componentIndex: slot.index,
         title,
         description: description || null,
-        totalMarks: totalMarks ? +totalMarks : 100,
+        totalMarks: slot.component.totalPerInstance || (totalMarks ? +totalMarks : 100),
         dueDate: new Date(dueDate),
         allowLate: allowLate === 'true' || allowLate === true,
         attachmentUrl,
@@ -200,7 +211,17 @@ export const updateAssignment = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not your assignment' });
     }
 
-    const { title, description, totalMarks, dueDate, allowLate, status } = req.body;
+    const { title, description, totalMarks, dueDate, allowLate, status, componentIndex } = req.body;
+    const nextComponentIndex = componentIndex !== undefined ? componentIndex : existing.componentIndex;
+    const slot = await validateCourseworkSlot({
+      client: prisma,
+      offeringId: existing.offeringId,
+      kind: 'ASSIGNMENT',
+      componentIndex: nextComponentIndex,
+      model: 'assignment',
+      excludeId: existing.id,
+    });
+    if (slot.error) return res.status(400).json({ success: false, message: slot.error });
 
     let attachmentUrl = existing.attachmentUrl;
     if (req.file) {
@@ -219,7 +240,8 @@ export const updateAssignment = async (req, res) => {
       data: {
         title: title ?? existing.title,
         description: description !== undefined ? description : existing.description,
-        totalMarks: totalMarks !== undefined ? +totalMarks : existing.totalMarks,
+        componentIndex: slot.index,
+        totalMarks: slot.component.totalPerInstance || (totalMarks !== undefined ? +totalMarks : existing.totalMarks),
         dueDate: dueDate ? new Date(dueDate) : existing.dueDate,
         allowLate: allowLate !== undefined ? (allowLate === 'true' || allowLate === true) : existing.allowLate,
         status: status ?? existing.status,
@@ -408,15 +430,29 @@ export const gradeSubmission = async (req, res) => {
       });
     }
 
-    const updated = await prisma.submission.update({
-      where: { id: req.params.id },
-      data: {
+    const updated = await prisma.$transaction(async (tx) => {
+      const saved = await tx.submission.update({
+        where: { id: req.params.id },
+        data: {
+          obtainedMarks: requestedMarks,
+          feedback: cleanFeedback,
+          status: 'GRADED',
+          gradedAt: new Date(),
+          gradedBy: graderId,
+        },
+      });
+      await syncCourseworkMark({
+        client: tx,
+        offeringId: submission.assignment.offering.id,
+        studentId: submission.studentId,
+        kind: 'ASSIGNMENT',
+        componentIndex: submission.assignment.componentIndex,
+        title: submission.assignment.title,
+        date: submission.assignment.dueDate,
+        totalMarks: submission.assignment.totalMarks,
         obtainedMarks: requestedMarks,
-        feedback: cleanFeedback,
-        status: 'GRADED',
-        gradedAt: new Date(),
-        gradedBy: graderId,
-      },
+      });
+      return saved;
     });
 
     // Notify student
@@ -489,8 +525,8 @@ export const approvePendingSubmissionGrade = async (req, res) => {
       return res.status(409).json({ success: false, code: 'GRADE_WINDOW_CLOSED', message: gradingWindowError });
     }
 
-    const [updatedSubmission, updatedPending] = await prisma.$transaction([
-      prisma.submission.update({
+    const { updatedSubmission, updatedPending } = await prisma.$transaction(async (tx) => {
+      const savedSubmission = await tx.submission.update({
         where: { id: pending.submissionId },
         data: {
           obtainedMarks: pending.marksAwarded,
@@ -499,8 +535,19 @@ export const approvePendingSubmissionGrade = async (req, res) => {
           gradedAt: new Date(),
           gradedBy: pending.taStudentId,
         },
-      }),
-      prisma.tAPendingGrade.update({
+      });
+      await syncCourseworkMark({
+        client: tx,
+        offeringId: pending.submission.assignment.offering.id,
+        studentId: pending.submission.studentId,
+        kind: 'ASSIGNMENT',
+        componentIndex: pending.submission.assignment.componentIndex,
+        title: pending.submission.assignment.title,
+        date: pending.submission.assignment.dueDate,
+        totalMarks: pending.submission.assignment.totalMarks,
+        obtainedMarks: pending.marksAwarded,
+      });
+      const savedPending = await tx.tAPendingGrade.update({
         where: { id: pending.id },
         data: {
           status: 'APPROVED',
@@ -509,8 +556,9 @@ export const approvePendingSubmissionGrade = async (req, res) => {
           reviewNotes: req.body.reviewNotes ? String(req.body.reviewNotes).trim().slice(0, 1000) : null,
           appliedGrade: pending.marksAwarded,
         },
-      }),
-    ]);
+      });
+      return { updatedSubmission: savedSubmission, updatedPending: savedPending };
+    });
 
     if (pending.submission.student?.userId) {
       await notify({
@@ -646,6 +694,17 @@ export const submitAssignment = async (req, res) => {
         },
       });
     }
+    await syncCourseworkMark({
+      client: prisma,
+      offeringId: assignment.offeringId,
+      studentId: student.id,
+      kind: 'ASSIGNMENT',
+      componentIndex: assignment.componentIndex,
+      title: assignment.title,
+      date: assignment.dueDate,
+      totalMarks: assignment.totalMarks,
+      obtainedMarks: null,
+    });
     res.status(201).json({ success: true, data: submission });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
