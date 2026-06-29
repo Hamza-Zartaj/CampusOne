@@ -2,6 +2,7 @@ import prisma from '../prisma/client.js';
 import { uploadToBucket, isStorageConfigured } from '../services/storageService.js';
 import { notifyMany, TYPE } from '../services/notificationService.js';
 import { assertDateWithinTerm, parseDateOnly, toDateOnlyString } from '../utils/dateOnly.js';
+import { findHolidayForDate } from '../utils/holidayRules.js';
 
 const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
@@ -15,6 +16,18 @@ const assertLectureDateMatchesTimetable = async (offering, dateString) => {
     const start = toDateOnlyString(offering.term.startDate);
     const end = toDateOnlyString(offering.term.endDate);
     return { ok: false, message: `lecture date must be within term bounds (${start} to ${end})` };
+  }
+
+  const holiday = await findHolidayForDate({
+    dateString,
+    dateValue,
+    termId: offering.termId,
+  });
+  if (holiday) {
+    return {
+      ok: false,
+      message: `${toDateOnlyString(dateValue)} is a holiday (${holiday.name}). Lectures cannot be created on holidays.`,
+    };
   }
 
   const dayOfWeek = DAY_CODES[dateValue.getUTCDay()];
@@ -31,6 +44,24 @@ const assertLectureDateMatchesTimetable = async (offering, dateString) => {
   }
 
   return { ok: true, dateValue, sessions };
+};
+
+const assertNoDuplicateLectureDate = async ({ offeringId, dateValue, lectureId }) => {
+  const duplicate = await prisma.lecture.findFirst({
+    where: {
+      offeringId,
+      date: dateValue,
+      ...(lectureId ? { NOT: { id: lectureId } } : {}),
+    },
+    select: { id: true, title: true },
+  });
+
+  if (!duplicate) return { ok: true };
+  return {
+    ok: false,
+    code: 409,
+    message: `A lecture already exists for this offering on ${toDateOnlyString(dateValue)}.`,
+  };
 };
 
 const assertOfferingAccess = async (offeringId, user) => {
@@ -57,7 +88,7 @@ export const listLectures = async (req, res) => {
     if (!offeringId) return res.status(400).json({ success: false, message: 'offeringId required' });
     const lectures = await prisma.lecture.findMany({
       where: { offeringId },
-      orderBy: { date: 'desc' },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     });
     res.json({ success: true, data: lectures });
   } catch (err) {
@@ -76,6 +107,8 @@ export const createLecture = async (req, res) => {
     if (!access.ok) return res.status(access.code).json({ success: false, message: access.message });
     const dateCheck = await assertLectureDateMatchesTimetable(access.offering, date);
     if (!dateCheck.ok) return res.status(400).json({ success: false, message: dateCheck.message });
+    const duplicateCheck = await assertNoDuplicateLectureDate({ offeringId, dateValue: dateCheck.dateValue });
+    if (!duplicateCheck.ok) return res.status(duplicateCheck.code).json({ success: false, message: duplicateCheck.message });
 
     let materialUrl = null, materialName = null;
     if (req.file) {
@@ -134,6 +167,12 @@ export const updateLecture = async (req, res) => {
     if (date) {
       const dateCheck = await assertLectureDateMatchesTimetable(access.offering, date);
       if (!dateCheck.ok) return res.status(400).json({ success: false, message: dateCheck.message });
+      const duplicateCheck = await assertNoDuplicateLectureDate({
+        offeringId: existing.offeringId,
+        dateValue: dateCheck.dateValue,
+        lectureId: existing.id,
+      });
+      if (!duplicateCheck.ok) return res.status(duplicateCheck.code).json({ success: false, message: duplicateCheck.message });
       dateValue = dateCheck.dateValue;
     }
     let materialUrl = existing.materialUrl;

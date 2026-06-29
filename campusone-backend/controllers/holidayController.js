@@ -1,4 +1,5 @@
 import prisma from '../prisma/client.js';
+import { parseDateOnly } from '../utils/dateOnly.js';
 
 // GET /api/holidays?termId=X&year=2026
 export const getAllHolidays = async (req, res) => {
@@ -24,10 +25,14 @@ export const createHoliday = async (req, res) => {
   try {
     const { date, name, isRecurring, termId } = req.body;
     if (!date || !name) return res.status(400).json({ success: false, message: 'date and name required' });
+    const dateValue = parseDateOnly(date);
+    if (!dateValue) {
+      return res.status(400).json({ success: false, message: 'date must be a real calendar date in YYYY-MM-DD format' });
+    }
 
     const holiday = await prisma.holiday.create({
       data: {
-        date: new Date(date),
+        date: dateValue,
         name,
         isRecurring: !!isRecurring,
         termId: termId || null,

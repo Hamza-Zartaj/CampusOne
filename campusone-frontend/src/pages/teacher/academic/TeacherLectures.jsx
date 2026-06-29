@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Plus, Trash2, Edit, Download, X, BookOpen, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { lectureAPI, offeringAPI } from '../../../utils/api';
+import { holidayAPI, lectureAPI, offeringAPI } from '../../../utils/api';
 
 const inputClass = 'w-full py-2 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10';
 const labelClass = 'block text-sm font-medium text-slate-700 mb-1.5';
@@ -32,40 +32,97 @@ const parseDateInput = (value) => {
 
 const TODAY = formatDateInput(new Date());
 const toDateOnly = (value) => (value ? String(value).slice(0, 10) : '');
-const minDate = (a, b) => (a && b ? (a < b ? a : b) : a || b || '');
+const maxDate = (a, b) => (a && b ? (a > b ? a : b) : a || b || '');
 const getDayCode = (dateString) => {
   const date = parseDateInput(dateString);
   return date ? DAY_CODES[date.getDay()] : null;
 };
 
-const getLatestScheduledDate = (offering) => {
+const getHolidayForDate = (dateString, holidays, termId) => {
+  if (!dateString) return null;
+  const monthDay = dateString.slice(5);
+  return (holidays || []).find((holiday) => {
+    if (holiday.termId && holiday.termId !== termId) return false;
+    const holidayDate = toDateOnly(holiday.date);
+    return holidayDate === dateString || (holiday.isRecurring && holidayDate.slice(5) === monthDay);
+  }) || null;
+};
+
+const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+const sortLecturesByDate = (items = []) => (
+  [...items].sort((a, b) => (
+    toDateOnly(a.date).localeCompare(toDateOnly(b.date)) ||
+    String(a.createdAt || '').localeCompare(String(b.createdAt || ''))
+  ))
+);
+const fmtSlotDate = (dateString) => {
+  const date = parseDateInput(dateString);
+  return date
+    ? date.toLocaleDateString('en-US', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+    : dateString;
+};
+
+const buildLectureDateOptions = ({ offering, lectures, holidays, existing }) => {
   const sessions = offering?.sessions || [];
   const scheduledDays = new Set(sessions.map((session) => session.dayOfWeek));
-  if (!scheduledDays.size) return TODAY;
+  if (!offering || !scheduledDays.size) return [];
 
   const termStart = toDateOnly(offering?.term?.startDate);
   const termEnd = toDateOnly(offering?.term?.endDate);
-  const latestAllowed = minDate(TODAY, termEnd || TODAY) || TODAY;
   const earliestAllowed = termStart || '1900-01-01';
-  const cursor = parseDateInput(latestAllowed);
+  const latestAllowed = termEnd || '2999-12-31';
+  const existingLectureDates = new Set(
+    (lectures || [])
+      .filter((lecture) => lecture.id !== existing?.id)
+      .map((lecture) => toDateOnly(lecture.date))
+      .filter(Boolean)
+  );
 
+  const isAvailable = (dateString) => (
+    dateString >= earliestAllowed &&
+    dateString <= latestAllowed &&
+    scheduledDays.has(getDayCode(dateString)) &&
+    !existingLectureDates.has(dateString) &&
+    !getHolidayForDate(dateString, holidays, offering.termId)
+  );
+
+  const makeOption = (dateString, type) => {
+    const dayOfWeek = getDayCode(dateString);
+    const slots = sessions
+      .filter((session) => session.dayOfWeek === dayOfWeek)
+      .map((session) => `slot ${session.slotIndex}${session.room?.code ? ` (${session.room.code})` : ''}`)
+      .join(', ');
+    return {
+      date: dateString,
+      type,
+      label: `${type === 'previous' ? 'Previous missed' : 'Upcoming'} - ${fmtSlotDate(dateString)}`,
+      detail: slots,
+    };
+  };
+
+  let previous = null;
+  const cursor = parseDateInput(TODAY);
+  if (cursor) cursor.setDate(cursor.getDate() - 1);
   for (let i = 0; i < 370 && cursor; i += 1) {
     const key = formatDateInput(cursor);
     if (key < earliestAllowed) break;
-    if (scheduledDays.has(DAY_CODES[cursor.getDay()])) return key;
+    if (isAvailable(key)) {
+      previous = makeOption(key, 'previous');
+      break;
+    }
     cursor.setDate(cursor.getDate() - 1);
   }
 
-  const forwardCursor = parseDateInput(termStart || TODAY);
-  const lastAllowed = termEnd || '2999-12-31';
+  const upcoming = [];
+  const forwardCursor = parseDateInput(maxDate(TODAY, earliestAllowed));
   for (let i = 0; i < 370 && forwardCursor; i += 1) {
     const key = formatDateInput(forwardCursor);
-    if (key > lastAllowed) break;
-    if (scheduledDays.has(DAY_CODES[forwardCursor.getDay()])) return key;
+    if (key > latestAllowed || upcoming.length >= 2) break;
+    if (isAvailable(key)) upcoming.push(makeOption(key, 'upcoming'));
     forwardCursor.setDate(forwardCursor.getDate() + 1);
   }
 
-  return latestAllowed;
+  return [previous, ...upcoming].filter(Boolean);
 };
 
 const downloadFile = async (url, filename) => {
@@ -82,14 +139,31 @@ const downloadFile = async (url, filename) => {
   }
 };
 
-const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
-
-const LectureForm = ({ offeringId, offering, existing, onClose, onSaved }) => {
-  const [date, setDate] = useState(existing?.date ? toDateOnly(existing.date) : getLatestScheduledDate(offering));
+const LectureForm = ({ offeringId, offering, lectures, holidays, existing, onClose, onSaved }) => {
+  const existingDate = existing?.date ? toDateOnly(existing.date) : '';
+  const lectureDateOptions = useMemo(() => buildLectureDateOptions({
+    offering,
+    lectures,
+    holidays,
+    existing,
+  }), [existing, holidays, lectures, offering]);
+  const [date, setDate] = useState(existingDate || lectureDateOptions[0]?.date || '');
   const [title, setTitle] = useState(existing?.title || '');
   const [description, setDescription] = useState(existing?.description || '');
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (existingDate) {
+      setDate(existingDate);
+      return;
+    }
+    setDate((currentDate) => (
+      lectureDateOptions.some((option) => option.date === currentDate)
+        ? currentDate
+        : lectureDateOptions[0]?.date || ''
+    ));
+  }, [existingDate, lectureDateOptions]);
 
   const selectedDateState = useMemo(() => {
     const dayOfWeek = getDayCode(date);
@@ -97,13 +171,20 @@ const LectureForm = ({ offeringId, offering, existing, onClose, onSaved }) => {
     const termStart = toDateOnly(offering?.term?.startDate);
     const termEnd = toDateOnly(offering?.term?.endDate);
     const maxAllowed = termEnd || '';
+    const holiday = getHolidayForDate(date, holidays, offering?.termId);
+    const duplicateLecture = (lectures || []).find((lecture) => (
+      lecture.id !== existing?.id && toDateOnly(lecture.date) === date
+    ));
 
     let reason = '';
     if (!offering) reason = 'Offering details are still loading.';
     else if (!offering.sessions?.length) reason = 'No timetable slots are configured for this offering.';
-    else if (!date) reason = 'Select a lecture date.';
+    else if (!existing && !lectureDateOptions.length) reason = 'No available lecture slots found. Holidays and existing lectures are skipped.';
+    else if (!date) reason = 'Select a lecture slot.';
     else if (termStart && date < termStart) reason = `Date is before the term start (${termStart}).`;
     else if (termEnd && date > termEnd) reason = `Date is after the term end (${termEnd}).`;
+    else if (holiday) reason = `${holiday.name} is a holiday on this date. Lectures cannot be created on holidays.`;
+    else if (duplicateLecture) reason = `A lecture already exists on this date: ${duplicateLecture.title}.`;
     else if (!timetableSessions.length) reason = `No ${DAY_NAMES[dayOfWeek] || 'scheduled'} slot exists for this offering.`;
 
     return {
@@ -114,7 +195,7 @@ const LectureForm = ({ offeringId, offering, existing, onClose, onSaved }) => {
       canSaveDate: !reason,
       reason,
     };
-  }, [date, offering]);
+  }, [date, existing, holidays, lectureDateOptions.length, lectures, offering]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -148,16 +229,34 @@ const LectureForm = ({ offeringId, offering, existing, onClose, onSaved }) => {
         </div>
         <form onSubmit={submit} className="p-5 space-y-3">
           <div>
-            <label className={labelClass}>Date *</label>
-            <input
-              type="date"
-              className={inputClass}
-              value={date}
-              min={selectedDateState.minAllowed}
-              max={selectedDateState.maxAllowed}
-              onChange={(e) => setDate(e.target.value)}
-              required
-            />
+            <label className={labelClass}>{existing ? 'Date *' : 'Lecture slot *'}</label>
+            {existing ? (
+              <input
+                type="date"
+                className={inputClass}
+                value={date}
+                min={selectedDateState.minAllowed}
+                max={selectedDateState.maxAllowed}
+                onChange={(e) => setDate(e.target.value)}
+                required
+              />
+            ) : (
+              <select
+                className={inputClass}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                disabled={!lectureDateOptions.length}
+                required
+              >
+                {lectureDateOptions.length ? lectureDateOptions.map((option) => (
+                  <option key={option.date} value={option.date}>
+                    {option.label}{option.detail ? ` - ${option.detail}` : ''}
+                  </option>
+                )) : (
+                  <option value="">No available lecture slots</option>
+                )}
+              </select>
+            )}
             <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${
               selectedDateState.canSaveDate
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -207,6 +306,7 @@ const TeacherLectures = () => {
   const navigate = useNavigate();
   const [offering, setOffering] = useState(null);
   const [lectures, setLectures] = useState([]);
+  const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -214,12 +314,14 @@ const TeacherLectures = () => {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [offRes, lecRes] = await Promise.all([
+      const [offRes, lecRes, holRes] = await Promise.all([
         offeringAPI.getById(offeringId),
         lectureAPI.list(offeringId),
+        holidayAPI.getAll(),
       ]);
       setOffering(offRes.data.data);
-      setLectures(lecRes.data.data || []);
+      setLectures(sortLecturesByDate(lecRes.data.data || []));
+      setHolidays(holRes.data.data || []);
     } catch {
       toast.error('Failed to load lectures');
     } finally {
@@ -311,6 +413,8 @@ const TeacherLectures = () => {
         <LectureForm
           offeringId={offeringId}
           offering={offering}
+          lectures={lectures}
+          holidays={holidays}
           existing={editing}
           onClose={() => { setShowForm(false); setEditing(null); }}
           onSaved={() => { setShowForm(false); setEditing(null); load(); }}
