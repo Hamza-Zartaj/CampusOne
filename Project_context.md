@@ -188,7 +188,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Participation marks
 - [x] Assignment submission links in grade details
 - [x] Lectures and Supabase-hosted materials
-- [x] Lecture create/update dates are backend-validated against term bounds and the offering `ClassSession` timetable
+- [x] Lecture create/update dates are backend-validated against term bounds, holidays, existing lecture dates, and the offering `ClassSession` timetable
 
 ### Assignments and attendance
 
@@ -207,7 +207,8 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Submission grading and feedback
 - [x] TA self-grading prevention for assignment submissions
 - [x] Attendance batch marking
-- [x] Attendance batch marking is backend-validated against term bounds and the offering `ClassSession` timetable
+- [x] Attendance batch marking is backend-validated against term bounds, holidays, the offering `ClassSession` timetable, and an existing lecture for the same offering/date
+- [x] Attendance page can create a missing lecture inline before marking attendance
 - [x] Attendance sessions and summaries
 - [x] Student attendance view
 - [x] Low-attendance flag below 75%
@@ -373,7 +374,8 @@ Only open work belongs here. Move an item to the verified feature inventory or r
 - Mutations affecting cached GET endpoints must invalidate the matching API cache prefixes.
 - Notification changes may involve database rows, Socket.IO, cron metadata, email, and client state.
 - Uploaded files should use Supabase Storage rather than local persistent uploads.
-- Attendance and lecture dates must not be treated as free-form dates; backend mutations must validate term bounds and the offering `ClassSession` timetable.
+- Attendance and lecture dates must not be treated as free-form dates; backend mutations must validate term bounds, holidays, and the offering `ClassSession` timetable.
+- Attendance marking requires an existing lecture for the same offering/date; the teacher attendance page provides an inline create-lecture flow when one is missing.
 - Database invariants should be enforced in the schema when concurrency can bypass controller checks.
 - Avoid destructive `db:reset` unless data loss is explicitly intended.
 

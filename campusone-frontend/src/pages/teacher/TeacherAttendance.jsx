@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  BookOpen,
   Calendar,
   CheckCircle,
   ChevronRight,
@@ -10,7 +11,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { attendanceAPI, offeringAPI } from '../../utils/api';
+import { attendanceAPI, holidayAPI, lectureAPI, offeringAPI } from '../../utils/api';
 
 const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const DAY_NAMES = {
@@ -71,6 +72,16 @@ const TODAY = formatDateInput(new Date());
 const toDateOnly = (value) => (value ? String(value).slice(0, 10) : '');
 const minDate = (a, b) => (a && b ? (a < b ? a : b) : a || b || '');
 
+const getHolidayForDate = (dateString, holidays, termId) => {
+  if (!dateString) return null;
+  const monthDay = dateString.slice(5);
+  return (holidays || []).find((holiday) => {
+    if (holiday.termId && holiday.termId !== termId) return false;
+    const holidayDate = toDateOnly(holiday.date);
+    return holidayDate === dateString || (holiday.isRecurring && holidayDate.slice(5) === monthDay);
+  }) || null;
+};
+
 const getDayCode = (dateString) => {
   const date = parseDateInput(dateString);
   return date ? DAY_CODES[date.getDay()] : null;
@@ -83,6 +94,12 @@ const formatDisplayDate = (dateString) => {
 };
 
 const offeringLabel = (offering) => `${offering?.course?.code ?? ''} - ${offering?.section ?? ''}`;
+const sortLecturesByDate = (items = []) => (
+  [...items].sort((a, b) => (
+    toDateOnly(a.date).localeCompare(toDateOnly(b.date)) ||
+    String(a.createdAt || '').localeCompare(String(b.createdAt || ''))
+  ))
+);
 
 const getInitials = (name = '') =>
   name
@@ -101,7 +118,7 @@ const buildDefaultStatuses = (studentSummary) => {
   return map;
 };
 
-const getLatestScheduledDate = (offering) => {
+const getLatestScheduledDate = (offering, holidays = []) => {
   const sessions = offering?.sessions || [];
   const scheduledDays = new Set(sessions.map((session) => session.dayOfWeek));
   if (!scheduledDays.size) return TODAY;
@@ -115,7 +132,10 @@ const getLatestScheduledDate = (offering) => {
   for (let i = 0; i < 370 && cursor; i += 1) {
     const key = formatDateInput(cursor);
     if (key < earliestAllowed) break;
-    if (scheduledDays.has(DAY_CODES[cursor.getDay()])) return key;
+    if (
+      scheduledDays.has(DAY_CODES[cursor.getDay()]) &&
+      !getHolidayForDate(key, holidays, offering.termId)
+    ) return key;
     cursor.setDate(cursor.getDate() - 1);
   }
 
@@ -146,21 +166,30 @@ const StatusButtons = ({ value, onChange }) => (
 
 const TeacherAttendance = () => {
   const [offerings, setOfferings] = useState([]);
+  const [holidays, setHolidays] = useState([]);
   const [selected, setSelected] = useState(null);
   const [view, setView] = useState('mark');
   const [sessions, setSessions] = useState([]);
+  const [lectures, setLectures] = useState([]);
   const [studentSummary, setStudentSummary] = useState([]);
   const [statuses, setStatuses] = useState({});
   const [markDate, setMarkDate] = useState(TODAY);
   const [saving, setSaving] = useState(false);
+  const [savingLecture, setSavingLecture] = useState(false);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [showLectureForm, setShowLectureForm] = useState(false);
+  const [lectureForm, setLectureForm] = useState({ title: '', description: '', file: null });
 
   useEffect(() => {
-    offeringAPI.getMy()
-      .then((response) => {
-        const list = response.data.data || [];
+    Promise.all([
+      offeringAPI.getMy(),
+      holidayAPI.getAll(),
+    ])
+      .then(([offeringResponse, holidayResponse]) => {
+        const list = offeringResponse.data.data || [];
         setOfferings(list);
+        setHolidays(holidayResponse.data.data || []);
         if (list.length) setSelected(list[0]);
       })
       .catch(() => toast.error('Failed to load offerings'));
@@ -168,10 +197,12 @@ const TeacherAttendance = () => {
 
   useEffect(() => {
     if (!selected) return;
-    setMarkDate(getLatestScheduledDate(selected));
+    setMarkDate(getLatestScheduledDate(selected, holidays));
     setStatuses({});
     setSearch('');
-  }, [selected]);
+    setShowLectureForm(false);
+    setLectureForm({ title: '', description: '', file: null });
+  }, [holidays, selected]);
 
   useEffect(() => {
     if (!selected) return;
@@ -179,10 +210,12 @@ const TeacherAttendance = () => {
     Promise.all([
       attendanceAPI.getSessions(selected.id),
       attendanceAPI.getStudentSummary(selected.id),
+      lectureAPI.list(selected.id),
     ])
-      .then(([sessionResponse, studentResponse]) => {
+      .then(([sessionResponse, studentResponse, lectureResponse]) => {
         setSessions(sessionResponse.data.data || []);
         setStudentSummary(studentResponse.data.data || []);
+        setLectures(sortLecturesByDate(lectureResponse.data.data || []));
       })
       .catch(() => toast.error('Failed to load attendance data'))
       .finally(() => setLoading(false));
@@ -194,19 +227,29 @@ const TeacherAttendance = () => {
     const termStart = toDateOnly(selected?.term?.startDate);
     const termEnd = toDateOnly(selected?.term?.endDate);
     const maxAllowed = minDate(TODAY, termEnd || TODAY) || TODAY;
+    const holiday = getHolidayForDate(markDate, holidays, selected?.termId);
+    const lecture = (lectures || []).find((item) => toDateOnly(item.date) === markDate);
 
     let reason = '';
+    let needsLecture = false;
     if (!selected) reason = 'Select an offering first.';
     else if (!selected.sessions?.length) reason = 'No timetable sessions are configured for this offering.';
     else if (!markDate) reason = 'Select a lecture date.';
     else if (markDate > TODAY) reason = 'Future attendance cannot be marked.';
     else if (termStart && markDate < termStart) reason = `Date is before the term start (${termStart}).`;
     else if (termEnd && markDate > termEnd) reason = `Date is after the term end (${termEnd}).`;
+    else if (holiday) reason = `${holiday.name} is a holiday on this date. Attendance cannot be marked on holidays.`;
     else if (!timetableSessions.length) reason = `No ${DAY_NAMES[dayOfWeek] || 'scheduled'} lecture exists for this offering.`;
+    else if (!lecture) {
+      needsLecture = true;
+      reason = 'Create a lecture for this date before marking attendance.';
+    }
 
     return {
       dayOfWeek,
       timetableSessions,
+      lecture,
+      needsLecture,
       termStart,
       termEnd,
       minAllowed: termStart || '',
@@ -214,7 +257,7 @@ const TeacherAttendance = () => {
       canMark: !reason,
       reason,
     };
-  }, [selected, markDate]);
+  }, [holidays, lectures, selected, markDate]);
 
   const loadMarkSession = useCallback(async () => {
     if (!selected || !studentSummary.length) return;
@@ -265,12 +308,51 @@ const TeacherAttendance = () => {
 
   const refreshAttendanceData = async () => {
     if (!selected) return;
-    const [sessionResponse, studentResponse] = await Promise.all([
+    const [sessionResponse, studentResponse, lectureResponse] = await Promise.all([
       attendanceAPI.getSessions(selected.id),
       attendanceAPI.getStudentSummary(selected.id),
+      lectureAPI.list(selected.id),
     ]);
     setSessions(sessionResponse.data.data || []);
     setStudentSummary(studentResponse.data.data || []);
+    setLectures(sortLecturesByDate(lectureResponse.data.data || []));
+  };
+
+  const openLectureForm = () => {
+    setLectureForm({
+      title: `Lecture - ${formatDisplayDate(markDate)}`,
+      description: '',
+      file: null,
+    });
+    setShowLectureForm(true);
+  };
+
+  const createLectureForDate = async (event) => {
+    event.preventDefault();
+    if (!selected || !markDate || !lectureForm.title.trim()) {
+      toast.error('Lecture title required');
+      return;
+    }
+
+    setSavingLecture(true);
+    try {
+      const formData = new FormData();
+      formData.append('offeringId', selected.id);
+      formData.append('date', markDate);
+      formData.append('title', lectureForm.title.trim());
+      if (lectureForm.description.trim()) formData.append('description', lectureForm.description.trim());
+      if (lectureForm.file) formData.append('material', lectureForm.file);
+
+      await lectureAPI.create(formData);
+      toast.success('Lecture created');
+      setShowLectureForm(false);
+      setLectureForm({ title: '', description: '', file: null });
+      await refreshAttendanceData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create lecture');
+    } finally {
+      setSavingLecture(false);
+    }
   };
 
   const saveAttendance = async () => {
@@ -437,9 +519,19 @@ const TeacherAttendance = () => {
                   </p>
                   <p className={`m-0 mt-1 text-sm ${selectedDateState.canMark ? 'text-emerald-700' : 'text-amber-800'}`}>
                     {selectedDateState.canMark
-                      ? `${selectedDateState.timetableSessions.length} scheduled lecture slot${selectedDateState.timetableSessions.length === 1 ? '' : 's'} found.`
+                      ? `${selectedDateState.lecture?.title || 'Lecture'} is ready for attendance.`
                       : selectedDateState.reason}
                   </p>
+                  {selectedDateState.needsLecture && (
+                    <button
+                      type="button"
+                      onClick={openLectureForm}
+                      className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-bold text-white transition hover:bg-slate-800"
+                    >
+                      <BookOpen size={15} />
+                      Create Lecture
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -688,6 +780,72 @@ const TeacherAttendance = () => {
             </div>
           )}
         </section>
+      )}
+
+      {showLectureForm && (
+        <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-200 p-5">
+              <div>
+                <h3 className="m-0 text-lg font-bold text-slate-900">Create Lecture</h3>
+                <p className="m-0 mt-1 text-sm text-slate-500">{formatDisplayDate(markDate)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLectureForm(false)}
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              >
+                <XCircle size={18} />
+              </button>
+            </div>
+            <form onSubmit={createLectureForDate} className="space-y-4 p-5">
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">Title *</label>
+                <input
+                  type="text"
+                  value={lectureForm.title}
+                  onChange={(event) => setLectureForm((previous) => ({ ...previous, title: event.target.value }))}
+                  className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                  required
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">Description (optional)</label>
+                <textarea
+                  rows={3}
+                  value={lectureForm.description}
+                  onChange={(event) => setLectureForm((previous) => ({ ...previous, description: event.target.value }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">Material (optional)</label>
+                <input
+                  type="file"
+                  onChange={(event) => setLectureForm((previous) => ({ ...previous, file: event.target.files?.[0] || null }))}
+                  className="w-full text-sm text-slate-700"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLectureForm(false)}
+                  className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingLecture}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <BookOpen size={16} />
+                  {savingLecture ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
