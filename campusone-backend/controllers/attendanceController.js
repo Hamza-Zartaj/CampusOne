@@ -1,6 +1,7 @@
 import prisma from '../prisma/client.js';
 import { reevaluateAfterAttendance } from './leaveController.js';
 import { assertDateWithinTerm, parseDateOnly, toDateOnlyString } from '../utils/dateOnly.js';
+import { findHolidayForDate } from '../utils/holidayRules.js';
 
 const VALID_ATTENDANCE_STATUSES = new Set(['PRESENT', 'ABSENT', 'LATE']);
 const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -67,11 +68,34 @@ export const markAttendance = async (req, res) => {
       return res.status(400).json({ success: false, message: `attendance date must be within term bounds (${start} to ${end})` });
     }
 
+    const holiday = await findHolidayForDate({
+      dateString: date,
+      dateValue,
+      termId: offeringWithTerm.termId,
+    });
+    if (holiday) {
+      return res.status(400).json({
+        success: false,
+        message: `${toDateOnlyString(dateValue)} is a holiday (${holiday.name}). Attendance cannot be marked on holidays.`,
+      });
+    }
+
     const timetable = await getTimetableMatch(offeringId, dateValue);
     if (!timetable.sessions.length) {
       return res.status(400).json({
         success: false,
         message: `No scheduled lecture for this offering on ${timetable.dayOfWeek}. Attendance must match the timetable.`,
+      });
+    }
+
+    const lecture = await prisma.lecture.findFirst({
+      where: { offeringId, date: dateValue },
+      select: { id: true },
+    });
+    if (!lecture) {
+      return res.status(409).json({
+        success: false,
+        message: `Create a lecture for ${toDateOnlyString(dateValue)} before marking attendance.`,
       });
     }
 
