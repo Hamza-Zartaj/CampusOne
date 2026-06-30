@@ -246,6 +246,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Tab/window and fullscreen violation tracking
 - [x] Copy, paste, context-menu, and common developer-tool shortcut blocking
 - [x] Violation-based automatic submission
+- [x] Quiz submit/start/answer mutations invalidate student quiz-list caches so submitted attempts disappear from active My Quizzes immediately
 - [x] Student result review after quiz closure
 
 ### Q&A, leave, and TA workflows
@@ -286,11 +287,12 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Frontend runtime diagnostics use a dev-only client logger wrapper
 - [x] Frontend route/page-level code splitting reduces the initial entry bundle
 - [x] Full and mini seed scripts
+- [x] Focused seed creates admin, teacher, student, TA, academic setup, grade components, schedule config, rooms, and class sessions without seeding assignments or quizzes
 - [x] Database helper scripts for push, reset, seed, super-admin, and Studio
 
 ## 7. Verification Snapshot
 
-Checks run through June 29, 2026:
+Checks run through June 30, 2026:
 
 - **Prisma schema:** valid
 - **Prisma Client generation:** passes
@@ -309,8 +311,9 @@ Checks run through June 29, 2026:
 - **Backend health endpoint:** OK with database connected
 - **Frontend development server:** HTTP 200
 - **Frontend production build:** passes
-- **Focused seed reset/reseed:** local Supabase database reset, pgvector extension enablement, Prisma schema push, Prisma Client generation, and `npm.cmd run db:seed` pass for the focused two-course test dataset
-- **Focused seed course grade configuration:** verified `CS101` and `CS201` each receive 6 lecture grade components; CS101 seeded assignments and quizzes are linked to component slots 1-4
+- **Student quiz cache invalidation:** frontend production build passes after quiz mutations were added to API cache invalidation for `/students/me` active quiz data
+- **Focused seed reset/reseed:** last full local run passed for the earlier focused two-course test dataset; the current seed is now assessment-free and was not re-run to avoid resetting local data
+- **Focused seed course/schedule baseline:** `node --check scripts\seed.js` passes; the seed now keeps CS101/CS201 grade components, schedule config, rooms, and class sessions while intentionally creating no assignment or quiz records
 - **Teacher marks grid assessment UI:** backend mark-component route/controller syntax checks and frontend production build pass after removing the visibility/weightage panel, showing only created coursework/configured assessment columns, adding in-page configured assessment creation, and allowing teacher-selected out-of marks with automatic weight scaling
 - **Coursework grade-slot linking:** Prisma schema validation, changed backend syntax checks, and frontend production build pass
 - **Quiz score scaling and averaged component weighting:** changed backend syntax checks and frontend production build pass

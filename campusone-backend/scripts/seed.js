@@ -7,10 +7,7 @@
  * - 10 students split between semester 1 and semester 3
  * - 1 active term with 2 courses and offerings
  * - 1 approved semester-3 TA assigned to the semester-1 offering
- * - assignment scenarios for draft, open, overdue, closed, grading, late work,
- *   and similarity scanning
- * - quiz scenarios for draft, upcoming, live, in-progress, closed, automatic
- *   grading, manual grading, review, and violation auto-submission
+ * - configured grade components without seeded assignments or quizzes
  * - timetable data with rooms, master schedule config, and weekly class sessions
  *
  * This script clears all application data before seeding.
@@ -142,400 +139,6 @@ const createTimetableData = async (semesterOneOfferingId, semesterThreeOfferingI
   });
 };
 
-const createAssignmentData = async (offeringId, students, teacherId) => {
-  await prisma.assignment.create({
-    data: {
-      offeringId,
-      componentIndex: 1,
-      title: 'Draft: Variables Practice',
-      description: 'Draft assignment used to test editing and publishing.',
-      totalMarks: 10,
-      dueDate: at({ days: 7 }),
-      allowLate: false,
-      status: 'DRAFT',
-    },
-  });
-
-  const openAssignment = await prisma.assignment.create({
-    data: {
-      offeringId,
-      componentIndex: 2,
-      title: 'Assignment 1: Control Flow',
-      description: 'Solve the conditional and loop exercises. Students 04-05 can submit this assignment from a clean state.',
-      totalMarks: 20,
-      dueDate: at({ days: 5 }),
-      allowLate: true,
-      status: 'PUBLISHED',
-    },
-  });
-
-  await prisma.submission.createMany({
-    data: [
-      {
-        assignmentId: openAssignment.id,
-        studentId: students[0].id,
-        submissionText: 'I implemented the exercises using if statements, for loops, and input validation.',
-        submittedAt: at({ days: -1 }),
-        status: 'SUBMITTED',
-      },
-      {
-        assignmentId: openAssignment.id,
-        studentId: students[1].id,
-        submissionText: 'My solution includes nested loops and comments explaining each step.',
-        submittedAt: at({ hours: -12 }),
-        status: 'SUBMITTED',
-      },
-      {
-        assignmentId: openAssignment.id,
-        studentId: students[2].id,
-        submissionText: 'Completed all control-flow exercises with sample output.',
-        submittedAt: at({ hours: -4 }),
-        status: 'SUBMITTED',
-      },
-    ],
-  });
-
-  await prisma.assignment.create({
-    data: {
-      offeringId,
-      componentIndex: 3,
-      title: 'Late Submission Test',
-      description: 'Published and overdue with late submissions enabled. Use an unsubmitted student to test the late workflow.',
-      totalMarks: 15,
-      dueDate: at({ days: -1 }),
-      allowLate: true,
-      status: 'PUBLISHED',
-    },
-  });
-
-  const closedAssignment = await prisma.assignment.create({
-    data: {
-      offeringId,
-      componentIndex: 4,
-      title: 'Assignment 2: Problem Solving',
-      description: 'Closed assignment containing graded, ungraded, late, and duplicate-text submissions.',
-      totalMarks: 25,
-      dueDate: at({ days: -3 }),
-      allowLate: true,
-      status: 'CLOSED',
-    },
-  });
-
-  await prisma.submission.createMany({
-    data: [
-      {
-        assignmentId: closedAssignment.id,
-        studentId: students[0].id,
-        submissionText: 'Implemented the array problem with validation and clear comments.',
-        submittedAt: at({ days: -5 }),
-        obtainedMarks: 23,
-        feedback: 'Excellent solution and explanation.',
-        gradedAt: at({ days: -1 }),
-        gradedBy: teacherId,
-        status: 'GRADED',
-      },
-      {
-        assignmentId: closedAssignment.id,
-        studentId: students[1].id,
-        submissionText: 'Used a loop to compare each value and track the current maximum.',
-        submittedAt: at({ days: -4 }),
-        obtainedMarks: 19,
-        feedback: 'Good work. Add more input validation.',
-        gradedAt: at({ days: -1 }),
-        gradedBy: teacherId,
-        status: 'GRADED',
-      },
-      {
-        assignmentId: closedAssignment.id,
-        studentId: students[2].id,
-        submissionText: 'Solution includes pseudocode, source code, and sample output.',
-        submittedAt: at({ days: -4 }),
-        status: 'SUBMITTED',
-      },
-      {
-        assignmentId: closedAssignment.id,
-        studentId: students[3].id,
-        submissionText: 'Submitted after the deadline with a complete working solution.',
-        submittedAt: at({ days: -2 }),
-        isLate: true,
-        status: 'LATE',
-      },
-      {
-        assignmentId: closedAssignment.id,
-        studentId: students[4].id,
-        submissionText: 'Late submission with comments and test cases.',
-        submittedAt: at({ days: -2 }),
-        isLate: true,
-        obtainedMarks: 16,
-        feedback: 'Correct, but submitted late.',
-        gradedAt: at({ hours: -18 }),
-        gradedBy: teacherId,
-        status: 'GRADED',
-      },
-    ],
-  });
-};
-
-const quizQuestions = [
-  {
-    type: 'MCQ',
-    questionText: 'Which data type stores a whole number?',
-    options: ['String', 'Integer', 'Boolean', 'Character'],
-    correctAnswer: 1,
-    marks: 4,
-    order: 1,
-  },
-  {
-    type: 'TRUE_FALSE',
-    questionText: 'A while loop may execute zero times.',
-    options: ['True', 'False'],
-    correctAnswer: 0,
-    marks: 3,
-    order: 2,
-  },
-  {
-    type: 'SHORT',
-    questionText: 'Briefly explain the difference between a compiler and an interpreter.',
-    options: [],
-    correctAnswer: 'A compiler translates a program before execution, while an interpreter executes it incrementally.',
-    marks: 3,
-    order: 3,
-  },
-];
-
-const createClosedAttempt = async ({
-  quiz,
-  questions,
-  studentId,
-  status = 'SUBMITTED',
-  violations = 0,
-  mcqAnswer,
-  trueFalseAnswer,
-  shortAnswer,
-  shortMarks = null,
-  shortFeedback = null,
-}) => {
-  const mcqCorrect = mcqAnswer === 1;
-  const trueFalseCorrect = trueFalseAnswer === 0;
-  const autoScore = (mcqCorrect ? 4 : 0) + (trueFalseCorrect ? 3 : 0);
-  const manualScore = shortMarks ?? 0;
-
-  return prisma.quizAttempt.create({
-    data: {
-      quizId: quiz.id,
-      studentId,
-      startedAt: at({ days: -3, minutes: -25 }),
-      submittedAt: at({ days: -3 }),
-      status,
-      totalScore: autoScore + manualScore,
-      autoGradedScore: autoScore,
-      manualScore,
-      violations,
-      violationLog: violations
-        ? Array.from({ length: violations }, (_, index) => ({
-            type: 'TAB_SWITCH',
-            at: at({ days: -3, minutes: -20 + index }).toISOString(),
-          }))
-        : [],
-      questionOrder: questions.map((question) => question.id),
-      answers: {
-        create: [
-          {
-            questionId: questions[0].id,
-            answer: mcqAnswer,
-            isCorrect: mcqCorrect,
-            marksAwarded: mcqCorrect ? 4 : 0,
-          },
-          {
-            questionId: questions[1].id,
-            answer: trueFalseAnswer,
-            isCorrect: trueFalseCorrect,
-            marksAwarded: trueFalseCorrect ? 3 : 0,
-          },
-          {
-            questionId: questions[2].id,
-            answer: shortAnswer,
-            isCorrect: shortMarks === null ? null : shortMarks === questions[2].marks,
-            marksAwarded: shortMarks ?? 0,
-            feedback: shortFeedback,
-          },
-        ],
-      },
-    },
-  });
-};
-
-const createQuizData = async (offeringId, students) => {
-  await prisma.quiz.create({
-    data: {
-      offeringId,
-      componentIndex: 1,
-      title: 'Draft Quiz: Variables',
-      description: 'Draft quiz for testing edit, question management, Excel import, publish, and delete.',
-      totalMarks: 10,
-      durationMinutes: 15,
-      startAt: at({ days: 4 }),
-      endAt: at({ days: 5 }),
-      status: 'DRAFT',
-      questions: {
-        create: [
-          {
-            type: 'MCQ',
-            questionText: 'Which keyword declares a constant in JavaScript?',
-            options: ['let', 'var', 'const', 'static'],
-            correctAnswer: 2,
-            marks: 10,
-            order: 1,
-          },
-        ],
-      },
-    },
-  });
-
-  await prisma.quiz.create({
-    data: {
-      offeringId,
-      componentIndex: 2,
-      title: 'Upcoming Quiz: Selection Statements',
-      description: 'Published but not yet open.',
-      totalMarks: 10,
-      durationMinutes: 20,
-      startAt: at({ days: 2 }),
-      endAt: at({ days: 3 }),
-      status: 'PUBLISHED',
-      shuffleQuestions: true,
-      questions: {
-        create: [
-          {
-            type: 'MCQ',
-            questionText: 'Which statement selects between multiple branches?',
-            options: ['if', 'import', 'return', 'class'],
-            correctAnswer: 0,
-            marks: 5,
-            order: 1,
-          },
-          {
-            type: 'TRUE_FALSE',
-            questionText: 'An else block is always required.',
-            options: ['True', 'False'],
-            correctAnswer: 1,
-            marks: 5,
-            order: 2,
-          },
-        ],
-      },
-    },
-  });
-
-  const liveQuiz = await prisma.quiz.create({
-    data: {
-      offeringId,
-      componentIndex: 3,
-      title: 'Live Quiz: Programming Basics',
-      description: 'Currently open. Student 01 has a resumable attempt; students 02-05 can start fresh.',
-      totalMarks: 10,
-      durationMinutes: 30,
-      startAt: at({ hours: -1 }),
-      endAt: at({ days: 1 }),
-      status: 'PUBLISHED',
-      shuffleQuestions: true,
-      maxViolations: 3,
-      allowReview: true,
-      questions: { create: quizQuestions },
-    },
-    include: { questions: { orderBy: { order: 'asc' } } },
-  });
-
-  await prisma.quizAttempt.create({
-    data: {
-      quizId: liveQuiz.id,
-      studentId: students[0].id,
-      startedAt: at({ minutes: -10 }),
-      status: 'IN_PROGRESS',
-      violations: 1,
-      violationLog: [{ type: 'TAB_SWITCH', at: at({ minutes: -8 }).toISOString() }],
-      questionOrder: liveQuiz.questions.map((question) => question.id),
-      answers: {
-        create: [
-          {
-            questionId: liveQuiz.questions[0].id,
-            answer: 1,
-          },
-          {
-            questionId: liveQuiz.questions[2].id,
-            answer: 'A compiler translates the program before it runs.',
-          },
-        ],
-      },
-    },
-  });
-
-  const closedQuiz = await prisma.quiz.create({
-    data: {
-      offeringId,
-      componentIndex: 4,
-      title: 'Closed Quiz: Foundations',
-      description: 'Completed attempts for automatic grading, manual grading, review, and violation testing.',
-      totalMarks: 10,
-      durationMinutes: 30,
-      startAt: at({ days: -4 }),
-      endAt: at({ days: -3 }),
-      status: 'CLOSED',
-      maxViolations: 3,
-      allowReview: true,
-      questions: { create: quizQuestions },
-    },
-    include: { questions: { orderBy: { order: 'asc' } } },
-  });
-
-  await createClosedAttempt({
-    quiz: closedQuiz,
-    questions: closedQuiz.questions,
-    studentId: students[0].id,
-    mcqAnswer: 1,
-    trueFalseAnswer: 0,
-    shortAnswer: 'A compiler translates everything first; an interpreter runs code step by step.',
-  });
-  await createClosedAttempt({
-    quiz: closedQuiz,
-    questions: closedQuiz.questions,
-    studentId: students[1].id,
-    mcqAnswer: 0,
-    trueFalseAnswer: 0,
-    shortAnswer: 'Compiler translates before running; interpreter processes during execution.',
-    shortMarks: 3,
-    shortFeedback: 'Clear and correct.',
-  });
-  await createClosedAttempt({
-    quiz: closedQuiz,
-    questions: closedQuiz.questions,
-    studentId: students[2].id,
-    status: 'AUTO_SUBMITTED',
-    violations: 3,
-    mcqAnswer: 1,
-    trueFalseAnswer: 1,
-    shortAnswer: 'They translate code in different ways.',
-  });
-  await createClosedAttempt({
-    quiz: closedQuiz,
-    questions: closedQuiz.questions,
-    studentId: students[3].id,
-    mcqAnswer: 1,
-    trueFalseAnswer: 0,
-    shortAnswer: 'A compiler builds an executable; an interpreter executes statements directly.',
-  });
-  await createClosedAttempt({
-    quiz: closedQuiz,
-    questions: closedQuiz.questions,
-    studentId: students[4].id,
-    mcqAnswer: 1,
-    trueFalseAnswer: 0,
-    shortAnswer: 'Compiler translates first, interpreter translates while running.',
-    shortMarks: 2,
-    shortFeedback: 'Good answer; mention whole-program translation.',
-  });
-};
-
 async function main() {
   console.log('Resetting application data...');
   await clearDatabase();
@@ -612,7 +215,7 @@ async function main() {
     data: {
       code: 'CS101',
       title: 'Programming Fundamentals',
-      description: 'First-semester course used for assignment and quiz testing.',
+      description: 'First-semester course ready for teacher-created assignments and quizzes.',
       creditHours: 3,
       departmentId: department.id,
       sessionType: 'LECTURE',
@@ -722,7 +325,6 @@ async function main() {
     ],
   });
 
-  const semesterOneStudents = [];
   const semesterThreeStudents = [];
   for (const [index, [username, name, studentId, currentSemester, batch]] of STUDENTS.entries()) {
     const user = await createUser({ username, name, role: 'student', password });
@@ -762,8 +364,6 @@ async function main() {
         },
       });
       semesterThreeStudents.push(student);
-    } else {
-      semesterOneStudents.push(student);
     }
   }
 
@@ -792,9 +392,6 @@ async function main() {
     },
   });
 
-  await createAssignmentData(semesterOneOffering.id, semesterOneStudents, teacher.id);
-  await createQuizData(semesterOneOffering.id, semesterOneStudents);
-
   console.log('\nFocused CampusOne test database is ready.');
   console.log(`Default password: ${PASSWORD}`);
   console.log('Admin:   admin');
@@ -803,13 +400,13 @@ async function main() {
   console.log('Semester 1: student01-student05 enrolled in CS101 Programming Fundamentals, Section 1A');
   console.log('Semester 3: student06-student10 enrolled in CS201 Data Structures, Section 3A');
   console.log('TA: student06 is approved for CS101 Programming Fundamentals');
+  console.log('Assignments and quizzes: none seeded; create them manually from the teacher UI');
+  console.log('Schedule config: default 90-minute lectures, 15-minute breaks, Monday-Saturday');
   console.log('CS101 timetable: MON S1, WED S2, FRI S1 in LH-101');
   console.log('CS201 timetable: TUE S1, THU S2, SAT S1 in LH-101');
   console.log('\nSuggested tests:');
-  console.log('- student01: resume live quiz; view graded assignment and pending quiz result');
-  console.log('- student02: start live quiz fresh; view fully graded closed quiz');
-  console.log('- student03: inspect auto-submitted quiz with three violations');
-  console.log('- student04-student05: clean semester-1 accounts for new assignment and quiz attempts');
+  console.log('- teacher: create assignments/quizzes for CS101 and CS201 from a clean assessment slate');
+  console.log('- student01-student05: use clean semester-1 accounts for new assignment and quiz attempts');
   console.log('- student06: use the TA workspace for CS101 while enrolled in semester-3 CS201');
 }
 
