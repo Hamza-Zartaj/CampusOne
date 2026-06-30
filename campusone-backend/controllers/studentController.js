@@ -197,6 +197,7 @@ export const activeQuizzes = async (req, res) => {
       where: {
         offeringId: { in: offeringIds },
         status: 'PUBLISHED',
+        deliveryMode: 'ONLINE',
         endAt: { gt: now }, // not expired
       },
       include: {

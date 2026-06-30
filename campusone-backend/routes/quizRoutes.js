@@ -10,6 +10,7 @@ import {
   importQuestionsFromExcel,
   downloadQuizImportTemplate,
   getQuizAttempts,
+  saveOfflineQuizMark,
   getAttemptDetail,
   gradeAnswer,
   approvePendingQuizGrade,
@@ -58,6 +59,7 @@ router.get('/:id', authenticate, authorize('teacher'), getQuizById);
 router.put('/:id', authenticate, authorize('teacher'), updateQuiz);
 router.delete('/:id', authenticate, authorize('teacher'), deleteQuiz);
 router.get('/:id/attempts', authenticate, authorize('teacher', 'student', 'admin'), getQuizAttempts);
+router.put('/:id/offline-marks', authenticate, authorize('teacher', 'admin'), saveOfflineQuizMark);
 router.get('/teacher/attempts/:attemptId', authenticate, authorize('teacher', 'student', 'admin'), getAttemptDetail);
 router.put('/answers/:answerId/grade', authenticate, authorize('teacher', 'student', 'admin'), gradeAnswer);
 router.put('/pending-grades/:id/approve', authenticate, authorize('teacher', 'admin'), approvePendingQuizGrade);
