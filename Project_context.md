@@ -332,7 +332,7 @@ Checks run through July 1, 2026:
 - **Frontend build warnings:** API/socket mixed static and dynamic imports still produce one Vite warning, but the oversized entry warning is gone
 - **Assignment similarity submissions panel crash fix:** frontend production build passes after restoring the review props expected by the similarity summary's legacy hidden match list, preventing the `reviewingMatchId is not defined` runtime error
 - **Assignment similarity presentation UI:** frontend production build passes after hiding the Stage 2 AI Review button/output from the teacher submissions panel and renaming the remaining action to Scan Similarity
-- **Frontend lint:** passes with **0 errors and 52 warnings**
+- **Frontend lint:** passes with **0 errors and 50 warnings**
 - **TA course-tool UX:** changed backend offering/Q&A controller and offering route syntax checks pass; frontend production build passes after replacing TA permission chips with course-tool buttons, adding the roster modal, Q&A offering deep links, and scoped TA offering loading
 - **Assignment default marks:** frontend production build passes; changed assignment controller and grade-template syntax checks pass after changing the assignment creation/default grade-component scale from 100 to 10
 - **Student assignment submission refresh:** frontend production build passes after assignment submissions were added to API cache invalidation for `/students/me` active-assignment data and the submitted card is updated immediately from the submit response
@@ -342,11 +342,17 @@ Checks run through July 1, 2026:
 - **Assignment similarity submission-card UX:** frontend production build passes after moving visible similarity findings from the top report list onto each related submission card with submitted-first/later timing and inline review controls
 - **Password reset email fallback:** `node --check controllers\authController.js` passes and frontend production build passes after allowing non-MFA and email-MFA accounts to request and verify password resets through an emailed OTP while preserving authenticator-code reset for authenticator MFA accounts
 - **TA Q&A scope/status:** `node --check controllers\qnaController.js` passes and frontend production build passes after removing TA-assigned offerings from the unfiltered student Q&A feed, allowing approved `ANSWER_QNA` TAs to resolve/reopen offering threads, and rendering Q&A detail actions from backend viewer permissions
+- **Admin portal audit/documentation:** `Admin_Portal.md` was created from a static review of non-admission admin routes, workflows, frontend API bindings, and matching backend authorization surfaces; no dev server was started. Frontend production build passes after the documentation/tracker update with the existing Vite mixed static/dynamic `socket.js` import warning.
+- **Admissions audit/documentation:** `Admission.md` was created from a static review of the public application flow, admin admissions pages, admission API bindings, backend admission routes/controllers, upload middleware, and Prisma admission schema. Frontend production build passes after the documentation/tracker update with the existing Vite mixed static/dynamic `socket.js` import warning.
+- **Teacher portal audit/documentation:** `teacher_portal.md` was created from a static review of teacher routes, workflows, frontend API bindings, matching backend authorization surfaces, and teacher deep links. Frontend production build passes after the documentation/tracker update with the existing Vite mixed static/dynamic `socket.js` import warning.
+- **Student and TA portal audit/documentation:** `student_portal.md` and `TA.md` were created from a static review of student routes, shared profile/notification surfaces, TA-as-student workflows, reused teacher pages, API bindings, and backend authorization checks. Frontend production build passes after the documentation/tracker update with the existing Vite mixed static/dynamic `socket.js` import warning; no dev server was started.
+- **Frontend warning inventory:** `frontend.md` was created from `npm.cmd run lint` and `npm.cmd run build`; lint passes with 0 errors and 50 warnings, and build passes with the existing Vite mixed static/dynamic `socket.js` import warning.
 
 Remaining lint warnings:
 
 - Multiple unused variables and stale imports
 - Multiple React hook dependency warnings
+- Detailed warning inventory is documented in `frontend.md`.
 
 ## 8. Audit Reconciliation
 
@@ -390,6 +396,24 @@ This table replaces the previous audit document.
 Only open work belongs here. Move an item to the verified feature inventory or resolved audit status when completed.
 
 ### Deferred product features
+
+- [ ] **Admin portal audit follow-ups**
+  Address the issues documented in `Admin_Portal.md`, especially admin dashboard API authorization, manual single-student enrollment identifier mismatch, teacher enrollment listing scope, broken dashboard offering link, hidden Reports navigation, and admin route guarding.
+
+- [ ] **Admissions audit follow-ups**
+  Address the issues documented in `Admission.md`, especially public document route authorization, backend closed-window/max-application enforcement, server-side application/document validation, admin detail permission checks, application status field mismatch, live program selection, and settings/date/document policy management.
+
+- [ ] **Teacher portal audit follow-ups**
+  Address the issues documented in `teacher_portal.md`, especially offering detail authorization, lecture list authorization, the broken dashboard announcements link, role-specific route guarding, and stale teacher notification component cleanup.
+
+- [ ] **Student portal audit follow-ups**
+  Address the issues documented in `student_portal.md`, especially broken course registration, broken My Grades enrollment-transcript route, frontend route guarding, over-broad offering/lecture read endpoints, stale localStorage dependency, assignment stat mismatch, mojibake text, and duplicate grades/transcript pages.
+
+- [ ] **TA portal audit follow-ups**
+  Address the issues documented in `TA.md`, especially TA attendance lecture creation, all-course filter failures on reused teacher pages, offline quiz mark controls for TAs, permission-specific TA dropdown scoping, unfiltered TA Q&A listing, TA resource editing, legacy TA profile code, and teacher-oriented wording on TA pages.
+
+- [ ] **Frontend warning cleanup**
+  Address the lint and build warnings documented in `frontend.md`, especially unused variables/imports, React hook dependency warnings, and the mixed static/dynamic `socket.js` import warning.
 
 - [ ] **Inbound Q&A email replies**  
   Parse supported inbound email webhooks and create `QnaReply` records with a clear email source.
