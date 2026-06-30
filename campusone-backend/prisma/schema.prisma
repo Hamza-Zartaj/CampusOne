@@ -771,6 +771,11 @@ enum QuizStatus {
   CLOSED
 }
 
+enum QuizDeliveryMode {
+  ONLINE
+  OFFLINE
+}
+
 enum QuestionType {
   MCQ
   TRUE_FALSE
@@ -794,6 +799,7 @@ model Quiz {
   startAt          DateTime
   endAt            DateTime
   status           QuizStatus @default(DRAFT)
+  deliveryMode     QuizDeliveryMode @default(ONLINE)
   shuffleQuestions Boolean    @default(false)
   maxViolations    Int        @default(3)
   allowReview      Boolean    @default(true)

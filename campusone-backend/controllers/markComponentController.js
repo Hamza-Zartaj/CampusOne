@@ -2,6 +2,9 @@ import prisma from '../prisma/client.js';
 import { notifyMany, TYPE } from '../services/notificationService.js';
 import { getGradingWindowError } from '../utils/gradingWindow.js';
 
+const COURSEWORK_KINDS = new Set(['ASSIGNMENT', 'QUIZ']);
+const ASSESSMENT_KINDS = new Set(['PROJECT_PRESENTATION', 'MID', 'FINAL', 'PARTICIPATION', 'LAB_WORK']);
+
 const assertTeacherOfOffering = async (offeringId, user) => {
   if (user.role === 'admin') return { ok: true };
   const offering = await prisma.courseOffering.findUnique({
@@ -69,6 +72,28 @@ export const listForOffering = async (req, res) => {
       where: { id: offeringId },
       include: {
         course: { include: { gradeComponents: { orderBy: { orderIndex: 'asc' } } } },
+        assignments: {
+          select: {
+            id: true,
+            title: true,
+            totalMarks: true,
+            componentIndex: true,
+            dueDate: true,
+            status: true,
+          },
+          orderBy: [{ componentIndex: 'asc' }, { createdAt: 'asc' }],
+        },
+        quizzes: {
+          select: {
+            id: true,
+            title: true,
+            totalMarks: true,
+            componentIndex: true,
+            endAt: true,
+            status: true,
+          },
+          orderBy: [{ componentIndex: 'asc' }, { createdAt: 'asc' }],
+        },
         enrollments: {
           where: { status: { in: ['ENROLLED', 'COMPLETED', 'INCOMPLETE'] } },
           include: {
@@ -86,6 +111,126 @@ export const listForOffering = async (req, res) => {
 };
 
 // PUT /api/mark-components/:id  — teacher updates one cell
+export const createAssessmentSlot = async (req, res) => {
+  try {
+    const offeringId = req.params.id;
+    const access = await assertTeacherOfOffering(offeringId, req.user);
+    if (!access.ok) return res.status(access.code).json({ success: false, message: access.message });
+
+    const kind = String(req.body.kind || '').trim().toUpperCase();
+    const index = Number(req.body.index);
+    const title = String(req.body.title || '').trim();
+    const date = req.body.date ? new Date(req.body.date) : null;
+    const totalMarks = req.body.totalMarks !== undefined && req.body.totalMarks !== ''
+      ? Number(req.body.totalMarks)
+      : null;
+
+    if (!ASSESSMENT_KINDS.has(kind) || COURSEWORK_KINDS.has(kind)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Create assignments and quizzes from their own pages. This action is for configured mark-only assessments.',
+      });
+    }
+    if (!Number.isInteger(index) || index < 1) {
+      return res.status(400).json({ success: false, message: 'A valid configured slot is required' });
+    }
+    if (!title) {
+      return res.status(400).json({ success: false, message: 'Title is required' });
+    }
+    if (date && Number.isNaN(date.getTime())) {
+      return res.status(400).json({ success: false, message: 'Invalid date' });
+    }
+    if (totalMarks !== null && (!Number.isFinite(totalMarks) || totalMarks <= 0)) {
+      return res.status(400).json({ success: false, message: 'Out of marks must be greater than 0' });
+    }
+
+    const offering = await prisma.courseOffering.findUnique({
+      where: { id: offeringId },
+      include: {
+        term: { select: { code: true, isActive: true, endDate: true } },
+        course: { include: { gradeComponents: true } },
+        enrollments: { where: { status: { in: ['ENROLLED', 'COMPLETED', 'INCOMPLETE'] } } },
+      },
+    });
+    if (!offering) return res.status(404).json({ success: false, message: 'Offering not found' });
+
+    const component = offering.course.gradeComponents.find((entry) => entry.kind === kind);
+    if (!component) {
+      return res.status(400).json({
+        success: false,
+        message: `This course has no ${kind.replace(/_/g, ' ').toLowerCase()} component configured by admin`,
+      });
+    }
+    if (index > component.count) {
+      return res.status(400).json({ success: false, message: `Slot must be between 1 and ${component.count}` });
+    }
+    const resolvedTotalMarks = totalMarks ?? component.totalPerInstance;
+
+    const gradingWindowError = getGradingWindowError(offering.term);
+    if (gradingWindowError) {
+      return res.status(409).json({ success: false, code: 'GRADE_WINDOW_CLOSED', message: gradingWindowError });
+    }
+
+    const enrollmentIds = offering.enrollments.map((enrollment) => enrollment.id);
+    const existingRows = enrollmentIds.length
+      ? await prisma.markComponent.findMany({
+          where: { enrollmentId: { in: enrollmentIds }, kind, index },
+          select: { title: true, date: true, obtainedMarks: true },
+        })
+      : [];
+    if (existingRows.some((row) => row.title || row.date || row.obtainedMarks !== null)) {
+      return res.status(409).json({ success: false, message: `${component.label} ${index} is already created for this offering` });
+    }
+
+    const saved = await prisma.$transaction(async (tx) => {
+      const rows = [];
+      for (const enrollment of offering.enrollments) {
+        rows.push(await tx.markComponent.upsert({
+          where: {
+            enrollmentId_kind_index: {
+              enrollmentId: enrollment.id,
+              kind,
+              index,
+            },
+          },
+          create: {
+            enrollmentId: enrollment.id,
+            kind,
+            index,
+            title,
+            date,
+            totalMarks: resolvedTotalMarks,
+          },
+          update: {
+            title,
+            date,
+            totalMarks: resolvedTotalMarks,
+          },
+        }));
+      }
+      return rows;
+    });
+
+    if (date && date > new Date()) {
+      const recipients = await prisma.enrollment.findMany({
+        where: { id: { in: enrollmentIds } },
+        select: { student: { select: { userId: true } } },
+      });
+      notifyMany({
+        userIds: recipients.map((entry) => entry.student?.userId).filter(Boolean),
+        type: TYPE.ANNOUNCEMENT,
+        title: `${component.label} scheduled`,
+        body: `${title} on ${date.toLocaleDateString()}`,
+        linkUrl: '/student/courses',
+      });
+    }
+
+    res.status(201).json({ success: true, created: saved.length, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 export const updateMarkComponent = async (req, res) => {
   try {
     const existing = await prisma.markComponent.findUnique({

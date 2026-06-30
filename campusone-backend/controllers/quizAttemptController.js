@@ -74,7 +74,7 @@ export const getMyQuizzes = async (req, res) => {
     const offeringIds = enrollments.map((e) => e.offeringId);
 
     const quizzes = await prisma.quiz.findMany({
-      where: { offeringId: { in: offeringIds }, status: { not: 'DRAFT' } },
+      where: { offeringId: { in: offeringIds }, status: { not: 'DRAFT' }, deliveryMode: 'ONLINE' },
       include: {
         offering: {
           select: {
@@ -108,6 +108,9 @@ export const startAttempt = async (req, res) => {
       include: { questions: { orderBy: { order: 'asc' } } },
     });
     if (!quiz) return res.status(404).json({ success: false, message: 'Quiz not found' });
+    if (quiz.deliveryMode !== 'ONLINE') {
+      return res.status(400).json({ success: false, message: 'This quiz is marked as offline/printed' });
+    }
 
     // Verify enrollment
     const enrolled = await prisma.enrollment.findFirst({

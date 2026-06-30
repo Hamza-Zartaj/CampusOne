@@ -221,6 +221,7 @@ export const createQuiz = async (req, res) => {
         startAt: validated.startAt,
         endAt: validated.endAt,
         status: validated.status || 'DRAFT',
+        deliveryMode: validated.deliveryMode || 'ONLINE',
         shuffleQuestions: validated.shuffleQuestions ?? false,
         maxViolations: validated.maxViolations ?? 3,
         allowReview: validated.allowReview ?? true,
@@ -231,7 +232,7 @@ export const createQuiz = async (req, res) => {
     });
 
     // Notify enrolled students if published
-    if (quiz.status === 'PUBLISHED') {
+    if (quiz.status === 'PUBLISHED' && quiz.deliveryMode === 'ONLINE') {
       (async () => {
         const enrollments = await prisma.enrollment.findMany({
           where: { offeringId, status: 'ENROLLED' },
@@ -301,6 +302,7 @@ export const updateQuiz = async (req, res) => {
       startAt: validated.startAt,
       endAt: validated.endAt,
       status: validated.status,
+      deliveryMode: validated.deliveryMode,
       shuffleQuestions: validated.shuffleQuestions,
       maxViolations: validated.maxViolations,
       allowReview: validated.allowReview,
@@ -320,7 +322,7 @@ export const updateQuiz = async (req, res) => {
       include: { ...quizInclude, questions: { orderBy: { order: 'asc' } } },
     }));
 
-    if (check.quiz.status !== 'PUBLISHED' && quiz.status === 'PUBLISHED') {
+    if (check.quiz.status !== 'PUBLISHED' && quiz.status === 'PUBLISHED' && quiz.deliveryMode === 'ONLINE') {
       (async () => {
         const enrollments = await prisma.enrollment.findMany({
           where: { offeringId: quiz.offeringId, status: 'ENROLLED' },
@@ -381,21 +383,122 @@ export const downloadQuizImportTemplate = async (req, res) => {
   }
 };
 
-// GET /api/quizzes/:id/attempts  — teacher views all attempts
+// GET /api/quizzes/:id/attempts  — teacher views the full student roster with attempt state
 export const getQuizAttempts = async (req, res) => {
   try {
     const check = await verifyQuizGradingAccess(req.user, req.params.id);
     if (check.error) return res.status(check.status).json({ success: false, message: check.error });
 
-    const attempts = await prisma.quizAttempt.findMany({
-      where: { quizId: req.params.id },
-      include: {
-        student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } },
-      },
-      orderBy: { submittedAt: 'desc' },
+    const [enrollments, attempts] = await Promise.all([
+      prisma.enrollment.findMany({
+        where: { offeringId: check.quiz.offeringId, status: { in: ['ENROLLED', 'COMPLETED'] } },
+        include: {
+          student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } },
+        },
+        orderBy: { student: { studentId: 'asc' } },
+      }),
+      prisma.quizAttempt.findMany({
+        where: { quizId: req.params.id },
+        include: {
+          student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } },
+        },
+      }),
+    ]);
+    const attemptsByStudentId = new Map(attempts.map((attempt) => [attempt.studentId, attempt]));
+    const roster = enrollments.map((enrollment) => {
+      const attempt = attemptsByStudentId.get(enrollment.studentId) || null;
+      return {
+        id: attempt?.id || `student-${enrollment.studentId}`,
+        enrollmentId: enrollment.id,
+        enrollmentStatus: enrollment.status,
+        student: enrollment.student,
+        attempt,
+        status: attempt?.status || 'NOT_STARTED',
+        totalScore: attempt?.totalScore ?? null,
+        submittedAt: attempt?.submittedAt ?? null,
+        startedAt: attempt?.startedAt ?? null,
+        violations: attempt?.violations ?? 0,
+      };
     });
 
-    res.json({ success: true, count: attempts.length, data: attempts });
+    res.json({ success: true, count: roster.length, attemptedCount: attempts.length, data: roster });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// PUT /api/quizzes/:id/offline-marks — teacher records a printed/written quiz mark
+export const saveOfflineQuizMark = async (req, res) => {
+  try {
+    const access = await verifyQuizGradingAccess(req.user, req.params.id);
+    if (access.error) return res.status(access.status).json({ success: false, message: access.error });
+    if (access.taAccess) {
+      return res.status(403).json({ success: false, message: 'Teaching assistants cannot record offline quiz marks' });
+    }
+    const { quiz } = access;
+    if (quiz.deliveryMode !== 'OFFLINE') {
+      return res.status(400).json({ success: false, message: 'Offline marks can only be recorded for printed/offline quizzes' });
+    }
+
+    const gradingWindowError = getGradingWindowError(quiz.offering.term);
+    if (gradingWindowError) {
+      return res.status(409).json({ success: false, code: 'GRADE_WINDOW_CLOSED', message: gradingWindowError });
+    }
+
+    const studentId = String(req.body.studentId || '').trim();
+    const marksAwarded = Number(req.body.marksAwarded);
+    if (!studentId) return res.status(400).json({ success: false, message: 'studentId is required' });
+    if (!Number.isFinite(marksAwarded) || marksAwarded < 0 || marksAwarded > quiz.totalMarks) {
+      return res.status(400).json({ success: false, message: `Marks must be between 0 and ${quiz.totalMarks}` });
+    }
+
+    const enrollment = await prisma.enrollment.findFirst({
+      where: { studentId, offeringId: quiz.offeringId, status: { in: ['ENROLLED', 'COMPLETED'] } },
+      select: { id: true, student: { select: { userId: true } } },
+    });
+    if (!enrollment) return res.status(404).json({ success: false, message: 'Student is not enrolled in this offering' });
+
+    const attempt = await prisma.$transaction(async (tx) => {
+      const savedAttempt = await tx.quizAttempt.upsert({
+        where: { quizId_studentId: { quizId: quiz.id, studentId } },
+        create: {
+          quizId: quiz.id,
+          studentId,
+          status: 'SUBMITTED',
+          submittedAt: new Date(),
+          totalScore: marksAwarded,
+          manualScore: marksAwarded,
+          autoGradedScore: 0,
+          questionOrder: [],
+        },
+        update: {
+          status: 'SUBMITTED',
+          submittedAt: new Date(),
+          totalScore: marksAwarded,
+          manualScore: marksAwarded,
+          autoGradedScore: 0,
+        },
+        include: {
+          student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } },
+          quiz: { select: { id: true, title: true, totalMarks: true, offeringId: true, componentIndex: true, endAt: true } },
+        },
+      });
+      await syncQuizAttemptMark({ client: tx, attempt: savedAttempt, totalScore: marksAwarded, manualPending: 0 });
+      return savedAttempt;
+    });
+
+    if (enrollment.student?.userId) {
+      await notify({
+        userId: enrollment.student.userId,
+        type: TYPE.QUIZ_GRADED,
+        title: `Quiz graded: ${quiz.title}`,
+        body: `${marksAwarded} / ${quiz.totalMarks}`,
+        linkUrl: '/student/grades',
+        metadata: { quizId: quiz.id, attemptId: attempt.id, offline: true },
+      });
+    }
+
+    res.json({ success: true, data: attempt });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

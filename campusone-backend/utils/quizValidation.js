@@ -1,4 +1,5 @@
 const QUIZ_STATUSES = new Set(['DRAFT', 'PUBLISHED', 'CLOSED']);
+const DELIVERY_MODES = new Set(['ONLINE', 'OFFLINE']);
 const QUESTION_TYPES = new Set(['MCQ', 'TRUE_FALSE', 'SHORT']);
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
@@ -79,6 +80,11 @@ export const validateQuizPayload = (payload, { partial = false } = {}) => {
     : String(payload.status).toUpperCase();
   if (status && !QUIZ_STATUSES.has(status)) throw new Error('Invalid quiz status');
 
+  const deliveryMode = payload.deliveryMode === undefined
+    ? undefined
+    : String(payload.deliveryMode).toUpperCase();
+  if (deliveryMode && !DELIVERY_MODES.has(deliveryMode)) throw new Error('Invalid quiz delivery mode');
+
   const durationMinutes = payload.durationMinutes === undefined
     ? undefined
     : Number(payload.durationMinutes);
@@ -110,6 +116,7 @@ export const validateQuizPayload = (payload, { partial = false } = {}) => {
     startAt,
     endAt,
     status,
+    deliveryMode,
     shuffleQuestions: payload.shuffleQuestions === undefined ? undefined : Boolean(payload.shuffleQuestions),
     maxViolations,
     allowReview: payload.allowReview === undefined ? undefined : Boolean(payload.allowReview),

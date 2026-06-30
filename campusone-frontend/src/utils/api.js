@@ -415,6 +415,7 @@ export const quizAPI = {
   downloadImportTemplate: () => api.get('/quizzes/import-excel/template', { responseType: 'blob' }),
   importExcel: (formData) => api.post('/quizzes/import-excel', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   getAttempts: (id) => api.get(`/quizzes/${id}/attempts`),
+  saveOfflineMark: (id, data) => api.put(`/quizzes/${id}/offline-marks`, data),
   getAttemptDetail: (attemptId) => api.get(`/quizzes/teacher/attempts/${attemptId}`),
   gradeAnswer: (answerId, data) => api.put(`/quizzes/answers/${answerId}/grade`, data),
   approvePendingGrade: (pendingId, data = {}) => api.put(`/quizzes/pending-grades/${pendingId}/approve`, data),
@@ -546,6 +547,7 @@ export const gradeComponentAPI = {
 export const markComponentAPI = {
   listForOffering: (offeringId) => api.get(`/offerings/${offeringId}/mark-components`),
   init:            (offeringId) => api.post(`/offerings/${offeringId}/mark-components/init`),
+  createAssessment:(offeringId, data) => api.post(`/offerings/${offeringId}/mark-components/assessment`, data),
   update:          (id, data)   => api.put(`/mark-components/${id}`, data),
   setReleased:     (courseId, kind, released) =>
     api.put(`/courses/${courseId}/grade-components/${kind}/release`, { released }),

@@ -2,7 +2,7 @@
 
 > **Canonical project tracker and source of truth**
 >
-> Last verified: **June 29, 2026**
+> Last verified: **June 30, 2026**
 >
 > Update this file whenever a feature, architectural rule, known issue, or future task changes. Do not create a separate audit or to-do document.
 
@@ -182,8 +182,10 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Per-enrollment mark cells
 - [x] Assignment, quiz, mid, final, presentation, participation, and lab component kinds
 - [x] Teacher marks grid with initialization and bulk save
-- [x] Per-kind marks visibility controls
-- [x] Course-wide mark release endpoint and UI copy make the release scope explicit
+- [x] Teacher marks grid shows only actual created assignments/quizzes and teacher-created configured assessment slots, with grouped readable headers, teacher-selected score scale, per-student weighted contribution out of 100, and graded-weight coverage
+- [x] Teacher marks grid can create configured mark-only assessment slots such as mid term, final term, project/presentation, participation, and lab work directly on the page while enforcing the admin course configuration and allowing the teacher to choose the assessment's out-of marks
+- [x] Per-kind marks visibility backend controls
+- [x] Course-wide mark release endpoint
 - [x] Student grade-breakdown view
 - [x] Shared grading helper averages `AVERAGE` components, so multi-slot quiz/assignment components contribute only their configured weight
 - [x] Participation marks
@@ -221,6 +223,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Quiz and question CRUD
 - [x] Quiz create/edit flow links each quiz to a configured grade-component slot and blocks creation beyond the configured count
 - [x] Quiz raw scores are scaled into the grade-component total before syncing to the lecturer marks grid
+- [x] Online and printed/offline quiz delivery modes, with printable question papers, full enrolled-student roster status, and offline mark entry synced to the marks grid
 - [x] Excel question import with a verified downloadable sample template
 - [x] Prompt-based AI quiz question generation
 - [x] Compact AI generator with course-name context and editable draft output
@@ -306,8 +309,12 @@ Checks run through June 29, 2026:
 - **Backend health endpoint:** OK with database connected
 - **Frontend development server:** HTTP 200
 - **Frontend production build:** passes
+- **Focused seed reset/reseed:** local Supabase database reset, pgvector extension enablement, Prisma schema push, Prisma Client generation, and `npm.cmd run db:seed` pass for the focused two-course test dataset
+- **Focused seed course grade configuration:** verified `CS101` and `CS201` each receive 6 lecture grade components; CS101 seeded assignments and quizzes are linked to component slots 1-4
+- **Teacher marks grid assessment UI:** backend mark-component route/controller syntax checks and frontend production build pass after removing the visibility/weightage panel, showing only created coursework/configured assessment columns, adding in-page configured assessment creation, and allowing teacher-selected out-of marks with automatic weight scaling
 - **Coursework grade-slot linking:** Prisma schema validation, changed backend syntax checks, and frontend production build pass
 - **Quiz score scaling and averaged component weighting:** changed backend syntax checks and frontend production build pass
+- **Printed/offline quiz workflow:** Prisma schema validation, Prisma Client generation, changed quiz backend route/controller syntax checks, and frontend production build pass
 - **Frontend build size:** route-level splitting reduced the initial app chunk to about 373 KB before gzip
 - **Frontend build warnings:** API/socket mixed static and dynamic imports still produce one Vite warning, but the oversized entry warning is gone
 - **Assignment similarity Stage 2:** Prisma schema validation, Prisma Client generation, changed backend syntax checks, and frontend production build pass
@@ -374,6 +381,7 @@ Only open work belongs here. Move an item to the verified feature inventory or r
 
 - Current executable source and Prisma schema outrank comments or old assumptions.
 - Inspect the controller, route, schema model, and frontend caller before changing a feature.
+- After completing any meaningful feature, schema, workflow, seed, verification, or UX change, update `Project_context.md` in the same turn so it remains the canonical project tracker.
 - Backend authorization is the security boundary; hidden frontend navigation is not authorization.
 - Full-screen dialogs must use the shared `z-modal` layer rather than `z-50`.
 - Admin roles and admin permissions are separate concepts.

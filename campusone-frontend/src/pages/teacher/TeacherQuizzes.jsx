@@ -4,10 +4,77 @@ import { useSearchParams } from 'react-router-dom';
 import {
   HelpCircle, Plus, Search, Calendar, Clock, Users, Edit3, Trash2,
   Eye, X, Loader2, Award, FileSpreadsheet, ListChecks, Download,
-  Sparkles, ChevronDown, ChevronUp,
+  Sparkles, ChevronDown, ChevronUp, Printer,
 } from 'lucide-react';
 import { quizAPI, offeringAPI, taAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
+
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
+const printQuiz = async (quiz) => {
+  try {
+    const response = quiz.questions ? { data: { data: quiz } } : await quizAPI.getById(quiz.id);
+    const fullQuiz = response.data.data;
+    const questions = fullQuiz.questions || [];
+    const course = `${fullQuiz.offering?.course?.code || ''} ${fullQuiz.offering?.course?.title || ''}`.trim();
+    const html = `<!doctype html>
+<html>
+<head>
+  <title>${escapeHtml(fullQuiz.title)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #111827; margin: 32px; }
+    header { border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 24px; }
+    h1 { font-size: 24px; margin: 0 0 8px; }
+    .meta, .student-line { color: #475569; font-size: 13px; }
+    .student-line { display: flex; gap: 24px; margin: 18px 0 26px; }
+    .blank { border-bottom: 1px solid #111827; min-width: 220px; display: inline-block; height: 18px; }
+    .question { break-inside: avoid; margin: 0 0 22px; }
+    .question-title { font-weight: 700; margin-bottom: 8px; }
+    .options { margin-top: 8px; display: grid; gap: 6px; }
+    .option { display: flex; gap: 8px; align-items: flex-start; }
+    .box { width: 12px; height: 12px; border: 1px solid #111827; margin-top: 2px; flex: 0 0 auto; }
+    .answer-lines { margin-top: 10px; display: grid; gap: 12px; }
+    .line { border-bottom: 1px solid #94a3b8; height: 22px; }
+    @page { margin: 18mm; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>${escapeHtml(fullQuiz.title)}</h1>
+    <div class="meta">${escapeHtml(course)}${fullQuiz.offering?.section ? ` - Section ${escapeHtml(fullQuiz.offering.section)}` : ''} - ${escapeHtml(fullQuiz.totalMarks)} marks</div>
+  </header>
+  <div class="student-line">
+    <span>Name: <span class="blank"></span></span>
+    <span>Student ID: <span class="blank"></span></span>
+  </div>
+  ${questions.map((question, index) => `
+    <section class="question">
+      <div class="question-title">Q${index + 1}. ${escapeHtml(question.questionText)} (${escapeHtml(question.marks)} mark${Number(question.marks) === 1 ? '' : 's'})</div>
+      ${question.type === 'SHORT'
+        ? '<div class="answer-lines"><div class="line"></div><div class="line"></div><div class="line"></div></div>'
+        : `<div class="options">${(question.options || []).map((option, optionIndex) => `<div class="option"><span class="box"></span><span>${String.fromCharCode(65 + optionIndex)}. ${escapeHtml(option)}</span></div>`).join('')}</div>`}
+    </section>
+  `).join('')}
+</body>
+</html>`;
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) {
+      toast.error('Allow pop-ups to print this quiz');
+      return;
+    }
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Failed to prepare quiz for printing');
+  }
+};
 
 const STATUS_CONFIG = {
   DRAFT:     { bg: 'bg-amber-50',  text: 'text-amber-700',  label: 'Draft' },
@@ -120,6 +187,7 @@ const QuizModal = ({ offerings, quizzes = [], initial, onClose, onSave }) => {
     startAt: toDateTimeLocal(initial?.startAt),
     endAt: toDateTimeLocal(initial?.endAt),
     status: initial?.status ?? 'DRAFT',
+    deliveryMode: initial?.deliveryMode ?? 'ONLINE',
     shuffleQuestions: initial?.shuffleQuestions ?? false,
     maxViolations: initial?.maxViolations ?? 3,
     allowReview: initial?.allowReview ?? true,
@@ -394,6 +462,46 @@ const QuizModal = ({ offerings, quizzes = [], initial, onClose, onSave }) => {
                 className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500 resize-none"
               />
             </div>
+
+            <div>
+              <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Delivery Mode</label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition ${
+                  form.deliveryMode === 'ONLINE'
+                    ? 'border-blue-300 bg-blue-50 text-blue-900'
+                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-200'
+                }`}>
+                  <input
+                    type="radio"
+                    name="deliveryMode"
+                    value="ONLINE"
+                    checked={form.deliveryMode === 'ONLINE'}
+                    onChange={(event) => set('deliveryMode', event.target.value)}
+                  />
+                  <span>
+                    <strong className="block">Online quiz</strong>
+                    <span className="text-xs text-slate-500">Students attempt it in CampusOne.</span>
+                  </span>
+                </label>
+                <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition ${
+                  form.deliveryMode === 'OFFLINE'
+                    ? 'border-blue-300 bg-blue-50 text-blue-900'
+                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-200'
+                }`}>
+                  <input
+                    type="radio"
+                    name="deliveryMode"
+                    value="OFFLINE"
+                    checked={form.deliveryMode === 'OFFLINE'}
+                    onChange={(event) => set('deliveryMode', event.target.value)}
+                  />
+                  <span>
+                    <strong className="block">Printed / offline quiz</strong>
+                    <span className="text-xs text-slate-500">Print it and enter marks manually.</span>
+                  </span>
+                </label>
+              </div>
+            </div>
             </section>
 
             <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -465,7 +573,7 @@ const QuizModal = ({ offerings, quizzes = [], initial, onClose, onSave }) => {
                 <div>
                   <h3 className="text-base font-semibold text-slate-800 m-0">Questions ({questions.length})</h3>
                   <p className="text-xs text-slate-500">
-                    Total marks: {totalMarks}{quizComponent ? ` · Grade column /${quizComponent.totalPerInstance}` : ''}
+                    Question paper: {totalMarks} marks{quizComponent ? ` - marks grid scale: /${quizComponent.totalPerInstance}` : ''}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -780,14 +888,55 @@ const AttemptDetailModal = ({ attemptId, onClose, onBack }) => {
 };
 
 // ─── Attempts List Modal ────────────────────────────────────────────────────
-const AttemptsModal = ({ quiz, onClose }) => {
-  const [attempts, setAttempts] = useState([]);
+const AttemptsModal = ({ quiz, onClose, onChanged }) => {
+  const [rows, setRows] = useState([]);
+  const [draftMarks, setDraftMarks] = useState({});
+  const [savingStudentId, setSavingStudentId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+  const isOffline = quiz.deliveryMode === 'OFFLINE';
 
-  useEffect(() => {
-    quizAPI.getAttempts(quiz.id).then((r) => setAttempts(r.data.data)).finally(() => setLoading(false));
+  const loadRoster = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await quizAPI.getAttempts(quiz.id);
+      const roster = response.data.data || [];
+      setRows(roster);
+      setDraftMarks(Object.fromEntries(roster.map((row) => [row.student.id, row.totalScore ?? ''])));
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to load quiz roster');
+    } finally {
+      setLoading(false);
+    }
   }, [quiz.id]);
+
+  useEffect(() => { loadRoster(); }, [loadRoster]);
+
+  const saveOfflineMark = async (studentId) => {
+    const marks = Number(draftMarks[studentId]);
+    if (!Number.isFinite(marks) || marks < 0 || marks > quiz.totalMarks) {
+      toast.error(`Marks must be between 0 and ${quiz.totalMarks}`);
+      return;
+    }
+    setSavingStudentId(studentId);
+    try {
+      await quizAPI.saveOfflineMark(quiz.id, { studentId, marksAwarded: marks });
+      toast.success('Offline quiz mark saved');
+      await loadRoster();
+      onChanged?.();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to save mark');
+    } finally {
+      setSavingStudentId(null);
+    }
+  };
+
+  const statusCopy = (row) => {
+    if (row.status === 'IN_PROGRESS') return { label: 'Attempting now', tone: 'bg-amber-50 text-amber-700 border-amber-200' };
+    if (row.status === 'SUBMITTED') return { label: 'Submitted', tone: 'bg-green-50 text-green-700 border-green-200' };
+    if (row.status === 'AUTO_SUBMITTED') return { label: 'Auto-submitted', tone: 'bg-orange-50 text-orange-700 border-orange-200' };
+    return { label: 'Not attempted', tone: 'bg-slate-50 text-slate-600 border-slate-200' };
+  };
 
   if (selected) {
     return <AttemptDetailModal attemptId={selected} onClose={onClose} onBack={() => setSelected(null)} />;
@@ -795,33 +944,70 @@ const AttemptsModal = ({ quiz, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[85vh] overflow-y-auto">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-slate-800 m-0">{quiz.title} · Attempts</h2>
-            <p className="text-sm text-slate-500 mt-1">{attempts.length} student attempts</p>
+            <h2 className="text-xl font-bold text-slate-800 m-0">{quiz.title} - Student roster</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              {rows.length} students - {rows.filter((row) => row.attempt).length} recorded {isOffline ? 'marks' : 'attempts'}
+            </p>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100"><X size={20} /></button>
         </div>
         <div className="p-6">
           {loading ? <div className="py-10 text-center"><Loader2 className="animate-spin inline" /></div> : (
             <div className="space-y-2">
-              {attempts.length === 0 && <p className="text-center text-slate-500 py-8">No attempts yet</p>}
-              {attempts.map((a) => (
-                <div key={a.id} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50">
-                  <div>
-                    <div className="font-medium text-slate-800">{a.student.user.name}</div>
-                    <div className="text-xs text-slate-500">{a.student.studentId} · {a.student.user.email}</div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <div className="font-semibold text-slate-800">{a.totalScore ?? '—'} / {quiz.totalMarks}</div>
-                      <div className="text-xs text-slate-500">{a.status} · {a.violations} violations</div>
+              {rows.length === 0 && <p className="text-center text-slate-500 py-8">No students enrolled in this offering</p>}
+              {rows.map((row) => {
+                const status = statusCopy(row);
+                return (
+                  <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 p-3 border border-slate-200 rounded-lg hover:bg-slate-50">
+                    <div>
+                      <div className="font-medium text-slate-800">{row.student.user.name}</div>
+                      <div className="text-xs text-slate-500">{row.student.studentId} - {row.student.user.email}</div>
                     </div>
-                    <button onClick={() => setSelected(a.id)} className="px-3 py-1.5 text-sm border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50">View</button>
+                    <div className="flex flex-wrap items-center justify-end gap-3">
+                      {isOffline ? (
+                        <>
+                          <label className="flex items-center gap-2 text-sm text-slate-600">
+                            Marks
+                            <input
+                              type="number"
+                              min="0"
+                              max={quiz.totalMarks}
+                              step="0.5"
+                              value={draftMarks[row.student.id] ?? ''}
+                              onChange={(event) => setDraftMarks((current) => ({ ...current, [row.student.id]: event.target.value }))}
+                              className="w-24 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-slate-800 focus:border-blue-500 focus:outline-none"
+                            />
+                            <span className="text-xs text-slate-400">/ {quiz.totalMarks}</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => saveOfflineMark(row.student.id)}
+                            disabled={savingStudentId === row.student.id}
+                            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {savingStudentId === row.student.id && <Loader2 size={14} className="animate-spin" />}
+                            Save
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${status.tone}`}>{status.label}</span>
+                          <div className="text-right">
+                            <div className="font-semibold text-slate-800">{row.totalScore ?? '—'} / {quiz.totalMarks}</div>
+                            <div className="text-xs text-slate-500">{row.violations} violations</div>
+                          </div>
+                          {row.attempt && (
+                            <button onClick={() => setSelected(row.attempt.id)} className="px-3 py-1.5 text-sm border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50">View</button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -830,7 +1016,7 @@ const AttemptsModal = ({ quiz, onClose }) => {
   );
 };
 
-// ─── MAIN PAGE ──────────────────────────────────────────────────────────────
+// MAIN PAGE
 const TeacherQuizzes = () => {
   const [searchParams] = useSearchParams();
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
@@ -967,6 +1153,9 @@ const TeacherQuizzes = () => {
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <h3 className="text-lg font-semibold text-slate-900 m-0">{q.title}</h3>
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${cfg.bg} ${cfg.text}`}>{cfg.label}</span>
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-xs font-medium text-slate-700">
+                          {q.deliveryMode === 'OFFLINE' ? 'Printed / offline' : 'Online'}
+                        </span>
                       </div>
                       <p className="text-sm text-slate-500 mt-1">
                         {q.offering?.course?.code} · {q.offering?.course?.title} (Sec {q.offering?.section})
@@ -976,12 +1165,13 @@ const TeacherQuizzes = () => {
                         {q.componentIndex && <span className="inline-flex items-center gap-1">Quiz {q.componentIndex}</span>}
                         <span className="inline-flex items-center gap-1"><Award size={14} /> {q.totalMarks} marks</span>
                         <span className="inline-flex items-center gap-1"><Clock size={14} /> {q.durationMinutes} min</span>
-                        <span className="inline-flex items-center gap-1"><Users size={14} /> {q._count?.attempts ?? 0} attempts</span>
+                        <span className="inline-flex items-center gap-1"><Users size={14} /> {q._count?.attempts ?? 0} recorded</span>
                         <span className="inline-flex items-center gap-1"><Calendar size={14} /> {fmtDateTime(q.startAt)} → {fmtDateTime(q.endAt)}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button onClick={() => setViewingAttempts(q)} className="p-2 text-slate-600 hover:bg-slate-50 rounded-lg" title="View attempts"><Eye size={16} /></button>
+                      {canManageCoursework && <button onClick={() => printQuiz(q)} className="p-2 text-slate-600 hover:bg-slate-50 rounded-lg" title="Print quiz"><Printer size={16} /></button>}
+                      <button onClick={() => setViewingAttempts(q)} className="p-2 text-slate-600 hover:bg-slate-50 rounded-lg" title="Student roster"><Eye size={16} /></button>
                       {canManageCoursework && <button onClick={() => handleEdit(q)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit"><Edit3 size={16} /></button>}
                       {canManageCoursework && <button onClick={() => handleDelete(q.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Delete"><Trash2 size={16} /></button>}
                     </div>
@@ -1004,7 +1194,7 @@ const TeacherQuizzes = () => {
       )}
 
       {viewingAttempts && (
-        <AttemptsModal quiz={viewingAttempts} onClose={() => setViewingAttempts(null)} />
+        <AttemptsModal quiz={viewingAttempts} onClose={() => setViewingAttempts(null)} onChanged={load} />
       )}
     </div>
   );
