@@ -1460,7 +1460,7 @@ export const verifyEmailOTP = async (req, res) => {
 };
 
 /**
- * @desc    Request password reset - sends OTP based on user's 2FA method
+ * @desc    Request password reset - sends OTP based on user's MFA method or email
  * @route   POST /api/auth/forgot-password
  * @access  Public
  */
@@ -1486,34 +1486,9 @@ export const forgotPassword = async (req, res) => {
       });
     }
 
-    if (!user.twoFactorEnabled) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please contact administrator to reset your password'
-      });
-    }
-
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { emailOTP: otp, emailOTPExpiry: expiresAt }
-    });
-
-    if (user.twoFactorMethod === 'email') {
-      await sendOTPEmail(user.email, user.name, otp);
-      
-      return res.status(200).json({
-        success: true,
-        message: 'Verification code sent to your email',
-        data: {
-          userId: user.id,
-          method: 'email',
-          email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3')
-        }
-      });
-    } else {
+    if (user.twoFactorEnabled && user.twoFactorMethod === 'authenticator') {
       return res.status(200).json({
         success: true,
         message: 'Please enter the code from your authenticator app',
@@ -1523,6 +1498,31 @@ export const forgotPassword = async (req, res) => {
         }
       });
     }
+
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailOTP: otp, emailOTPExpiry: expiresAt }
+    });
+
+    const emailResult = await sendOTPEmail(user.email, user.name, otp);
+    if (!emailResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send verification email. Please try again.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Verification code sent to your email',
+      data: {
+        userId: user.id,
+        method: 'email',
+        email: user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3')
+      }
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -1533,7 +1533,7 @@ export const forgotPassword = async (req, res) => {
 };
 
 /**
- * @desc    Verify 2FA code for password reset
+ * @desc    Verify identity code for password reset
  * @route   POST /api/auth/verify-reset-code
  * @access  Public
  */
@@ -1561,8 +1561,10 @@ export const verifyResetCode = async (req, res) => {
 
     let isValid = false;
 
-    // Verify based on method
-    if (user.twoFactorMethod === 'email') {
+    const usesAuthenticatorReset = user.twoFactorEnabled && user.twoFactorMethod === 'authenticator';
+
+    // Verify based on the reset method selected when the code was requested.
+    if (!usesAuthenticatorReset) {
       if (!user.emailOTP) {
         return res.status(400).json({
           success: false,
@@ -1570,7 +1572,7 @@ export const verifyResetCode = async (req, res) => {
         });
       }
 
-      if (new Date() > user.emailOTPExpiry) {
+      if (!user.emailOTPExpiry || new Date() > user.emailOTPExpiry) {
         await prisma.user.update({
           where: { id: userId },
           data: { emailOTP: null, emailOTPExpiry: null }
@@ -1620,8 +1622,8 @@ export const verifyResetCode = async (req, res) => {
       { expiresIn: '15m' }
     );
 
-    // Clear OTP if email method
-    if (user.twoFactorMethod === 'email') {
+    // Clear OTP if this reset used email verification.
+    if (!usesAuthenticatorReset) {
       await prisma.user.update({
         where: { id: userId },
         data: { emailOTP: null, emailOTPExpiry: null }

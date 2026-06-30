@@ -18,7 +18,7 @@ const threadInclude = {
   _count: { select: { replies: true } },
 };
 
-// Verify the user has access to the offering (teacher owns it OR student enrolled OR admin)
+// Verify the user has access to the offering (teacher owns it OR student enrolled OR approved TA OR admin)
 const verifyOfferingAccess = async (user, offeringId) => {
   if (user.role === 'admin') {
     const offering = await prisma.courseOffering.findUnique({ where: { id: offeringId } });
@@ -113,6 +113,18 @@ const enrichThreads = async (threads) => {
   }));
 };
 
+const getViewerPermissions = (thread, user, access = {}) => {
+  const isAsker = thread.askedById === user.id;
+  const isTeacherOrAdmin = user.role === 'teacher' || user.role === 'admin';
+  const isQnaTA = access.isTA === true;
+
+  return {
+    canManageStatus: isAsker || isTeacherOrAdmin || isQnaTA,
+    canDeleteThread: isAsker || isTeacherOrAdmin,
+    canDeleteAnyReply: isTeacherOrAdmin,
+  };
+};
+
 // GET /api/qna?offeringId=  — list threads
 export const getThreads = async (req, res) => {
   try {
@@ -130,21 +142,12 @@ export const getThreads = async (req, res) => {
     } else if (req.user.role === 'student') {
       const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
       if (!student) return res.status(403).json({ success: false, message: 'Student profile not found' });
-      const [enrollments, taAssignments] = await Promise.all([
-        prisma.enrollment.findMany({
-          where: { studentId: student.id, status: { in: ['ENROLLED', 'COMPLETED'] } },
-          select: { offeringId: true },
-        }),
-        prisma.tAAssignment.findMany({
-          where: { studentId: student.id, status: 'APPROVED', permissions: { has: 'ANSWER_QNA' } },
-          select: { offeringId: true },
-        }),
-      ]);
+      const enrollments = await prisma.enrollment.findMany({
+        where: { studentId: student.id, status: { in: ['ENROLLED', 'COMPLETED'] } },
+        select: { offeringId: true },
+      });
       where.offeringId = {
-        in: [...new Set([
-          ...enrollments.map((e) => e.offeringId),
-          ...taAssignments.map((assignment) => assignment.offeringId),
-        ])],
+        in: enrollments.map((e) => e.offeringId),
       };
     }
 
@@ -180,7 +183,13 @@ export const getThreadById = async (req, res) => {
     if (check.error) return res.status(check.status).json({ success: false, message: check.error });
 
     const [enriched] = await enrichThreads([thread]);
-    res.json({ success: true, data: enriched });
+    res.json({
+      success: true,
+      data: {
+        ...enriched,
+        viewerPermissions: getViewerPermissions(thread, req.user, check),
+      },
+    });
   } catch (err) {
     logger.error('[qna] error:', err);
     res.status(500).json({ success: false, message: err.message });
@@ -316,11 +325,9 @@ export const updateThreadStatus = async (req, res) => {
     const check = await verifyOfferingAccess(req.user, thread.offeringId);
     if (check.error) return res.status(check.status).json({ success: false, message: check.error });
 
-    // Asker, teacher, or admin can change status
-    const isAsker = thread.askedById === req.user.id;
-    const isTeacherOrAdmin = req.user.role === 'teacher' || req.user.role === 'admin';
-    if (!isAsker && !isTeacherOrAdmin) {
-      return res.status(403).json({ success: false, message: 'Only asker or teacher can change status' });
+    const permissions = getViewerPermissions(thread, req.user, check);
+    if (!permissions.canManageStatus) {
+      return res.status(403).json({ success: false, message: 'Only asker, teacher, or assigned Q&A TA can change status' });
     }
 
     const updated = await prisma.qnaThread.update({

@@ -75,6 +75,9 @@ const ThreadDetail = ({ threadId, currentUserId, onBack, onChange }) => {
   if (loading) return <div className="text-center py-20"><Loader2 className="animate-spin inline w-8 h-8 text-blue-600" /></div>;
   if (!thread) return null;
 
+  const canManageStatus = thread.viewerPermissions?.canManageStatus === true;
+  const canDeleteAnyReply = thread.viewerPermissions?.canDeleteAnyReply === true;
+
   return (
     <div className="space-y-4">
       <button onClick={onBack} className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline">
@@ -99,9 +102,11 @@ const ThreadDetail = ({ threadId, currentUserId, onBack, onChange }) => {
               · {fmtDateTime(thread.createdAt)}
             </p>
           </div>
-          <button onClick={toggleStatus} className={`px-3 py-1.5 text-sm rounded-lg ${thread.status === 'OPEN' ? 'bg-green-600 text-white hover:bg-green-700' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'}`}>
-            {thread.status === 'OPEN' ? 'Mark Resolved' : 'Reopen'}
-          </button>
+          {canManageStatus && (
+            <button onClick={toggleStatus} className={`px-3 py-1.5 text-sm rounded-lg ${thread.status === 'OPEN' ? 'bg-green-600 text-white hover:bg-green-700' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'}`}>
+              {thread.status === 'OPEN' ? 'Mark Resolved' : 'Reopen'}
+            </button>
+          )}
         </div>
         <div className="bg-slate-50 p-4 rounded-lg whitespace-pre-wrap text-slate-700">{thread.body}</div>
       </div>
@@ -125,9 +130,11 @@ const ThreadDetail = ({ threadId, currentUserId, onBack, onChange }) => {
                   <AuthorBadge author={r.author} />
                   <span className="ml-2 text-xs text-slate-500">{fmtDateTime(r.createdAt)}</span>
                 </div>
-                <button onClick={() => handleDeleteReply(r.id)} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete">
-                  <Trash2 size={14} />
-                </button>
+                {(canDeleteAnyReply || r.authorId === currentUserId) && (
+                  <button onClick={() => handleDeleteReply(r.id)} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete">
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
               <div className="text-slate-700 whitespace-pre-wrap">{r.body}</div>
             </div>
