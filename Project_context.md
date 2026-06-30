@@ -223,7 +223,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Quiz and question CRUD
 - [x] Quiz create/edit flow links each quiz to a configured grade-component slot and blocks creation beyond the configured count
 - [x] Quiz raw scores are scaled into the grade-component total before syncing to the lecturer marks grid
-- [x] Online and printed/offline quiz delivery modes, with printable question papers, full enrolled-student roster status, and offline mark entry synced to the marks grid
+- [x] Online and printed/offline quiz delivery modes, with printable question papers, mode-specific scheduling, full enrolled-student roster status, and offline mark entry synced to the marks grid
 - [x] Excel question import with a verified downloadable sample template
 - [x] Prompt-based AI quiz question generation
 - [x] Compact AI generator with course-name context and editable draft output
@@ -314,7 +314,7 @@ Checks run through June 29, 2026:
 - **Teacher marks grid assessment UI:** backend mark-component route/controller syntax checks and frontend production build pass after removing the visibility/weightage panel, showing only created coursework/configured assessment columns, adding in-page configured assessment creation, and allowing teacher-selected out-of marks with automatic weight scaling
 - **Coursework grade-slot linking:** Prisma schema validation, changed backend syntax checks, and frontend production build pass
 - **Quiz score scaling and averaged component weighting:** changed backend syntax checks and frontend production build pass
-- **Printed/offline quiz workflow:** Prisma schema validation, Prisma Client generation, changed quiz backend route/controller syntax checks, and frontend production build pass
+- **Printed/offline quiz workflow:** Prisma schema validation, Prisma Client generation, local `npm.cmd run db:push`, direct `deliveryMode` read check, changed quiz backend route/controller syntax checks, and frontend production build pass; mode-specific quiz scheduling UI build passes
 - **Frontend build size:** route-level splitting reduced the initial app chunk to about 373 KB before gzip
 - **Frontend build warnings:** API/socket mixed static and dynamic imports still produce one Vite warning, but the oversized entry warning is gone
 - **Assignment similarity Stage 2:** Prisma schema validation, Prisma Client generation, changed backend syntax checks, and frontend production build pass

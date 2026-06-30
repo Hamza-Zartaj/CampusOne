@@ -89,6 +89,14 @@ const toDateTimeLocal = (value) => {
   return local.toISOString().slice(0, 16);
 };
 
+const toDateLocal = (value = new Date()) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+};
+
+const addMinutes = (value, minutes) => new Date(new Date(value).getTime() + Number(minutes || 0) * 60_000);
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
 // ─── Question Editor ────────────────────────────────────────────────────────
@@ -185,7 +193,7 @@ const QuizModal = ({ offerings, quizzes = [], initial, onClose, onSave }) => {
     description: initial?.description ?? '',
     durationMinutes: initial?.durationMinutes ?? 30,
     startAt: toDateTimeLocal(initial?.startAt),
-    endAt: toDateTimeLocal(initial?.endAt),
+    quizDate: toDateLocal(initial?.startAt || new Date()),
     status: initial?.status ?? 'DRAFT',
     deliveryMode: initial?.deliveryMode ?? 'ONLINE',
     shuffleQuestions: initial?.shuffleQuestions ?? false,
@@ -338,8 +346,14 @@ const QuizModal = ({ offerings, quizzes = [], initial, onClose, onSave }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.offeringId || !form.title || !form.startAt || !form.endAt) {
-      toast.error('Course, title, start, and end times are required');
+    const isOffline = form.deliveryMode === 'OFFLINE';
+    const duration = Number(form.durationMinutes);
+    if (!form.offeringId || !form.title || (!isOffline && !form.startAt) || (isOffline && !form.quizDate)) {
+      toast.error(isOffline ? 'Course, title, and quiz date are required' : 'Course, title, and start time are required');
+      return;
+    }
+    if (!Number.isFinite(duration) || duration < 1) {
+      toast.error('Duration must be at least 1 minute');
       return;
     }
     if (quizComponent && !form.componentIndex) {
@@ -350,16 +364,25 @@ const QuizModal = ({ offerings, quizzes = [], initial, onClose, onSave }) => {
       toast.error('Add at least one question');
       return;
     }
-    if (new Date(form.endAt) <= new Date(form.startAt)) {
-      toast.error('End time must be after start time');
+    const startAt = isOffline
+      ? new Date(`${form.quizDate}T00:00:00`)
+      : new Date(form.startAt);
+    if (Number.isNaN(startAt.getTime())) {
+      toast.error(isOffline ? 'Enter a valid quiz date' : 'Enter a valid start time');
       return;
     }
+    const endAt = addMinutes(startAt, duration);
+
     setSaving(true);
     try {
       await onSave({
         ...form,
-        startAt: new Date(form.startAt).toISOString(),
-        endAt: new Date(form.endAt).toISOString(),
+        durationMinutes: duration,
+        startAt: startAt.toISOString(),
+        endAt: endAt.toISOString(),
+        shuffleQuestions: isOffline ? false : form.shuffleQuestions,
+        maxViolations: isOffline ? 1 : form.maxViolations,
+        allowReview: isOffline ? false : form.allowReview,
         questions,
       });
     } finally {
@@ -368,6 +391,10 @@ const QuizModal = ({ offerings, quizzes = [], initial, onClose, onSave }) => {
   };
 
   const totalMarks = questions.reduce((s, q) => s + (Number(q.marks) || 0), 0);
+  const isOffline = form.deliveryMode === 'OFFLINE';
+  const computedEndAt = !isOffline && form.startAt && Number(form.durationMinutes) > 0
+    ? addMinutes(form.startAt, form.durationMinutes)
+    : null;
 
   return createPortal(
     <div
@@ -504,68 +531,101 @@ const QuizModal = ({ offerings, quizzes = [], initial, onClose, onSave }) => {
             </div>
             </section>
 
-            <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <section className='space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5'>
               <div>
-                <h3 className="m-0 text-base font-semibold text-slate-900">Schedule and rules</h3>
-                <p className="m-0 mt-1 text-xs text-slate-500">Times are shown in your local timezone.</p>
+                <h3 className='m-0 text-base font-semibold text-slate-900'>Schedule and rules</h3>
+                <p className='m-0 mt-1 text-xs text-slate-500'>
+                  {isOffline ? 'Printed quizzes only need the date they will be conducted.' : 'Online quiz closing time is calculated from the start time and duration.'}
+                </p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Start At</label>
-                <input
-                  type="datetime-local" value={form.startAt} onChange={(e) => set('startAt', e.target.value)} required
-                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">End At</label>
-                <input
-                  type="datetime-local" value={form.endAt} onChange={(e) => set('endAt', e.target.value)} required
-                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Duration (min)</label>
-                <input
-                  type="number" min="1" value={form.durationMinutes}
-                  onChange={(e) => set('durationMinutes', +e.target.value)}
-                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Max Violations</label>
-                <input
-                  type="number" min="1" value={form.maxViolations}
-                  onChange={(e) => set('maxViolations', +e.target.value)}
-                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-[0.9rem] font-medium text-slate-800 mb-2">Status</label>
-                <select
-                  value={form.status} onChange={(e) => set('status', e.target.value)}
-                  className="w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500"
-                >
-                  <option value="DRAFT">Draft</option>
-                  <option value="PUBLISHED">Published</option>
-                  <option value="CLOSED">Closed</option>
-                </select>
-              </div>
-            </div>
+              {isOffline ? (
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                  <div>
+                    <label className='block text-[0.9rem] font-medium text-slate-800 mb-2'>Quiz Date</label>
+                    <input
+                      type='date'
+                      value={form.quizDate}
+                      onChange={(e) => set('quizDate', e.target.value)}
+                      required
+                      className='w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500'
+                    />
+                  </div>
+                  <div>
+                    <label className='block text-[0.9rem] font-medium text-slate-800 mb-2'>Status</label>
+                    <select
+                      value={form.status} onChange={(e) => set('status', e.target.value)}
+                      className='w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500'
+                    >
+                      <option value='DRAFT'>Draft</option>
+                      <option value='PUBLISHED'>Published</option>
+                      <option value='CLOSED'>Closed</option>
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+                    <div>
+                      <label className='block text-[0.9rem] font-medium text-slate-800 mb-2'>Start At</label>
+                      <input
+                        type='datetime-local'
+                        value={form.startAt}
+                        onChange={(e) => set('startAt', e.target.value)}
+                        required
+                        className='w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500'
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-[0.9rem] font-medium text-slate-800 mb-2'>Duration (min)</label>
+                      <input
+                        type='number' min='1' value={form.durationMinutes}
+                        onChange={(e) => set('durationMinutes', +e.target.value)}
+                        className='w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500'
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-[0.9rem] font-medium text-slate-800 mb-2'>Calculated End</label>
+                      <div className='flex min-h-[46px] items-center rounded-lg border border-slate-200 bg-slate-50 px-3.5 text-[0.95rem] text-slate-700'>
+                        {computedEndAt ? fmtDateTime(computedEndAt) : 'Set start and duration'}
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 transition hover:border-blue-200 hover:bg-blue-50/50">
-                <input type="checkbox" checked={form.shuffleQuestions} onChange={(e) => set('shuffleQuestions', e.target.checked)} />
-                <span><strong className="block text-slate-800">Shuffle questions</strong><span className="text-xs text-slate-500">Each attempt keeps its generated order.</span></span>
-              </label>
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 transition hover:border-blue-200 hover:bg-blue-50/50">
-                <input type="checkbox" checked={form.allowReview} onChange={(e) => set('allowReview', e.target.checked)} />
-                <span><strong className="block text-slate-800">Release answers</strong><span className="text-xs text-slate-500">Students can review answers after closing.</span></span>
-              </label>
-            </div>
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                    <div>
+                      <label className='block text-[0.9rem] font-medium text-slate-800 mb-2'>Max Violations</label>
+                      <input
+                        type='number' min='1' value={form.maxViolations}
+                        onChange={(e) => set('maxViolations', +e.target.value)}
+                        className='w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500'
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-[0.9rem] font-medium text-slate-800 mb-2'>Status</label>
+                      <select
+                        value={form.status} onChange={(e) => set('status', e.target.value)}
+                        className='w-full py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] focus:outline-none focus:border-blue-500'
+                      >
+                        <option value='DRAFT'>Draft</option>
+                        <option value='PUBLISHED'>Published</option>
+                        <option value='CLOSED'>Closed</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className='grid gap-3 sm:grid-cols-2'>
+                    <label className='flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 transition hover:border-blue-200 hover:bg-blue-50/50'>
+                      <input type='checkbox' checked={form.shuffleQuestions} onChange={(e) => set('shuffleQuestions', e.target.checked)} />
+                      <span><strong className='block text-slate-800'>Shuffle questions</strong><span className='text-xs text-slate-500'>Each attempt keeps its generated order.</span></span>
+                    </label>
+                    <label className='flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 transition hover:border-blue-200 hover:bg-blue-50/50'>
+                      <input type='checkbox' checked={form.allowReview} onChange={(e) => set('allowReview', e.target.checked)} />
+                      <span><strong className='block text-slate-800'>Release answers</strong><span className='text-xs text-slate-500'>Students can review answers after closing.</span></span>
+                    </label>
+                  </div>
+                </>
+              )}
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
