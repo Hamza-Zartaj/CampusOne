@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Calendar, AlertCircle, FileText, CheckCircle2, XCircle, Clock,
+  AlertCircle, FileText, CheckCircle2, XCircle, Clock,
   ChevronDown, ChevronUp, Plus, X, BookOpen, Wallet,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -23,13 +23,46 @@ const BAND_LABEL = {
   dropoff: { text: 'Drop-off triggered',  color: 'text-red-700 bg-red-50 border-red-200' },
 };
 
+const toDateOnly = (value) => (value ? String(value).slice(0, 10) : '');
+
+const parseDateOnly = (value) => {
+  const [year, month, day] = toDateOnly(value).split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
+
+const formatLectureDate = (dateString) => {
+  const date = parseDateOnly(dateString);
+  return date
+    ? date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: '2-digit' })
+    : dateString;
+};
+
+const groupConsecutiveDates = (dates) => {
+  const sorted = [...dates].sort();
+  const groups = [];
+  for (const dateString of sorted) {
+    const lastGroup = groups[groups.length - 1];
+    const previousDate = lastGroup?.[lastGroup.length - 1];
+    const previous = parseDateOnly(previousDate);
+    if (previous) previous.setDate(previous.getDate() + 1);
+    const expectedNext = previous
+      ? `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}-${String(previous.getDate()).padStart(2, '0')}`
+      : null;
+
+    if (lastGroup && expectedNext === dateString) lastGroup.push(dateString);
+    else groups.push([dateString]);
+  }
+  return groups;
+};
+
 const StudentLeaveStatus = () => {
   const [data, setData]         = useState([]);
   const [config, setConfig]     = useState({ freeQuota: 4, fineQuota: 6, finePerAbsent: 500 });
   const [loading, setLoading]   = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ offeringId: '', fromDate: '', toDate: '', reason: '' });
+  const [form, setForm] = useState({ offeringId: '', lectureDates: [], reason: '' });
   const [submitting, setSubmitting] = useState(false);
 
   const load = () => {
@@ -45,19 +78,29 @@ const StudentLeaveStatus = () => {
     s + c.fines.filter(f => f.status === 'UNPAID').reduce((x, f) => x + f.amount, 0), 0);
   const dropOffCount = data.filter(c => c.counter.dropOff).length;
   const pendingApps = data.reduce((s, c) => s + c.applications.filter(a => a.status === 'PENDING').length, 0);
+  const selectedCourse = useMemo(
+    () => data.find(({ enrollment }) => enrollment.offeringId === form.offeringId),
+    [data, form.offeringId],
+  );
+  const selectedLectures = selectedCourse?.upcomingLectures || [];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.offeringId || !form.fromDate || !form.toDate || !form.reason.trim()) {
-      toast.error('All fields required'); return;
+    if (!form.offeringId || form.lectureDates.length === 0 || !form.reason.trim()) {
+      toast.error('Select a course, at least one lecture, and a reason'); return;
     }
-    if (form.fromDate > form.toDate) { toast.error('From date must be before to date'); return; }
     setSubmitting(true);
     try {
-      await leaveAPI.submitApplication(form);
-      toast.success('Leave application submitted');
+      const groups = groupConsecutiveDates(form.lectureDates);
+      await Promise.all(groups.map((dates) => leaveAPI.submitApplication({
+        offeringId: form.offeringId,
+        fromDate: dates[0],
+        toDate: dates[dates.length - 1],
+        reason: form.reason,
+      })));
+      toast.success(groups.length === 1 ? 'Leave application submitted' : `${groups.length} leave applications submitted`);
       setModalOpen(false);
-      setForm({ offeringId: '', fromDate: '', toDate: '', reason: '' });
+      setForm({ offeringId: '', lectureDates: [], reason: '' });
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to submit');
@@ -86,7 +129,14 @@ const StudentLeaveStatus = () => {
           </p>
         </div>
         <button
-          onClick={() => setModalOpen(true)}
+          onClick={() => {
+            setForm({
+              offeringId: data[0]?.enrollment?.offeringId || '',
+              lectureDates: [],
+              reason: '',
+            });
+            setModalOpen(true);
+          }}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition"
         >
           <Plus size={16} /> Apply for Leave
@@ -230,7 +280,7 @@ const StudentLeaveStatus = () => {
       {/* Apply modal */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <h3 className="text-lg font-bold text-slate-800 m-0">Apply for Leave</h3>
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-600">
@@ -243,7 +293,7 @@ const StudentLeaveStatus = () => {
                 <select
                   required
                   value={form.offeringId}
-                  onChange={e => setForm({ ...form, offeringId: e.target.value })}
+                  onChange={e => setForm({ ...form, offeringId: e.target.value, lectureDates: [] })}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">-- select course --</option>
@@ -254,25 +304,69 @@ const StudentLeaveStatus = () => {
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">From</label>
-                  <input
-                    type="date" required
-                    value={form.fromDate}
-                    onChange={e => setForm({ ...form, fromDate: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <label className="block text-xs font-semibold text-slate-700">Upcoming lectures</label>
+                  {form.lectureDates.length > 0 && (
+                    <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5">
+                      {form.lectureDates.length} selected
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">To</label>
-                  <input
-                    type="date" required
-                    value={form.toDate}
-                    onChange={e => setForm({ ...form, toDate: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
+                {!form.offeringId ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                    Select a course to view its upcoming lecture slots.
+                  </div>
+                ) : selectedLectures.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                    No upcoming lecture slots are available for this course yet.
+                  </div>
+                ) : (
+                  <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
+                    {selectedLectures.map((lecture) => {
+                      const checked = form.lectureDates.includes(lecture.date);
+                      const slotText = (lecture.sessions || [])
+                        .map((session) => `S${session.slotIndex}${session.room?.code ? ` - ${session.room.code}` : ''}`)
+                        .join(', ');
+
+                      return (
+                        <label
+                          key={`${lecture.date}-${lecture.dayOfWeek}`}
+                          className={`flex items-start gap-3 p-3 cursor-pointer transition ${checked ? 'bg-indigo-50' : 'bg-white hover:bg-slate-50'}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => {
+                              setForm((current) => ({
+                                ...current,
+                                lectureDates: event.target.checked
+                                  ? [...current.lectureDates, lecture.date].sort()
+                                  : current.lectureDates.filter((date) => date !== lecture.date),
+                              }));
+                            }}
+                            className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-sm font-semibold text-slate-800">{formatLectureDate(lecture.date)}</span>
+                              <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
+                                {lecture.dayOfWeek}
+                              </span>
+                            </div>
+                            <p className="m-0 mt-1 text-sm text-slate-700 truncate">{lecture.title}</p>
+                            {slotText && <p className="m-0 mt-1 text-xs text-slate-500">{slotText}</p>}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                {selectedCourse?.counter && (
+                  <p className="m-0 mt-2 text-xs text-slate-500">
+                    Current attendance count: n={selectedCourse.counter.n}. Selected approved leaves will cover matching absences.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Reason</label>
@@ -287,7 +381,7 @@ const StudentLeaveStatus = () => {
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setModalOpen(false)}
                   className="px-4 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100">Cancel</button>
-                <button type="submit" disabled={submitting}
+                <button type="submit" disabled={submitting || form.lectureDates.length === 0}
                   className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
                   {submitting ? 'Submitting…' : 'Submit'}
                 </button>

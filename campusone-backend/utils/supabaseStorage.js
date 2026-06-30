@@ -10,10 +10,10 @@ const supabase = createClient(
  * Upload a file buffer to Supabase Storage.
  * Returns the public URL of the uploaded file.
  */
-export const uploadToStorage = async (bucket, filePath, buffer, mimeType) => {
+export const uploadToStorage = async (bucket, filePath, buffer, mimeType, options = {}) => {
   const { error } = await supabase.storage
     .from(bucket)
-    .upload(filePath, buffer, { contentType: mimeType, upsert: false });
+    .upload(filePath, buffer, { contentType: mimeType, upsert: Boolean(options.upsert) });
 
   if (error) throw new Error(`Storage upload failed: ${error.message}`);
 

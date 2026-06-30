@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   BookOpen,
@@ -165,6 +166,8 @@ const StatusButtons = ({ value, onChange }) => (
 );
 
 const TeacherAttendance = () => {
+  const [searchParams] = useSearchParams();
+  const initialOfferingId = searchParams.get('offeringId') || '';
   const [offerings, setOfferings] = useState([]);
   const [holidays, setHolidays] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -183,17 +186,19 @@ const TeacherAttendance = () => {
 
   useEffect(() => {
     Promise.all([
-      offeringAPI.getMy(),
+      offeringAPI.getMy({ taPermission: 'MARK_ATTENDANCE' }),
       holidayAPI.getAll(),
     ])
       .then(([offeringResponse, holidayResponse]) => {
         const list = offeringResponse.data.data || [];
         setOfferings(list);
         setHolidays(holidayResponse.data.data || []);
-        if (list.length) setSelected(list[0]);
+        if (list.length) {
+          setSelected(list.find((offering) => offering.id === initialOfferingId) || list[0]);
+        }
       })
       .catch(() => toast.error('Failed to load offerings'));
-  }, []);
+  }, [initialOfferingId]);
 
   useEffect(() => {
     if (!selected) return;

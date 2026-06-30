@@ -28,7 +28,7 @@ const GradeComponentEditor = ({ course, onClose }) => {
   };
   const removeRow = (idx) => setComponents((prev) => prev.filter((_, i) => i !== idx));
   const addRow = () => setComponents((prev) => [...prev, {
-    kind: 'ASSIGNMENT', label: 'Assignment', count: 1, totalPerInstance: 100, weightPercent: 0, aggregation: 'AVERAGE', orderIndex: prev.length,
+    kind: 'ASSIGNMENT', label: 'Assignment', count: 1, totalPerInstance: 10, weightPercent: 0, aggregation: 'AVERAGE', orderIndex: prev.length,
   }]);
 
   const resetTemplate = async () => {

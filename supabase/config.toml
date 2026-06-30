@@ -112,11 +112,22 @@ enabled = true
 file_size_limit = "50MiB"
 
 # Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
+[storage.buckets.assignments]
+public = true
+file_size_limit = "50MiB"
+
+[storage.buckets.lectures]
+public = true
+file_size_limit = "50MiB"
+
+[storage.buckets."admission-documents"]
+public = true
+file_size_limit = "50MiB"
+
+[storage.buckets."profile-pictures"]
+public = true
+file_size_limit = "50MiB"
+allowed_mime_types = ["image/png", "image/jpeg", "image/webp", "image/gif"]
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]

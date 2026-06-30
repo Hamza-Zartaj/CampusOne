@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   MessageSquare, Search, CheckCircle, Clock, Send, Trash2, Loader2,
   ArrowLeft, AlertCircle, Filter,
@@ -154,11 +155,13 @@ const ThreadDetail = ({ threadId, currentUserId, onBack, onChange }) => {
 };
 
 const TeacherQnA = () => {
+  const [searchParams] = useSearchParams();
+  const initialOfferingId = searchParams.get('offeringId') || '';
   const [threads, setThreads] = useState([]);
   const [offerings, setOfferings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filterOffering, setFilterOffering] = useState('');
+  const [filterOffering, setFilterOffering] = useState(initialOfferingId);
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedThread, setSelectedThread] = useState(null);
 
@@ -167,7 +170,11 @@ const TeacherQnA = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [tRes, oRes] = await Promise.all([qnaAPI.getThreads(), offeringAPI.getMy()]);
+      const params = filterOffering ? { offeringId: filterOffering } : {};
+      const [tRes, oRes] = await Promise.all([
+        qnaAPI.getThreads(params),
+        offeringAPI.getMy({ taPermission: 'ANSWER_QNA' }),
+      ]);
       setThreads(tRes.data.data);
       setOfferings(oRes.data.data);
     } catch (err) {
@@ -175,7 +182,7 @@ const TeacherQnA = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterOffering]);
 
   useEffect(() => { load(); }, [load]);
 

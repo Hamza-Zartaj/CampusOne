@@ -8,9 +8,9 @@ import * as gradeCtrl from '../controllers/gradeComponentController.js';
 const router = express.Router();
 
 router.get('/', protect, ctrl.getAllOfferings);
-router.get('/my', protect, authorize('teacher'), ctrl.getMyOfferings);
+router.get('/my', protect, authorize('teacher', 'student'), ctrl.getMyOfferings);
 router.get('/:id', protect, ctrl.getOfferingById);
-router.get('/:id/students', protect, authorize('teacher', 'admin'), ctrl.getOfferingStudents);
+router.get('/:id/students', protect, authorize('teacher', 'admin', 'student'), ctrl.getOfferingStudents);
 router.get('/:id/sessions', protect, scheduleCtrl.getOfferingSessions);
 router.post('/:id/sessions', protect, authorizePermission('manage_offerings'), scheduleCtrl.setOfferingSessions);
 router.get('/:id/mark-components', protect, authorize('teacher', 'admin'), markCtrl.listForOffering);

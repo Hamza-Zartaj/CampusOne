@@ -52,9 +52,9 @@ const SubmitModal = ({ assignment, onClose, onSubmitted }) => {
       const fd = new FormData();
       if (text) fd.append('submissionText', text);
       if (file) fd.append('file', file);
-      await assignmentAPI.submit(assignment.id, fd);
+      const response = await assignmentAPI.submit(assignment.id, fd);
       toast.success(sub ? 'Submission updated' : 'Submitted successfully');
-      onSubmitted();
+      await onSubmitted(response.data.data);
     } catch (err) {
       toast.error(err?.response?.data?.message ?? 'Submission failed');
     } finally {
@@ -331,7 +331,15 @@ const StudentAssignments = () => {
         <SubmitModal
           assignment={submitTarget}
           onClose={() => setSubmitTarget(null)}
-          onSubmitted={() => { setSubmitTarget(null); loadAssignments(); }}
+          onSubmitted={async (submission) => {
+            setAssignments((current) => current.map((assignment) => (
+              assignment.id === submitTarget.id
+                ? { ...assignment, submissions: [submission] }
+                : assignment
+            )));
+            setSubmitTarget(null);
+            await loadAssignments();
+          }}
         />
       )}
     </div>

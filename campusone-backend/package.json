@@ -9,8 +9,9 @@
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:push": "prisma db push",
-    "db:reset": "prisma db push --force-reset --accept-data-loss",
+    "db:reset": "prisma db push --force-reset --accept-data-loss && npm run storage:buckets",
     "db:seed": "node scripts/seed.js",
+    "storage:buckets": "node scripts/ensureStorageBuckets.js",
     "db:superadmin": "node scripts/createSuperAdmin.js",
     "db:studio": "prisma studio"
   },

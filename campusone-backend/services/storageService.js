@@ -1,5 +1,5 @@
 // Supabase Storage helper. Centralises bucket access + URL generation.
-// Buckets used: lectures, assignments, marks
+// Buckets used: lectures, assignments, admission-documents, profile-pictures
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import path from 'path';
@@ -29,7 +29,7 @@ const safeName = (filename) => {
 
 /**
  * Upload a file buffer (e.g. from multer) to a Supabase bucket.
- * @param {'lectures' | 'assignments' | 'marks' | 'admission-documents'} bucket
+ * @param {'lectures' | 'assignments' | 'admission-documents' | 'profile-pictures'} bucket
  * @param {Buffer} buffer
  * @param {string} originalName
  * @param {string} mimeType

@@ -14,6 +14,8 @@ export const LEAVE_CONFIG = {
   finePerAbsent: 500,  // PKR per weighted quota unit inside the fined band
 };
 
+const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
 const getLeaveBand = (n) => {
   // Inclusive boundaries: n <= 4 is free, 4 < n <= 6 is fined, n > 6 is drop-off.
   if (n > LEAVE_CONFIG.fineQuota) return 'dropoff';
@@ -38,6 +40,71 @@ const expandDateRange = (from, to) => {
 };
 
 const serializeLeaveApplication = (application) => serializeDateFields(application, ['fromDate', 'toDate']);
+
+const buildUpcomingLectureSlots = async ({ offering, limit = 8 }) => {
+  const sessions = offering?.sessions || [];
+  if (!offering?.term || sessions.length === 0) return [];
+
+  const termStart = toDateOnlyString(offering.term.startDate);
+  const termEnd = toDateOnlyString(offering.term.endDate);
+  const today = toDateOnlyString(new Date());
+  const startDateString = today > termStart ? today : termStart;
+  const startDate = parseDateOnly(startDateString);
+  const endDate = parseDateOnly(termEnd);
+  if (!startDate || !endDate || startDate > endDate) return [];
+
+  const lectures = await prisma.lecture.findMany({
+    where: {
+      offeringId: offering.id,
+      date: { gte: startDate, lte: endDate },
+    },
+    select: { id: true, date: true, title: true },
+    orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+  });
+  const lectureByDate = new Map(lectures.map((lecture) => [toDateOnlyString(lecture.date), lecture]));
+  const holidays = await prisma.holiday.findMany({
+    where: { OR: [{ termId: null }, { termId: offering.termId }] },
+    select: { date: true, isRecurring: true },
+  });
+  const isHoliday = (dateString) => {
+    const monthDay = dateString.slice(5);
+    return holidays.some((holiday) => {
+      const holidayDate = toDateOnlyString(holiday.date);
+      return holidayDate === dateString || (holiday.isRecurring && holidayDate.slice(5) === monthDay);
+    });
+  };
+
+  const upcoming = [];
+  const cursor = new Date(startDate);
+  for (let i = 0; i < 370 && cursor <= endDate && upcoming.length < limit; i += 1) {
+    const dateString = toDateOnlyString(cursor);
+    const dayOfWeek = DAY_CODES[cursor.getUTCDay()];
+    const daySessions = sessions
+      .filter((session) => session.dayOfWeek === dayOfWeek)
+      .sort((a, b) => a.slotIndex - b.slotIndex);
+
+    if (daySessions.length) {
+      if (!isHoliday(dateString)) {
+        const lecture = lectureByDate.get(dateString);
+        upcoming.push({
+          date: dateString,
+          dayOfWeek,
+          title: lecture?.title || `${offering.course.code} scheduled class`,
+          lectureId: lecture?.id || null,
+          sessions: daySessions.map((session) => ({
+            id: session.id,
+            slotIndex: session.slotIndex,
+            room: session.room ? { code: session.room.code, name: session.room.name } : null,
+          })),
+        });
+      }
+    }
+
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return upcoming;
+};
 
 // Compute the leave-status counter for one student in one offering.
 // Returns { totalLectures, present, absent, late, approvedLeaveDays, n, band, dropOff }
@@ -205,8 +272,9 @@ export const getMyLeaveStatus = async (req, res) => {
         offering: {
           include: {
             course: { select: { code: true, title: true, creditHours: true } },
-            term: { select: { code: true, academicYear: true } },
+            term: { select: { id: true, code: true, academicYear: true, startDate: true, endDate: true } },
             teacher: { select: { user: { select: { name: true } } } },
+            sessions: { include: { room: true }, orderBy: [{ dayOfWeek: 'asc' }, { slotIndex: 'asc' }] },
           },
         },
       },
@@ -223,7 +291,8 @@ export const getMyLeaveStatus = async (req, res) => {
           where: { studentId: student.id, offeringId: e.offeringId },
           orderBy: { createdAt: 'desc' },
         });
-        return { enrollment: e, counter, applications: applications.map(serializeLeaveApplication), fines };
+        const upcomingLectures = await buildUpcomingLectureSlots({ offering: e.offering });
+        return { enrollment: e, counter, upcomingLectures, applications: applications.map(serializeLeaveApplication), fines };
       })
     );
 

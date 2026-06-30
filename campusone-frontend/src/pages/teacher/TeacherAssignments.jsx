@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   FileText, Plus, Search, Calendar, Clock, Users,
@@ -41,7 +41,7 @@ const AssignmentModal = ({ offerings, assignments = [], initial, onClose, onSave
     componentIndex: initial?.componentIndex ?? '',
     title: initial?.title ?? '',
     description: initial?.description ?? '',
-    totalMarks: initial?.totalMarks ?? 100,
+    totalMarks: initial?.totalMarks ?? 10,
     dueDate: initial?.dueDate ? new Date(initial.dueDate).toISOString().split('T')[0] : '',
     allowLate: initial?.allowLate ?? false,
     status: initial?.status ?? 'PUBLISHED',
@@ -299,7 +299,7 @@ const SimilarityResults = ({ report, onReview, reviewingMatchId }) => {
         <div className="flex items-center gap-2">
           <ShieldCheck size={18} className="text-violet-600" />
           <div>
-            <p className="m-0 text-sm font-semibold text-slate-800">Assignment similarity results</p>
+            <p className="m-0 text-sm font-semibold text-slate-800">Similarity scan evidence</p>
             <p className="m-0 text-xs text-slate-500">
               {summary.flaggedPairs || 0} flagged of {summary.comparedPairs || 0} compared pairs
               {summary.semanticPairs ? ` - ${summary.semanticPairs} semantic` : ''}
@@ -312,7 +312,7 @@ const SimilarityResults = ({ report, onReview, reviewingMatchId }) => {
 
       {expanded && (
         <div className="space-y-3 p-4">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="hidden">
             {[
               ['Exact files', summary.exactFilePairs || 0],
               ['Exact text', summary.exactTextPairs || 0],
@@ -330,8 +330,13 @@ const SimilarityResults = ({ report, onReview, reviewingMatchId }) => {
               <AlertTriangle size={14} /> Submissions changed after this scan. Run it again.
             </div>
           )}
+          {report.matches?.length > 0 && (
+            <p className="m-0 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              Findings are shown on the related submission cards below.
+            </p>
+          )}
           {report.matches?.length > 0 ? (
-            <div className="space-y-2">
+            <div className="hidden">
               {report.matches.map((match) => (
                 <div key={match.id} className="rounded-lg border border-slate-200 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -387,7 +392,7 @@ const SimilarityResults = ({ report, onReview, reviewingMatchId }) => {
             </div>
           ) : (
             <p className="m-0 rounded-lg bg-green-50 px-3 py-3 text-sm text-green-700">
-              No exact duplicates or high lexical-overlap pairs were found.
+              No similarity matches were found.
             </p>
           )}
           <p className="m-0 text-[11px] text-slate-400">Local evidence only—this is not an automatic plagiarism verdict.</p>
@@ -397,9 +402,188 @@ const SimilarityResults = ({ report, onReview, reviewingMatchId }) => {
   );
 };
 
+const SIMILARITY_LABELS = {
+  EXACT_FILE: 'Exact file match',
+  EXACT_TEXT: 'Exact text match',
+  HIGH_LEXICAL: 'High overlap',
+  SEMANTIC: 'Semantic similarity',
+};
+
+const SIMILARITY_SHORT_LABELS = {
+  EXACT_FILE: 'Exact file',
+  EXACT_TEXT: 'Exact text',
+  HIGH_LEXICAL: 'High overlap',
+  SEMANTIC: 'Semantic',
+};
+
+const SIMILARITY_STAGE_LABELS = {
+  EXACT_FILE: 'Stage 1',
+  EXACT_TEXT: 'Stage 1',
+  HIGH_LEXICAL: 'Stage 1',
+  SEMANTIC: 'Stage 2',
+};
+
+const SIMILARITY_TONES = {
+  EXACT_FILE: {
+    chip: 'border-red-200 bg-red-50 text-red-700',
+    panel: 'border-red-100 bg-red-50/70',
+    note: 'bg-white/80 text-red-800',
+  },
+  EXACT_TEXT: {
+    chip: 'border-orange-200 bg-orange-50 text-orange-700',
+    panel: 'border-orange-100 bg-orange-50/70',
+    note: 'bg-white/80 text-orange-800',
+  },
+  HIGH_LEXICAL: {
+    chip: 'border-amber-200 bg-amber-50 text-amber-700',
+    panel: 'border-amber-100 bg-amber-50/70',
+    note: 'bg-white/80 text-amber-800',
+  },
+  SEMANTIC: {
+    chip: 'border-violet-200 bg-violet-50 text-violet-700',
+    panel: 'border-violet-100 bg-violet-50/70',
+    note: 'bg-white/80 text-violet-800',
+  },
+};
+
+const REVIEW_LABELS = {
+  CONFIRMED: 'Confirmed',
+  DISMISSED: 'Dismissed',
+  NEEDS_DISCUSSION: 'Discuss',
+  PENDING: 'Pending',
+};
+
+const getSimilarityScore = (match) => Math.round(Number(match.combinedScore || match.semanticScore || match.lexicalScore || 0) * 100);
+const getSubmissionName = (submission) => submission?.student?.user?.name || 'Student';
+const getSubmissionStudentId = (submission) => submission?.student?.studentId || 'Unknown ID';
+const getOtherMatchSubmission = (match, submissionId) => (
+  match.submissionA?.id === submissionId ? match.submissionB : match.submissionA
+);
+
+const getTimingText = (submission, otherSubmission) => {
+  const currentTime = submission?.submittedAt ? new Date(submission.submittedAt).getTime() : null;
+  const otherTime = otherSubmission?.submittedAt ? new Date(otherSubmission.submittedAt).getTime() : null;
+  const otherName = getSubmissionName(otherSubmission);
+
+  if (!Number.isFinite(currentTime) || !Number.isFinite(otherTime)) return null;
+  if (currentTime === otherTime) return 'Submitted at the same time';
+  return otherTime < currentTime
+    ? `${otherName} submitted first`
+    : `${otherName} submitted later`;
+};
+
+const SubmissionSimilarityFindings = ({
+  submission,
+  matches,
+  submissionsById,
+  onReview,
+  reviewingMatchId,
+}) => {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!matches?.length) return null;
+
+  return (
+    <div className="mt-3 border-t border-slate-200 pt-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {matches.map((match) => {
+          const otherReportSubmission = getOtherMatchSubmission(match, submission.id);
+          const otherSubmission = submissionsById.get(otherReportSubmission?.id) || otherReportSubmission;
+          const otherName = getSubmissionName(otherSubmission);
+          const timingText = getTimingText(submission, otherSubmission);
+          const tone = SIMILARITY_TONES[match.matchType] || SIMILARITY_TONES.HIGH_LEXICAL;
+          const score = getSimilarityScore(match);
+
+          return (
+            <button
+              key={match.id}
+              type="button"
+              onClick={() => setExpanded((value) => !value)}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition hover:shadow-sm ${tone.chip}`}
+            >
+              <AlertTriangle size={13} />
+              {SIMILARITY_SHORT_LABELS[match.matchType] || 'Match'} with {otherName}
+              <span className="font-bold">{score}%</span>
+              {timingText && <span className="font-medium opacity-80">- {timingText}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {expanded && (
+        <div className="mt-3 space-y-2">
+          {matches.map((match) => {
+            const otherReportSubmission = getOtherMatchSubmission(match, submission.id);
+            const otherSubmission = submissionsById.get(otherReportSubmission?.id) || otherReportSubmission;
+            const otherName = getSubmissionName(otherSubmission);
+            const timingText = getTimingText(submission, otherSubmission);
+            const tone = SIMILARITY_TONES[match.matchType] || SIMILARITY_TONES.HIGH_LEXICAL;
+            const score = getSimilarityScore(match);
+
+            return (
+              <div key={match.id} className={`rounded-lg border p-3 ${tone.panel}`}>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="m-0 text-xs font-bold text-slate-800">
+                      {SIMILARITY_LABELS[match.matchType] || 'Similarity match'} with {otherName}
+                    </p>
+                    <p className="m-0 mt-0.5 text-[11px] text-slate-600">
+                      {SIMILARITY_STAGE_LABELS[match.matchType] || 'Scan'} - {getSubmissionStudentId(otherSubmission)}
+                      {timingText ? ` - ${timingText}` : ''}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold text-slate-700">
+                    {score}%
+                  </span>
+                </div>
+
+                {match.matchedPassages?.length > 0 && (
+                  <p className={`m-0 mt-2 rounded px-2 py-1.5 text-xs ${tone.note}`}>
+                    Evidence: "{match.matchedPassages[0]}"
+                  </p>
+                )}
+                {match.aiExplanation && (
+                  <p className="m-0 mt-2 rounded bg-white/80 px-2 py-1.5 text-xs text-violet-800">
+                    {match.aiExplanation}
+                  </p>
+                )}
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {match.review?.decision && match.review.decision !== 'PENDING' && (
+                    <span className="rounded-full bg-white/80 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                      {REVIEW_LABELS[match.review.decision]}
+                    </span>
+                  )}
+                  {[
+                    ['CONFIRMED', 'Confirm'],
+                    ['DISMISSED', 'Dismiss'],
+                    ['NEEDS_DISCUSSION', 'Discuss'],
+                  ].map(([decision, label]) => (
+                    <button
+                      key={decision}
+                      type="button"
+                      onClick={() => onReview?.(match.id, decision)}
+                      disabled={reviewingMatchId === match.id}
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {reviewingMatchId === match.id ? 'Saving...' : label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => {
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const canManageAssignment = currentUser.role === 'teacher' || currentUser.role === 'admin';
   const canReviewTAGrades = currentUser.role === 'teacher' || currentUser.role === 'admin';
+  const canViewTAGrades = canReviewTAGrades || currentUser.role === 'student';
   const [currentAssignment, setCurrentAssignment] = useState(assignment);
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -412,25 +596,35 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
   const [changingStatus, setChangingStatus] = useState(false);
   const [savingGradeId, setSavingGradeId] = useState(null);
 
-  const loadSubmissions = useCallback(() => {
+  const loadSubmissions = useCallback(async () => {
     setLoading(true);
-    Promise.all([
-      assignmentAPI.getSubmissions(assignment.id),
-      assignmentAPI.getLatestSimilarityReport(assignment.id),
-    ])
-      .then(([submissionsResponse, reportResponse]) => {
-        setSubmissions(submissionsResponse.data.data);
-        setSimilarityReport(reportResponse.data.data);
-      })
-      .catch(() => toast.error('Failed to load submissions'))
-      .finally(() => setLoading(false));
-  }, [assignment.id]);
+    try {
+      const submissionsResponse = await assignmentAPI.getSubmissions(assignment.id);
+      setSubmissions(submissionsResponse.data.data);
+
+      if (canManageAssignment) {
+        try {
+          const reportResponse = await assignmentAPI.getLatestSimilarityReport(assignment.id);
+          setSimilarityReport(reportResponse.data.data);
+        } catch {
+          setSimilarityReport(null);
+        }
+      } else {
+        setSimilarityReport(null);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to load submissions');
+    } finally {
+      setLoading(false);
+    }
+  }, [assignment.id, canManageAssignment]);
 
   useEffect(() => {
     loadSubmissions();
   }, [loadSubmissions]);
 
   const runSimilarityScan = async () => {
+    if (!canManageAssignment) return;
     setScanningStageOne(true);
     try {
       const response = await assignmentAPI.runSimilarityScan(assignment.id);
@@ -444,6 +638,7 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
   };
 
   const runSimilarityAIScan = async () => {
+    if (!canManageAssignment) return;
     setScanningStageTwo(true);
     try {
       const response = await assignmentAPI.runSimilarityAIScan(assignment.id, { includeExplanations: true });
@@ -457,6 +652,7 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
   };
 
   const reviewSimilarityMatch = async (matchId, decision) => {
+    if (!canManageAssignment) return;
     setReviewingMatchId(matchId);
     try {
       const response = await assignmentAPI.reviewSimilarityMatch(assignment.id, matchId, { decision });
@@ -470,6 +666,7 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
   };
 
   const changeSubmissionStatus = async () => {
+    if (!canManageAssignment) return;
     const closing = currentAssignment.status !== 'CLOSED';
     if (closing && !window.confirm('Close submissions now? Students will no longer be able to submit or resubmit.')) return;
 
@@ -505,8 +702,27 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
     try {
       const response = await assignmentAPI.gradeSubmission(subId, { obtainedMarks: numericMarks, feedback });
       if (response.data.pendingApproval) {
+        const pendingGrade = response.data.data || {};
+        const visiblePendingGrade = {
+          ...pendingGrade,
+          status: pendingGrade.status || 'PENDING',
+          marksAwarded: pendingGrade.marksAwarded ?? numericMarks,
+          feedback: pendingGrade.feedback ?? feedback ?? null,
+          taStudent: pendingGrade.taStudent || { user: { name: currentUser.name || 'You' } },
+        };
+        setSubmissions((prev) => prev.map((s) => {
+          if (s.id !== subId) return s;
+          const currentPendingGrades = s.taPendingGrades || [];
+          const otherPendingGrades = currentPendingGrades.filter((pending) => (
+            pending.id !== visiblePendingGrade.id
+            && (!visiblePendingGrade.taStudentId || pending.taStudentId !== visiblePendingGrade.taStudentId)
+          ));
+          return {
+            ...s,
+            taPendingGrades: [visiblePendingGrade, ...otherPendingGrades],
+          };
+        }));
         toast.success('Grade saved for teacher approval');
-        loadSubmissions();
       } else {
         setSubmissions((prev) => prev.map((s) => s.id === subId ? { ...s, status: 'GRADED', obtainedMarks: numericMarks, feedback } : s));
         toast.success('Grade saved');
@@ -543,6 +759,24 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
   const canRunStageTwo = Boolean(similarityReport)
     && !similarityReport.isStale
     && currentAssignment.status === 'CLOSED';
+  const submissionsById = useMemo(
+    () => new Map(submissions.map((submission) => [submission.id, submission])),
+    [submissions]
+  );
+  const similarityMatchesBySubmissionId = useMemo(() => {
+    const grouped = new Map();
+    (similarityReport?.matches || []).forEach((match) => {
+      [match.submissionA?.id, match.submissionB?.id].filter(Boolean).forEach((submissionId) => {
+        const current = grouped.get(submissionId) || [];
+        current.push(match);
+        grouped.set(submissionId, current);
+      });
+    });
+    grouped.forEach((matches) => {
+      matches.sort((left, right) => getSimilarityScore(right) - getSimilarityScore(left));
+    });
+    return grouped;
+  }, [similarityReport]);
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-modal p-4">
@@ -553,49 +787,53 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
             <p className="text-sm text-slate-500 m-0">Submissions · {submissions.length} received</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={changeSubmissionStatus}
-              disabled={changingStatus || scanBusy}
-              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                currentAssignment.status === 'CLOSED'
-                  ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
-                  : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
-              }`}
-            >
-              {changingStatus
-                ? <Loader2 size={14} className="animate-spin" />
-                : currentAssignment.status === 'CLOSED' ? <LockOpen size={14} /> : <Lock size={14} />}
-              {currentAssignment.status === 'CLOSED' ? 'Reopen' : 'Close Submissions'}
-            </button>
-            <button
-              onClick={runSimilarityScan}
-              disabled={scanningStageOne || scanningStageTwo || changingStatus || loading || submissions.length < 2 || currentAssignment.status !== 'CLOSED'}
-              title={currentAssignment.status !== 'CLOSED' ? 'Close submissions before scanning' : 'Run local Stage 1 checks'}
-              className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {scanningStageOne ? <Loader2 size={14} className="animate-spin" /> : <ScanSearch size={14} />}
-              {scanningStageOne ? 'Scanning...' : similarityReport ? 'Stage 1 Again' : 'Stage 1 Local Scan'}
-            </button>
-            <button
-              onClick={runSimilarityAIScan}
-              disabled={scanningStageTwo || scanningStageOne || changingStatus || loading || !canRunStageTwo}
-              title={!similarityReport ? 'Run Stage 1 first' : similarityReport.isStale ? 'Run Stage 1 again before Stage 2' : 'Run Stage 2 AI semantic scan'}
-              className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {scanningStageTwo ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-              {scanningStageTwo ? 'AI scanning...' : 'Stage 2 AI Scan'}
-            </button>
+            {canManageAssignment && (
+              <>
+                <button
+                  onClick={changeSubmissionStatus}
+                  disabled={changingStatus || scanBusy}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    currentAssignment.status === 'CLOSED'
+                      ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+                      : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                  }`}
+                >
+                  {changingStatus
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : currentAssignment.status === 'CLOSED' ? <LockOpen size={14} /> : <Lock size={14} />}
+                  {currentAssignment.status === 'CLOSED' ? 'Reopen' : 'Close Submissions'}
+                </button>
+                <button
+                  onClick={runSimilarityScan}
+                  disabled={scanningStageOne || scanningStageTwo || changingStatus || loading || submissions.length < 2 || currentAssignment.status !== 'CLOSED'}
+                  title={currentAssignment.status !== 'CLOSED' ? 'Close submissions before scanning' : 'Run local Stage 1 checks'}
+                  className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {scanningStageOne ? <Loader2 size={14} className="animate-spin" /> : <ScanSearch size={14} />}
+                  {scanningStageOne ? 'Scanning...' : similarityReport ? 'Stage 1 Again' : 'Stage 1 Local Scan'}
+                </button>
+                <button
+                  onClick={runSimilarityAIScan}
+                  disabled={scanningStageTwo || scanningStageOne || changingStatus || loading || !canRunStageTwo}
+                  title={!similarityReport ? 'Run Stage 1 first' : similarityReport.isStale ? 'Run Stage 1 again before Stage 2' : 'Run Stage 2 AI semantic scan'}
+                  className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {scanningStageTwo ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                  {scanningStageTwo ? 'AI scanning...' : 'Stage 2 AI Scan'}
+                </button>
+              </>
+            )}
             <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"><X size={20} /></button>
           </div>
         </div>
         <div className="overflow-y-auto flex-1 p-4 space-y-3">
-          {currentAssignment.status !== 'CLOSED' && (
+          {canManageAssignment && currentAssignment.status !== 'CLOSED' && (
             <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               <Lock size={17} className="mt-0.5 shrink-0" />
               <span>Close submissions here before running similarity checks.</span>
             </div>
           )}
-          {similarityReport && (
+          {canManageAssignment && similarityReport && (
             <SimilarityResults
               report={similarityReport}
               onReview={reviewSimilarityMatch}
@@ -607,7 +845,12 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
           ) : submissions.length === 0 ? (
             <div className="text-center py-12 text-slate-400">No submissions yet</div>
           ) : submissions.map((sub) => {
-            const sc = SUB_STATUS[sub.status];
+            const pendingGrades = (sub.taPendingGrades || []).filter((pending) => pending.status === 'PENDING');
+            const pendingGrade = pendingGrades[0];
+            const hasPendingGrade = pendingGrades.length > 0;
+            const sc = hasPendingGrade
+              ? { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Pending approval' }
+              : (SUB_STATUS[sub.status] || SUB_STATUS.SUBMITTED);
             const isGrading = gradingId === sub.id;
             return (
               <div key={sub.id} className="bg-slate-50 rounded-xl p-4">
@@ -621,38 +864,52 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
                     {sub.status === 'GRADED' && (
                       <span className="text-sm font-bold text-green-700">{sub.obtainedMarks}/{currentAssignment.totalMarks}</span>
                     )}
+                    {hasPendingGrade && (
+                      <span className="text-sm font-bold text-amber-700">{pendingGrade.marksAwarded}/{currentAssignment.totalMarks}</span>
+                    )}
                   </div>
                 </div>
 
                 {sub.submissionText && <p className="text-sm text-slate-600 mb-2 line-clamp-2">{sub.submissionText}</p>}
                 {sub.feedback && <p className="text-xs text-green-700 bg-green-50 rounded p-2 mb-2">{sub.feedback}</p>}
-                {canReviewTAGrades && (sub.taPendingGrades || []).filter((pending) => pending.status === 'PENDING').map((pending) => (
+                {canManageAssignment && similarityReport && (
+                  <SubmissionSimilarityFindings
+                    submission={sub}
+                    matches={similarityMatchesBySubmissionId.get(sub.id)}
+                    submissionsById={submissionsById}
+                    onReview={reviewSimilarityMatch}
+                    reviewingMatchId={reviewingMatchId}
+                  />
+                )}
+                {canViewTAGrades && pendingGrades.map((pending) => (
                   <div key={pending.id} className="mb-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="m-0 text-xs font-semibold text-amber-800">
-                          Pending TA grade: {pending.marksAwarded}/{currentAssignment.totalMarks}
+                          {canReviewTAGrades ? 'Pending TA grade' : 'Your pending grade'}: {pending.marksAwarded}/{currentAssignment.totalMarks}
                         </p>
                         <p className="m-0 mt-0.5 text-[11px] text-amber-700">
                           {pending.taStudent?.user?.name || 'TA'}{pending.feedback ? ` · ${pending.feedback}` : ''}
                         </p>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => approvePendingGrade(pending.id)}
-                          className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => rejectPendingGrade(pending.id)}
-                          className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
-                        >
-                          Reject
-                        </button>
-                      </div>
+                      {canReviewTAGrades && (
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => approvePendingGrade(pending.id)}
+                            className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => rejectPendingGrade(pending.id)}
+                            className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -670,11 +927,20 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
                       </a>
                     )}
                     <button
-                      onClick={() => { setGradingId(sub.id); setGradeForm((f) => ({ ...f, [sub.id]: { marks: sub.obtainedMarks ?? '', feedback: sub.feedback ?? '' } })); }}
+                      onClick={() => {
+                        setGradingId(sub.id);
+                        setGradeForm((f) => ({
+                          ...f,
+                          [sub.id]: {
+                            marks: pendingGrade?.marksAwarded ?? sub.obtainedMarks ?? '',
+                            feedback: pendingGrade?.feedback ?? sub.feedback ?? '',
+                          },
+                        }));
+                      }}
                       className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700"
                     >
                       <Award size={14} />
-                      {sub.status === 'GRADED' ? 'Edit grade' : 'Grade'}
+                      {hasPendingGrade ? 'Edit pending grade' : sub.status === 'GRADED' ? 'Edit grade' : 'Grade'}
                     </button>
                   </div>
                 ) : (

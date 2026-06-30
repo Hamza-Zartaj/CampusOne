@@ -7,6 +7,25 @@ import { syncCourseworkMark, validateCourseworkSlot } from '../utils/courseworkM
 
 const BUCKET = 'assignments';
 
+const safeFileSegment = (value, fallback) => {
+  const clean = String(value || fallback || '')
+    .trim()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+  return clean || fallback;
+};
+
+const buildSubmissionFilePath = ({ assignment, student, extension }) => {
+  const courseCode = safeFileSegment(assignment.offering?.course?.code, 'course');
+  const studentName = safeFileSegment(student.user?.name, 'student');
+  const rollNumber = safeFileSegment(student.studentId, student.id);
+  const ext = safeFileSegment(extension, 'file');
+  return `submissions/${assignment.offeringId}/${assignment.id}/${courseCode}-${studentName}-${rollNumber}.${ext}`;
+};
+
 const getApprovedTAAssignment = async ({ userId, offeringId, permission }) => {
   const student = await prisma.student.findUnique({ where: { userId } });
   if (!student) return null;
@@ -163,7 +182,7 @@ export const createAssignment = async (req, res) => {
         componentIndex: slot.index,
         title,
         description: description || null,
-        totalMarks: slot.component.totalPerInstance || (totalMarks ? +totalMarks : 100),
+        totalMarks: slot.component.totalPerInstance || (totalMarks ? +totalMarks : 10),
         dueDate: new Date(dueDate),
         allowLate: allowLate === 'true' || allowLate === true,
         attachmentUrl,
@@ -625,10 +644,16 @@ export const rejectPendingSubmissionGrade = async (req, res) => {
 // POST /api/assignments/:id/submit  — student submits
 export const submitAssignment = async (req, res) => {
   try {
-    const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+    const student = await prisma.student.findUnique({
+      where: { userId: req.user.id },
+      include: { user: { select: { name: true } } },
+    });
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
-    const assignment = await prisma.assignment.findUnique({ where: { id: req.params.id } });
+    const assignment = await prisma.assignment.findUnique({
+      where: { id: req.params.id },
+      include: { offering: { select: { course: { select: { code: true } } } } },
+    });
     if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
     if (assignment.status === 'DRAFT') return res.status(400).json({ success: false, message: 'Assignment not published yet' });
     if (assignment.status === 'CLOSED') {
@@ -649,24 +674,24 @@ export const submitAssignment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Provide submissionText or upload a file' });
     }
 
-    let attachmentUrl = null;
-    if (req.file) {
-      const ext = req.file.originalname.split('.').pop();
-      const filePath = `submissions/${assignment.offeringId}/${student.id}/${uuidv4()}.${ext}`;
-      attachmentUrl = await uploadToStorage(BUCKET, filePath, req.file.buffer, req.file.mimetype);
-    }
-
     const existing = await prisma.submission.findUnique({
       where: { assignmentId_studentId: { assignmentId: assignment.id, studentId: student.id } },
     });
 
+    let attachmentUrl = null;
+    if (req.file) {
+      const ext = req.file.originalname.split('.').pop();
+      const filePath = buildSubmissionFilePath({ assignment, student, extension: ext });
+      attachmentUrl = await uploadToStorage(BUCKET, filePath, req.file.buffer, req.file.mimetype, { upsert: true });
+      if (existing?.attachmentUrl) {
+        const oldPath = pathFromUrl(existing.attachmentUrl, BUCKET);
+        if (oldPath && oldPath !== filePath) await deleteFromStorage(BUCKET, oldPath);
+      }
+    }
+
     let submission;
     if (existing) {
-      // Re-submission — replace old file if any
-      if (existing.attachmentUrl && attachmentUrl) {
-        const oldPath = pathFromUrl(existing.attachmentUrl, BUCKET);
-        if (oldPath) await deleteFromStorage(BUCKET, oldPath);
-      }
+      // Resubmissions keep the generated filename and overwrite the stored object.
       submission = await prisma.submission.update({
         where: { id: existing.id },
         data: {
