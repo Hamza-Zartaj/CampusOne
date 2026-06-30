@@ -3,7 +3,7 @@
 
 export const TEMPLATES = {
   LECTURE: [
-    { kind: 'ASSIGNMENT',           label: 'Assignment',            count: 4, totalPerInstance: 100, weightPercent: 5,  aggregation: 'AVERAGE', orderIndex: 1 },
+    { kind: 'ASSIGNMENT',           label: 'Assignment',            count: 4, totalPerInstance: 10,  weightPercent: 5,  aggregation: 'AVERAGE', orderIndex: 1 },
     { kind: 'QUIZ',                 label: 'Quiz',                  count: 4, totalPerInstance: 20,  weightPercent: 10, aggregation: 'AVERAGE', orderIndex: 2 },
     { kind: 'PROJECT_PRESENTATION', label: 'Project / Presentation', count: 1, totalPerInstance: 100, weightPercent: 10, aggregation: 'SINGLE',  orderIndex: 3 },
     { kind: 'MID',                  label: 'Mid Term',              count: 1, totalPerInstance: 30,  weightPercent: 30, aggregation: 'SINGLE',  orderIndex: 4 },

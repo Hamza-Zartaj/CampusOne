@@ -130,6 +130,7 @@ Status in this section means the relevant schema, backend route/controller, and 
 - [x] Forgot-password and reset flow
 - [x] Super-admin recovery keys
 - [x] Profile editing and profile-picture storage
+- [x] Supabase Storage bucket provisioning for assignment files, lecture/TA resources, admission documents, and profile pictures
 - [x] OTP-gated profile email changes
 - [x] Seven canonical admin permissions and permission presets
 - [x] Permission-aware admin navigation and dashboard content
@@ -197,9 +198,12 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 
 - [x] Assignment CRUD
 - [x] Assignment create/edit flow links each assignment to a configured grade-component slot and blocks creation beyond the configured count
+- [x] Assignment default score scale is 10 marks in the create modal, backend fallback, and default lecture grade-component template
 - [x] Assignment grading syncs official submission marks into the matching lecturer marks-grid cell
 - [x] Assignment file upload
 - [x] Student submission and resubmission
+- [x] Student assignment submissions immediately refresh cached active-assignment state and update the visible card status
+- [x] Student assignment upload files are stored with generated course-code, student-name, and roll-number filenames instead of the original uploaded filename
 - [x] Teacher Close/Reopen Submissions control with backend enforcement
 - [x] Assignment similarity Stage 1 inside View Submissions
 - [x] Exact file hash, normalized text hash, and local lexical-overlap detection
@@ -209,6 +213,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Stage 2 caches pgvector text embeddings and flags semantic matches only for pairs Stage 1 did not already resolve
 - [x] Stage 2 can add concise AI explanations for the strongest semantic matches
 - [x] Teacher review decisions for similarity matches are stored and audit-logged
+- [x] Assignment similarity findings render on each related submission card with match type, score, peer, submitted-first/later timing, evidence, AI explanation, and review actions
 - [x] Submission grading and feedback
 - [x] TA self-grading prevention for assignment submissions
 - [x] Attendance batch marking
@@ -255,6 +260,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Thread status and deletion workflows
 - [x] Teacher notification and email for new questions
 - [x] Student leave applications
+- [x] Student leave application modal selects upcoming timetable lecture slots instead of manually entering dates; non-adjacent selected dates submit as separate leave applications
 - [x] Teacher leave review
 - [x] Leave counters, fines, and automatic enrollment drop logic
 - [x] Database-enforced fine-generation idempotency through stable quota units
@@ -266,6 +272,9 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] `GRADE_QUIZZES` authorizes approved TAs to review quiz attempts and save manual quiz grades for teacher approval
 - [x] TA assignment and quiz grades are saved as pending recommendations until a teacher/admin approves them into official student-visible marks
 - [x] `UPLOAD_RESOURCES` authorizes approved TAs to upload offering resources; enrolled students see them in My Courses
+- [x] TA assignment cards expose real course-tool buttons for roster, attendance, assignment grading, quiz grading, Q&A, and resources, with roster and Q&A access scoped to approved TA permissions
+- [x] TA assignment grading opens the submissions panel without teacher-only close/submission-similarity controls blocking the TA view
+- [x] TA assignment grading shows saved pending-approval marks and feedback on submission cards so TAs can see/edit their own recommendations before teacher approval
 - [x] Student, teacher, and admin TA pages
 - [x] TA oversight pagination across backend API and admin UI
 - [x] Sidebar TA status refreshes on focus and relevant socket notification events
@@ -308,9 +317,12 @@ Checks run through June 30, 2026:
 - **Seed:** passes with 265 users, 250 students, 331 offerings, 8,195 enrollments, and 100,910 mark cells
 - **Fine uniqueness integration check:** passes; two identical quota-unit inserts persisted as one row and temporary verification data was removed
 - **Local Supabase Storage:** required buckets provisioned after reset
+- **Supabase Storage bucket repair:** `npm.cmd run storage:buckets` passed and confirmed the current database has `admission-documents`, `assignments`, `lectures`, and `profile-pictures`; `npx.cmd prisma validate` passes after adding the idempotent storage bucket migration, local Supabase seed, and reset hook
+- **Prisma migrate deploy note:** `npx.cmd prisma migrate deploy` cannot run on the current local DB because it is non-empty and not baselined under Prisma Migrate (`P3005`); the storage bucket SQL itself was applied through the repair script
 - **Backend health endpoint:** OK with database connected
 - **Frontend development server:** HTTP 200
 - **Frontend production build:** passes
+- **Student leave lecture-slot application UX:** changed leave backend syntax check passes; frontend production build passes after replacing manual date inputs with selectable upcoming lecture slots generated from the course timetable
 - **Student quiz cache invalidation:** frontend production build passes after quiz mutations were added to API cache invalidation for `/students/me` active quiz data
 - **Focused seed reset/reseed:** last full local run passed for the earlier focused two-course test dataset; the current seed is now assessment-free and was not re-run to avoid resetting local data
 - **Focused seed course/schedule baseline:** `node --check scripts\seed.js` passes; the seed now keeps CS101/CS201 grade components, schedule config, rooms, and class sessions while intentionally creating no assignment or quiz records
@@ -322,6 +334,13 @@ Checks run through June 30, 2026:
 - **Frontend build warnings:** API/socket mixed static and dynamic imports still produce one Vite warning, but the oversized entry warning is gone
 - **Assignment similarity Stage 2:** Prisma schema validation, Prisma Client generation, changed backend syntax checks, and frontend production build pass
 - **Frontend lint:** passes with **0 errors and 52 warnings**
+- **TA course-tool UX:** changed backend offering/Q&A controller and offering route syntax checks pass; frontend production build passes after replacing TA permission chips with course-tool buttons, adding the roster modal, Q&A offering deep links, and scoped TA offering loading
+- **Assignment default marks:** frontend production build passes; changed assignment controller and grade-template syntax checks pass after changing the assignment creation/default grade-component scale from 100 to 10
+- **Student assignment submission refresh:** frontend production build passes after assignment submissions were added to API cache invalidation for `/students/me` active-assignment data and the submitted card is updated immediately from the submit response
+- **TA assignment submissions panel:** frontend production build passes after the submissions modal stopped bundling teacher-only similarity-report loading into the TA submissions fetch and hid teacher-only close/similarity controls for TA users
+- **TA assignment pending-grade visibility:** frontend production build passes after TA-saved assignment grades update the open submissions panel immediately and render as pending approval with the saved mark/feedback
+- **Assignment submission file naming:** changed backend assignment controller and storage helper syntax checks pass; Prisma schema validation passes after student upload storage paths switched to generated `course-student-roll.ext` filenames with explicit overwrite support for resubmissions
+- **Assignment similarity submission-card UX:** frontend production build passes after moving visible similarity findings from the top report list onto each related submission card with submitted-first/later timing and inline review controls
 
 Remaining lint warnings:
 

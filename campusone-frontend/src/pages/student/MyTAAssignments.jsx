@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   GraduationCap, CheckCircle2, XCircle, Clock, AlertCircle, Plus, X,
-  BookOpen, Award, Users, Upload, Download, Trash2, Loader2,
+  BookOpen, Award, Users, Upload, Download, Trash2, Loader2, CalendarCheck,
+  MessageSquare,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { taAPI } from '../../utils/api';
+import { offeringAPI, taAPI } from '../../utils/api';
 
 const STATUS_CHIP = {
   PENDING:  'bg-amber-50 text-amber-700 border-amber-200',
@@ -18,15 +19,6 @@ const StatusIcon = ({ s }) => {
   if (s === 'REJECTED') return <XCircle size={14} className="text-red-600" />;
   if (s === 'RELIEVED') return <AlertCircle size={14} className="text-slate-500" />;
   return <Clock size={14} className="text-amber-600" />;
-};
-
-const PERM_LABEL = {
-  MARK_ATTENDANCE:    'Mark attendance',
-  GRADE_ASSIGNMENTS:  'Grade assignments',
-  GRADE_QUIZZES:      'Grade quizzes (manual)',
-  ANSWER_QNA:         'Answer Q&A',
-  UPLOAD_RESOURCES:   'Upload resources',
-  VIEW_ROSTER:        'View roster',
 };
 
 const TAResourcePanel = ({ assignment }) => {
@@ -140,6 +132,82 @@ const TAResourcePanel = ({ assignment }) => {
   );
 };
 
+const RosterModal = ({ assignment, onClose }) => {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    offeringAPI.getStudents(assignment.offering.id)
+      .then((response) => setRows(response.data.data || []))
+      .catch((error) => toast.error(error.response?.data?.message || 'Failed to load roster'))
+      .finally(() => setLoading(false));
+  }, [assignment.offering.id]);
+
+  return (
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
+          <div>
+            <h3 className="m-0 text-lg font-bold text-slate-900">Class roster</h3>
+            <p className="m-0 mt-1 text-sm text-slate-500">
+              {assignment.offering.course.code} - {assignment.offering.course.title} (Sec {assignment.offering.section})
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            aria-label="Close roster"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <div className="min-h-0 overflow-y-auto p-5">
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-400">
+              <Loader2 size={18} className="animate-spin" /> Loading roster...
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">
+              No students are enrolled in this section.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[620px]">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    {['Roll No', 'Student', 'Email', 'Semester', 'Status'].map((heading) => (
+                      <th key={heading} className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="px-3 py-3 text-sm font-semibold text-slate-800">{row.student.studentId}</td>
+                      <td className="px-3 py-3 text-sm text-slate-700">{row.student.user.name}</td>
+                      <td className="px-3 py-3 text-sm text-slate-500">{row.student.user.email}</td>
+                      <td className="px-3 py-3 text-sm text-slate-500">{row.student.currentSemester ?? '-'}</td>
+                      <td className="px-3 py-3">
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                          {row.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const MyTAAssignments = () => {
   const [eligibility, setEligibility] = useState(null);
   const [my, setMy] = useState([]);
@@ -147,6 +215,8 @@ const MyTAAssignments = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ courseId: '', offeringId: '', reason: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [rosterAssignment, setRosterAssignment] = useState(null);
+  const [resourcesOpen, setResourcesOpen] = useState({});
 
   const load = () => {
     setLoading(true);
@@ -199,7 +269,7 @@ const MyTAAssignments = () => {
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-[28px] font-bold text-slate-800 m-0 max-md:text-2xl">My TA Assignments</h1>
-          <p className="text-sm text-slate-500 m-0 mt-1">Apply to teach, grade, or assist with junior courses</p>
+          <p className="text-sm text-slate-500 m-0 mt-1">Manage your approved TA duties and course tools</p>
         </div>
         <button
           onClick={() => setModalOpen(true)}
@@ -274,32 +344,62 @@ const MyTAAssignments = () => {
                     <p className="text-xs text-slate-500 m-0">
                       {a.offering.term.code} · Teacher: {a.offering.teacher.user.name}
                     </p>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {(a.permissions || []).map((p) => (
-                        <span key={p} className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-700">
-                          {PERM_LABEL[p] || p}
-                        </span>
-                      ))}
+                    <div className="mt-3">
+                      <p className="m-0 mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Course tools</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(a.permissions || []).includes('VIEW_ROSTER') && (
+                          <button
+                            type="button"
+                            onClick={() => setRosterAssignment(a)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            <Users size={13} /> View roster
+                          </button>
+                        )}
+                        {(a.permissions || []).includes('MARK_ATTENDANCE') && (
+                          <Link
+                            to={`/teacher/attendance?offeringId=${a.offering.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                          >
+                            <CalendarCheck size={13} /> Mark attendance
+                          </Link>
+                        )}
+                        {(a.permissions || []).includes('ANSWER_QNA') && (
+                          <Link
+                            to={`/teacher/qna?offeringId=${a.offering.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100"
+                          >
+                            <MessageSquare size={13} /> Answer Q&A
+                          </Link>
+                        )}
+                        {(a.permissions || []).includes('GRADE_ASSIGNMENTS') && (
+                          <Link
+                            to={`/teacher/assignments?offeringId=${a.offering.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                          >
+                            <Award size={13} /> Grade assignments
+                          </Link>
+                        )}
+                        {(a.permissions || []).includes('GRADE_QUIZZES') && (
+                          <Link
+                            to={`/teacher/quizzes?offeringId=${a.offering.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                          >
+                            <BookOpen size={13} /> Grade quizzes
+                          </Link>
+                        )}
+                        {(a.permissions || []).includes('UPLOAD_RESOURCES') && (
+                          <button
+                            type="button"
+                            onClick={() => setResourcesOpen((current) => ({ ...current, [a.id]: !current[a.id] }))}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                          >
+                            <Upload size={13} /> Upload resources
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {(a.permissions || []).includes('GRADE_ASSIGNMENTS') && (
-                        <Link
-                          to={`/teacher/assignments?offeringId=${a.offering.id}`}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                        >
-                          <Award size={13} /> Grade assignments
-                        </Link>
-                      )}
-                      {(a.permissions || []).includes('GRADE_QUIZZES') && (
-                        <Link
-                          to={`/teacher/quizzes?offeringId=${a.offering.id}`}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
-                        >
-                          <BookOpen size={13} /> Grade quizzes
-                        </Link>
-                      )}
-                    </div>
-                    {(a.permissions || []).includes('UPLOAD_RESOURCES') && <TAResourcePanel assignment={a} />}
+                    {(a.permissions || []).includes('UPLOAD_RESOURCES') && resourcesOpen[a.id] && <TAResourcePanel assignment={a} />}
                   </div>
                   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${STATUS_CHIP[a.status]}`}>
                     <StatusIcon s={a.status} /> Active
@@ -365,6 +465,10 @@ const MyTAAssignments = () => {
         <div className="bg-white rounded-2xl shadow-sm p-10 text-center text-slate-400 text-sm">
           You haven't applied to be a TA yet.
         </div>
+      )}
+
+      {rosterAssignment && (
+        <RosterModal assignment={rosterAssignment} onClose={() => setRosterAssignment(null)} />
       )}
 
       {/* Apply modal */}

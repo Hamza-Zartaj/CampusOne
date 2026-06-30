@@ -43,6 +43,7 @@ const INVALIDATE = [
   { onWrite: '/holidays',    bust: ['/holidays'] },
   { onWrite: '/ta',          bust: ['/ta'] },
   { onWrite: '/offerings',   bust: ['/offerings', '/schedule'] },
+  { onWrite: '/assignments', bust: ['/assignments', '/students/me'] },
   { onWrite: '/quizzes',     bust: ['/quizzes', '/students/me'] },
   { onWrite: '/admissions',  bust: ['/admissions'] },
 ];

@@ -11,5 +11,6 @@
 
 - Prefer existing project patterns over new abstractions.
 - Backend authorization is the security boundary; frontend visibility is not enough.
+- Never run `npm run dev` or `npm.cmd run dev`; the user controls dev servers.
 - For frontend changes, run `npm.cmd run build` in `campusone-frontend` when feasible.
 - For backend schema or Prisma changes, run the relevant Prisma validation/generation command when feasible.

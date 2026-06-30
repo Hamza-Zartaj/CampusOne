@@ -17,6 +17,15 @@ const offeringInclude = {
   _count: { select: { enrollments: true } },
 };
 
+const VALID_TA_PERMISSIONS = new Set([
+  'MARK_ATTENDANCE',
+  'GRADE_ASSIGNMENTS',
+  'GRADE_QUIZZES',
+  'ANSWER_QNA',
+  'UPLOAD_RESOURCES',
+  'VIEW_ROSTER',
+]);
+
 // GET /api/offerings
 export const getAllOfferings = async (req, res) => {
   try {
@@ -59,22 +68,51 @@ export const getOfferingById = async (req, res) => {
   }
 };
 
-// GET /api/offerings/my — teacher's own offerings for active term
+// GET /api/offerings/my - teacher's own offerings or approved TA offerings for active term
 export const getMyOfferings = async (req, res) => {
   try {
-    const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
-    if (!teacher) return res.status(404).json({ success: false, message: 'Teacher profile not found' });
-
     const { termId } = req.query;
     const activeTerm = termId
       ? { id: termId }
       : await prisma.term.findFirst({ where: { isActive: true } });
 
-    const offerings = await prisma.courseOffering.findMany({
-      where: { teacherId: teacher.id, termId: activeTerm?.id, isActive: true },
-      include: { ...offeringInclude },
-      orderBy: { course: { code: 'asc' } },
-    });
+    let offerings = [];
+
+    if (req.user.role === 'teacher') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
+      if (!teacher) return res.status(404).json({ success: false, message: 'Teacher profile not found' });
+
+      offerings = await prisma.courseOffering.findMany({
+        where: { teacherId: teacher.id, termId: activeTerm?.id, isActive: true },
+        include: { ...offeringInclude },
+        orderBy: { course: { code: 'asc' } },
+      });
+    } else if (req.user.role === 'student') {
+      const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+      if (!student) return res.status(403).json({ success: false, message: 'Student profile not found' });
+
+      const requiredPermission = req.query.taPermission || 'VIEW_ROSTER';
+      if (!VALID_TA_PERMISSIONS.has(requiredPermission)) {
+        return res.status(400).json({ success: false, message: 'Invalid TA permission filter' });
+      }
+
+      const assignments = await prisma.tAAssignment.findMany({
+        where: {
+          studentId: student.id,
+          status: 'APPROVED',
+          permissions: { has: requiredPermission },
+          offering: { termId: activeTerm?.id, isActive: true },
+        },
+        include: { offering: { include: { ...offeringInclude } } },
+      });
+      offerings = assignments
+        .map((assignment) => assignment.offering)
+        .sort((a, b) => (
+          String(a.course?.code || '').localeCompare(String(b.course?.code || ''))
+          || String(a.section || '').localeCompare(String(b.section || ''))
+        ));
+    }
+
     res.json({ success: true, count: offerings.length, data: offerings, term: activeTerm });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -90,11 +128,20 @@ export const getOfferingStudents = async (req, res) => {
     });
     if (!offering) return res.status(404).json({ success: false, message: 'Offering not found' });
 
-    // Only teacher who owns this offering or admin can view
+    // Teacher owner, admin, or approved TA with VIEW_ROSTER can view.
     if (req.user.role === 'teacher') {
       const teacher = await prisma.teacher.findUnique({ where: { userId: req.user.id } });
       if (!teacher || teacher.id !== offering.teacherId) {
         return res.status(403).json({ success: false, message: 'Access denied' });
+      }
+    } else if (req.user.role === 'student') {
+      const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+      if (!student) return res.status(403).json({ success: false, message: 'Student profile not found' });
+      const assignment = await prisma.tAAssignment.findUnique({
+        where: { studentId_offeringId: { studentId: student.id, offeringId: req.params.id } },
+      });
+      if (!assignment || assignment.status !== 'APPROVED' || !assignment.permissions.includes('VIEW_ROSTER')) {
+        return res.status(403).json({ success: false, message: 'TA permission required: VIEW_ROSTER' });
       }
     }
 

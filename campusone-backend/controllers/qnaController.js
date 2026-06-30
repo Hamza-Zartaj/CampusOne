@@ -130,11 +130,22 @@ export const getThreads = async (req, res) => {
     } else if (req.user.role === 'student') {
       const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
       if (!student) return res.status(403).json({ success: false, message: 'Student profile not found' });
-      const enrollments = await prisma.enrollment.findMany({
-        where: { studentId: student.id, status: { in: ['ENROLLED', 'COMPLETED'] } },
-        select: { offeringId: true },
-      });
-      where.offeringId = { in: enrollments.map((e) => e.offeringId) };
+      const [enrollments, taAssignments] = await Promise.all([
+        prisma.enrollment.findMany({
+          where: { studentId: student.id, status: { in: ['ENROLLED', 'COMPLETED'] } },
+          select: { offeringId: true },
+        }),
+        prisma.tAAssignment.findMany({
+          where: { studentId: student.id, status: 'APPROVED', permissions: { has: 'ANSWER_QNA' } },
+          select: { offeringId: true },
+        }),
+      ]);
+      where.offeringId = {
+        in: [...new Set([
+          ...enrollments.map((e) => e.offeringId),
+          ...taAssignments.map((assignment) => assignment.offeringId),
+        ])],
+      };
     }
 
     if (status) where.status = status;
