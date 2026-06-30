@@ -154,6 +154,8 @@ const ThreadDetail = ({ threadId, currentUserId, onBack, onChange }) => {
   if (!thread) return null;
 
   const isAsker = thread.askedById === currentUserId;
+  const canManageStatus = thread.viewerPermissions?.canManageStatus ?? isAsker;
+  const canDeleteThread = thread.viewerPermissions?.canDeleteThread ?? isAsker;
 
   return (
     <div className="space-y-4">
@@ -181,12 +183,12 @@ const ThreadDetail = ({ threadId, currentUserId, onBack, onChange }) => {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {isAsker && (
+            {canManageStatus && (
               <button onClick={toggleStatus} className={`px-3 py-1.5 text-sm rounded-lg ${thread.status === 'OPEN' ? 'bg-green-600 text-white hover:bg-green-700' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'}`}>
                 {thread.status === 'OPEN' ? 'Mark Resolved' : 'Reopen'}
               </button>
             )}
-            {isAsker && (
+            {canDeleteThread && (
               <button onClick={handleDeleteThread} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Delete question">
                 <Trash2 size={16} />
               </button>

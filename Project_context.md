@@ -2,7 +2,7 @@
 
 > **Canonical project tracker and source of truth**
 >
-> Last verified: **June 30, 2026**
+> Last verified: **July 1, 2026**
 >
 > Update this file whenever a feature, architectural rule, known issue, or future task changes. Do not create a separate audit or to-do document.
 
@@ -127,7 +127,7 @@ Status in this section means the relevant schema, backend route/controller, and 
 - [x] Email OTP MFA
 - [x] Trusted-device management
 - [x] First-login password, email, and MFA flow
-- [x] Forgot-password and reset flow
+- [x] Forgot-password and reset flow with authenticator-code verification for authenticator MFA accounts and email OTP reset for email-MFA or non-MFA accounts
 - [x] Super-admin recovery keys
 - [x] Profile editing and profile-picture storage
 - [x] Supabase Storage bucket provisioning for assignment files, lecture/TA resources, admission documents, and profile pictures
@@ -266,6 +266,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Serializable TA approval with active-assignment cap revalidation
 - [x] Offering-scoped TA permissions
 - [x] TA access to attendance, assignment grading, Q&A, and roster operations
+- [x] TA Q&A access is offering-scoped from My TA Assignments; approved `ANSWER_QNA` TAs can reply and resolve/reopen threads for that offering without leaking TA-assigned offerings into the normal student Q&A feed
 - [x] `GRADE_QUIZZES` authorizes approved TAs to review quiz attempts and save manual quiz grades for teacher approval
 - [x] TA assignment and quiz grades are saved as pending recommendations until a teacher/admin approves them into official student-visible marks
 - [x] `UPLOAD_RESOURCES` authorizes approved TAs to upload offering resources; enrolled students see them in My Courses
@@ -298,7 +299,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 
 ## 7. Verification Snapshot
 
-Checks run through June 30, 2026:
+Checks run through July 1, 2026:
 
 - **Prisma schema:** valid
 - **Prisma Client generation:** passes
@@ -339,6 +340,8 @@ Checks run through June 30, 2026:
 - **TA assignment pending-grade visibility:** frontend production build passes after TA-saved assignment grades update the open submissions panel immediately and render as pending approval with the saved mark/feedback
 - **Assignment submission file naming:** changed backend assignment controller and storage helper syntax checks pass; Prisma schema validation passes after student upload storage paths switched to generated `course-student-roll.ext` filenames with explicit overwrite support for resubmissions
 - **Assignment similarity submission-card UX:** frontend production build passes after moving visible similarity findings from the top report list onto each related submission card with submitted-first/later timing and inline review controls
+- **Password reset email fallback:** `node --check controllers\authController.js` passes and frontend production build passes after allowing non-MFA and email-MFA accounts to request and verify password resets through an emailed OTP while preserving authenticator-code reset for authenticator MFA accounts
+- **TA Q&A scope/status:** `node --check controllers\qnaController.js` passes and frontend production build passes after removing TA-assigned offerings from the unfiltered student Q&A feed, allowing approved `ANSWER_QNA` TAs to resolve/reopen offering threads, and rendering Q&A detail actions from backend viewer permissions
 
 Remaining lint warnings:
 
