@@ -8,11 +8,16 @@ const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const SHINGLE_SIZE = 5;
 const LEXICAL_THRESHOLD = 0.35;
 const MIN_LEXICAL_TOKENS = 30;
-const SEMANTIC_THRESHOLD = 0.78;
-const MIN_SEMANTIC_TEXT_LENGTH = 120;
-const MAX_EMBEDDING_INPUT_CHARS = 12_000;
-const MAX_SEMANTIC_MATCHES = 30;
-const MAX_AI_EXPLANATIONS = 5;
+const MAX_AI_REVIEWS = 10;
+const MAX_AI_REVIEW_CHARS = 1800;
+const ASSIGNMENT_COMMON_TOKEN_RATIO = 0.4;
+const MIN_ASSIGNMENT_COMMON_SUBMISSIONS = 3;
+const GLOBAL_COMMON_TOKENS = new Set([
+  'this', 'that', 'with', 'from', 'have', 'will', 'your', 'their', 'there', 'then',
+  'than', 'when', 'where', 'what', 'which', 'also', 'into', 'each', 'only', 'more',
+  'some', 'such', 'same', 'should', 'would', 'could', 'about', 'after', 'before',
+  'student', 'students', 'assignment', 'question', 'answer', 'result', 'results',
+]);
 
 export const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
@@ -25,14 +30,6 @@ export const normalizeSimilarityText = (value) => String(value || '')
   .trim();
 
 const tokenize = (text) => normalizeSimilarityText(text).split(' ').filter(Boolean);
-
-const chunk = (items, size) => {
-  const chunks = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
-  }
-  return chunks;
-};
 
 export const createShingles = (text, size = SHINGLE_SIZE) => {
   const tokens = tokenize(text);
@@ -208,100 +205,122 @@ export const analyzeSubmissionsStageOne = async (submissions) => {
   };
 };
 
-const vectorLiteral = (embedding) => `[${embedding.map((value) => Number(value).toFixed(8)).join(',')}]`;
-
 const assertAIConfigured = () => {
   if (!process.env.OPENAI_API_KEY) {
-    const error = new Error('Stage 2 AI scan is not configured yet. Add OPENAI_API_KEY to campusone-backend/.env and restart the backend.');
+    const error = new Error('Stage 2 AI review is not configured yet. Add OPENAI_API_KEY to campusone-backend/.env and restart the backend.');
     error.code = 'AI_NOT_CONFIGURED';
     throw error;
   }
 };
 
-const generateSubmissionEmbeddings = async (prepared, model) => {
-  assertAIConfigured();
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const embeddings = new Map();
+const isReviewTokenCandidate = (token) => (
+  token.length >= 4
+  && !GLOBAL_COMMON_TOKENS.has(token)
+  && !/^\d+$/.test(token)
+);
 
-  for (const group of chunk(prepared, 32)) {
-    const response = await client.embeddings.create({
-      model,
-      input: group.map((entry) => entry.normalizedText.slice(0, MAX_EMBEDDING_INPUT_CHARS)),
-    });
+const buildAssignmentCommonTokens = (prepared) => {
+  const tokenSubmissionCounts = new Map();
+  const threshold = Math.max(
+    MIN_ASSIGNMENT_COMMON_SUBMISSIONS,
+    Math.ceil(prepared.length * ASSIGNMENT_COMMON_TOKEN_RATIO)
+  );
 
-    response.data.forEach((item, index) => {
-      const embedding = item.embedding;
-      if (!Array.isArray(embedding) || embedding.length !== 1536) {
-        const error = new Error('The configured embedding model must return 1536-dimensional vectors for pgvector storage.');
-        error.code = 'AI_INVALID_EMBEDDING';
-        throw error;
-      }
-      embeddings.set(group[index].submission.id, embedding);
-    });
-  }
+  if (prepared.length < MIN_ASSIGNMENT_COMMON_SUBMISSIONS) return new Set();
 
-  return embeddings;
-};
-
-const cacheEmbeddings = async ({ prisma, assignmentId, prepared, model, embeddings }) => {
   for (const entry of prepared) {
-    const embedding = embeddings.get(entry.submission.id);
-    if (!embedding) continue;
-    const id = `simemb_${crypto.randomUUID().replace(/-/g, '')}`;
-    const textPreview = entry.normalizedText.slice(0, 500);
-    const embeddingText = vectorLiteral(embedding);
+    const uniqueTokens = new Set(entry.tokens.filter(isReviewTokenCandidate));
+    for (const token of uniqueTokens) {
+      tokenSubmissionCounts.set(token, (tokenSubmissionCounts.get(token) || 0) + 1);
+    }
+  }
 
-    await prisma.$executeRaw`
-      INSERT INTO "assignment_similarity_embeddings"
-        ("id", "assignmentId", "submissionId", "model", "textHash", "textPreview", "embedding", "createdAt", "updatedAt")
-      VALUES
-        (${id}, ${assignmentId}, ${entry.submission.id}, ${model}, ${entry.normalizedTextHash}, ${textPreview}, ${embeddingText}::vector, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      ON CONFLICT ("assignmentId", "submissionId", "model", "textHash")
-      DO UPDATE SET
-        "textPreview" = EXCLUDED."textPreview",
-        "embedding" = EXCLUDED."embedding",
-        "updatedAt" = CURRENT_TIMESTAMP
-    `;
+  return new Set(
+    [...tokenSubmissionCounts.entries()]
+      .filter(([, count]) => count >= threshold)
+      .map(([token]) => token)
+  );
+};
 
-    await prisma.$executeRaw`
-      DELETE FROM "assignment_similarity_embeddings"
-      WHERE "assignmentId" = ${assignmentId}
-        AND "submissionId" = ${entry.submission.id}
-        AND "model" = ${model}
-        AND "textHash" <> ${entry.normalizedTextHash}
-    `;
+const getSharedDistinctiveTokens = (left, right, assignmentCommonTokens, limit = 14) => {
+  const rightTokens = new Set(right.tokens);
+  const shared = [];
+  const seen = new Set();
+
+  for (const token of left.tokens) {
+    if (
+      !isReviewTokenCandidate(token)
+      || assignmentCommonTokens.has(token)
+      || !rightTokens.has(token)
+      || seen.has(token)
+    ) {
+      continue;
+    }
+    seen.add(token);
+    shared.push(token);
+    if (shared.length >= limit) break;
+  }
+
+  return shared;
+};
+
+const riskFromLocalEvidence = (match) => {
+  if (match.exactFile || match.exactText) return 'high';
+  if (Number(match.lexicalScore || match.combinedScore || 0) >= 0.65) return 'high';
+  if (Number(match.lexicalScore || match.combinedScore || 0) >= 0.45) return 'medium';
+  return 'low';
+};
+
+const safeJsonParse = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const jsonText = text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```$/i, '')
+    .trim();
+  try {
+    return JSON.parse(jsonText);
+  } catch {
+    return null;
   }
 };
 
-const fetchSemanticCandidates = async ({ prisma, assignmentId, model }) => prisma.$queryRaw`
-  SELECT
-    left_embedding."submissionId" AS "submissionAId",
-    right_embedding."submissionId" AS "submissionBId",
-    1 - (left_embedding."embedding" <=> right_embedding."embedding") AS "semanticScore"
-  FROM "assignment_similarity_embeddings" left_embedding
-  JOIN "assignment_similarity_embeddings" right_embedding
-    ON left_embedding."assignmentId" = right_embedding."assignmentId"
-   AND left_embedding."submissionId" < right_embedding."submissionId"
-   AND left_embedding."model" = right_embedding."model"
-  WHERE left_embedding."assignmentId" = ${assignmentId}
-    AND left_embedding."model" = ${model}
-    AND 1 - (left_embedding."embedding" <=> right_embedding."embedding") >= ${SEMANTIC_THRESHOLD}
-  ORDER BY "semanticScore" DESC
-  LIMIT ${MAX_SEMANTIC_MATCHES}
-`;
+const formatAIReview = (review, fallbackText) => {
+  if (!review) return String(fallbackText || '').trim().slice(0, 1000);
 
-const buildSemanticPassages = (leftText, rightText) => ([
-  leftText.slice(0, 350),
-  rightText.slice(0, 350),
-].filter(Boolean));
+  const risk = String(review.risk || 'medium').toUpperCase();
+  const reason = String(review.reason || '').trim();
+  const evidence = Array.isArray(review.shared_unique_evidence)
+    ? review.shared_unique_evidence.join('; ')
+    : String(review.shared_unique_evidence || '').trim();
+  const templateOverlap = review.likely_assignment_template === true
+    ? 'yes'
+    : review.likely_assignment_template === false
+      ? 'no'
+      : 'unclear';
+  const note = String(review.teacher_review_note || '').trim();
 
-const explainSemanticMatch = async ({ left, right, score }) => {
+  return [
+    `AI review: ${risk} risk.`,
+    reason ? `Reason: ${reason}` : '',
+    evidence ? `Distinctive evidence: ${evidence}` : '',
+    `Assignment-template overlap: ${templateOverlap}.`,
+    note ? `Teacher note: ${note}` : 'Teacher note: Review the original submissions before deciding.',
+  ].filter(Boolean).join(' ').slice(0, 1000);
+};
+
+const reviewSimilarityMatchWithAI = async ({ match, left, right, assignmentCommonTokens }) => {
   assertAIConfigured();
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const model = process.env.OPENAI_SIMILARITY_MODEL
+  const model = process.env.OPENAI_SIMILARITY_REVIEW_MODEL
+    || process.env.OPENAI_SIMILARITY_MODEL
     || process.env.OPENAI_CHEAP_MODEL
     || process.env.OPENAI_QUIZ_MODEL
     || 'gpt-5.4-nano';
+  const localRisk = riskFromLocalEvidence(match);
+  const sharedDistinctiveTokens = getSharedDistinctiveTokens(left, right, assignmentCommonTokens);
+  const assignmentCommonExamples = [...assignmentCommonTokens].slice(0, 20);
 
   const response = await client.responses.create({
     model,
@@ -309,26 +328,36 @@ const explainSemanticMatch = async ({ left, right, score }) => {
       {
         role: 'system',
         content: [
-          'You help teachers review assignment similarity evidence.',
-          'Compare the two excerpts and explain the likely conceptual overlap in two concise sentences.',
-          'Do not accuse students or call the work plagiarism.',
-          'Mention that the teacher should review the original submissions.',
+          'You help teachers review Stage 1 assignment similarity evidence.',
+          'Do not accuse students or decide plagiarism.',
+          'Separate ordinary assignment-template similarity from distinctive shared evidence such as identical mistakes, unusual wording, unusual identifiers, comments, formatting, or control-flow/order.',
+          'Return only compact JSON with keys: risk, reason, shared_unique_evidence, likely_assignment_template, teacher_review_note.',
+          'risk must be low, medium, or high.',
         ].join(' '),
       },
       {
         role: 'user',
         content: [
-          `Semantic similarity score: ${Math.round(score * 100)}%`,
-          `Submission A excerpt:\n${left.normalizedText.slice(0, 1400)}`,
-          `Submission B excerpt:\n${right.normalizedText.slice(0, 1400)}`,
+          `Stage 1 match type: ${match.matchType}`,
+          `Local evidence risk baseline: ${localRisk}`,
+          `Exact file: ${match.exactFile ? 'yes' : 'no'}`,
+          `Exact normalized text: ${match.exactText ? 'yes' : 'no'}`,
+          `Lexical overlap score: ${Math.round(Number(match.lexicalScore || match.combinedScore || 0) * 100)}%`,
+          `Shared phrase evidence: ${(match.matchedPassages || []).slice(0, 3).join(' | ') || 'none'}`,
+          `Assignment-common tokens ignored: ${assignmentCommonExamples.join(', ') || 'none'}`,
+          `Shared distinctive tokens: ${sharedDistinctiveTokens.join(', ') || 'none'}`,
+          `Submission A excerpt:\n${left.normalizedText.slice(0, MAX_AI_REVIEW_CHARS)}`,
+          `Submission B excerpt:\n${right.normalizedText.slice(0, MAX_AI_REVIEW_CHARS)}`,
         ].join('\n\n'),
       },
     ],
-    max_output_tokens: 220,
+    max_output_tokens: 350,
   });
 
+  const outputText = String(response.output_text || '').trim();
+  const parsed = safeJsonParse(outputText);
   return {
-    explanation: String(response.output_text || '').trim().slice(0, 1000),
+    explanation: formatAIReview(parsed, outputText),
     model,
     usage: response.usage ? {
       inputTokens: response.usage.input_tokens,
@@ -339,88 +368,73 @@ const explainSemanticMatch = async ({ left, right, score }) => {
 };
 
 export const analyzeSubmissionsStageTwo = async ({
-  prisma,
-  assignmentId,
   stageOneReport,
   submissions,
   includeExplanations = true,
 }) => {
   const prepared = [];
   for (const submission of submissions) {
-    const entry = await prepareSubmissionForSimilarity(submission);
-    if (entry.normalizedText.length >= MIN_SEMANTIC_TEXT_LENGTH && entry.normalizedTextHash) {
-      prepared.push(entry);
-    }
+    prepared.push(await prepareSubmissionForSimilarity(submission));
   }
 
-  const model = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
   const preparedById = new Map(prepared.map((entry) => [entry.submission.id, entry]));
-  const stageOnePairs = new Set((stageOneReport.matches || [])
+  const assignmentCommonTokens = buildAssignmentCommonTokens(prepared);
+  const reviewableMatches = (stageOneReport.matches || [])
     .filter((match) => match.matchType !== 'SEMANTIC')
-    .map((match) => [match.submissionAId, match.submissionBId].sort().join(':')));
+    .filter((match) => preparedById.has(match.submissionAId) && preparedById.has(match.submissionBId))
+    .sort((left, right) => Number(right.combinedScore || 0) - Number(left.combinedScore || 0));
 
-  if (prepared.length < 2) {
+  if (!includeExplanations || reviewableMatches.length === 0) {
     return {
-      matches: [],
+      reviews: [],
       summary: {
-        semanticComparedSubmissions: prepared.length,
-        semanticPairs: 0,
-        semanticThreshold: SEMANTIC_THRESHOLD,
-        stage2Model: model,
+        aiReviewCandidatePairs: reviewableMatches.length,
+        aiReviewedPairs: 0,
+        stage2Mode: 'AI_REVIEW',
         stage2CompletedAt: new Date().toISOString(),
       },
     };
   }
 
-  const embeddings = await generateSubmissionEmbeddings(prepared, model);
-  await cacheEmbeddings({ prisma, assignmentId, prepared, model, embeddings });
-
-  const candidates = await fetchSemanticCandidates({ prisma, assignmentId, model });
-  const semanticMatches = candidates
-    .filter((candidate) => {
-      const pairKey = [candidate.submissionAId, candidate.submissionBId].sort().join(':');
-      return !stageOnePairs.has(pairKey)
-        && preparedById.has(candidate.submissionAId)
-        && preparedById.has(candidate.submissionBId);
-    })
-    .map((candidate) => {
-      const left = preparedById.get(candidate.submissionAId);
-      const right = preparedById.get(candidate.submissionBId);
-      const score = Number(candidate.semanticScore);
-      return {
-        submissionAId: candidate.submissionAId,
-        submissionBId: candidate.submissionBId,
-        matchType: 'SEMANTIC',
-        exactFile: false,
-        exactText: false,
-        lexicalScore: 0,
-        semanticScore: score,
-        combinedScore: score,
-        matchedPassages: buildSemanticPassages(left.normalizedText, right.normalizedText),
-      };
+  const reviews = [];
+  for (const match of reviewableMatches.slice(0, MAX_AI_REVIEWS)) {
+    const review = await reviewSimilarityMatchWithAI({
+      match,
+      left: preparedById.get(match.submissionAId),
+      right: preparedById.get(match.submissionBId),
+      assignmentCommonTokens,
     });
-
-  if (includeExplanations) {
-    for (const match of semanticMatches.slice(0, MAX_AI_EXPLANATIONS)) {
-      const explanation = await explainSemanticMatch({
-        left: preparedById.get(match.submissionAId),
-        right: preparedById.get(match.submissionBId),
-        score: match.semanticScore,
-      });
-      match.aiExplanation = explanation.explanation;
-      match.aiModel = explanation.model;
-      match.aiUsage = explanation.usage;
-    }
+    reviews.push({
+      matchId: match.id,
+      aiExplanation: review.explanation,
+      aiModel: review.model,
+      aiUsage: review.usage,
+    });
   }
 
+  const reviewedRisks = reviews.reduce((counts, review) => {
+    const explanation = String(review.aiExplanation || '').toUpperCase();
+    if (explanation.includes('HIGH risk'.toUpperCase())) {
+      counts.high += 1;
+    } else if (explanation.includes('LOW risk'.toUpperCase())) {
+      counts.low += 1;
+    } else {
+      counts.medium += 1;
+    }
+    return counts;
+  }, { high: 0, medium: 0, low: 0 });
+
   return {
-    matches: semanticMatches,
+    reviews,
     summary: {
-      semanticComparedSubmissions: prepared.length,
-      semanticPairs: semanticMatches.length,
-      semanticThreshold: SEMANTIC_THRESHOLD,
-      aiExplainedPairs: semanticMatches.filter((match) => match.aiExplanation).length,
-      stage2Model: model,
+      aiReviewCandidatePairs: reviewableMatches.length,
+      aiReviewedPairs: reviews.length,
+      aiReviewHighRiskPairs: reviewedRisks.high,
+      aiReviewMediumRiskPairs: reviewedRisks.medium,
+      aiReviewLowRiskPairs: reviewedRisks.low,
+      assignmentCommonTokenCount: assignmentCommonTokens.size,
+      stage2Mode: 'AI_REVIEW',
+      stage2Model: reviews[0]?.aiModel || null,
       stage2CompletedAt: new Date().toISOString(),
     },
   };

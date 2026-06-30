@@ -34,7 +34,7 @@ The application is a mature, feature-heavy codebase. Most major product areas ar
 - Supabase Storage
 - Resend email
 - Multer and XLSX
-- `pdf-parse`, Mammoth, pgvector, and OpenAI embeddings for assignment similarity analysis
+- `pdf-parse` and Mammoth for assignment text extraction and similarity analysis
 
 ### Frontend
 
@@ -209,11 +209,8 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Exact file hash, normalized text hash, and local lexical-overlap detection
 - [x] Text-only TXT, PDF, and DOCX extraction with unsupported/no-text reporting
 - [x] Persistent similarity reports with stale-snapshot detection
-- [x] Assignment similarity Stage 2 is teacher-triggered from a fresh Stage 1 report, not chained automatically
-- [x] Stage 2 caches pgvector text embeddings and flags semantic matches only for pairs Stage 1 did not already resolve
-- [x] Stage 2 can add concise AI explanations for the strongest semantic matches
 - [x] Teacher review decisions for similarity matches are stored and audit-logged
-- [x] Assignment similarity findings render on each related submission card with match type, score, peer, submitted-first/later timing, evidence, AI explanation, and review actions
+- [x] Assignment similarity findings render on each related submission card with match type, score, peer, submitted-first/later timing, evidence, and review actions
 - [x] Submission grading and feedback
 - [x] TA self-grading prevention for assignment submissions
 - [x] Attendance batch marking
@@ -332,7 +329,8 @@ Checks run through June 30, 2026:
 - **Printed/offline quiz workflow:** Prisma schema validation, Prisma Client generation, local `npm.cmd run db:push`, direct `deliveryMode` read check, changed quiz backend route/controller syntax checks, and frontend production build pass; mode-specific quiz scheduling UI build passes
 - **Frontend build size:** route-level splitting reduced the initial app chunk to about 373 KB before gzip
 - **Frontend build warnings:** API/socket mixed static and dynamic imports still produce one Vite warning, but the oversized entry warning is gone
-- **Assignment similarity Stage 2:** Prisma schema validation, Prisma Client generation, changed backend syntax checks, and frontend production build pass
+- **Assignment similarity submissions panel crash fix:** frontend production build passes after restoring the review props expected by the similarity summary's legacy hidden match list, preventing the `reviewingMatchId is not defined` runtime error
+- **Assignment similarity presentation UI:** frontend production build passes after hiding the Stage 2 AI Review button/output from the teacher submissions panel and renaming the remaining action to Scan Similarity
 - **Frontend lint:** passes with **0 errors and 52 warnings**
 - **TA course-tool UX:** changed backend offering/Q&A controller and offering route syntax checks pass; frontend production build passes after replacing TA permission chips with course-tool buttons, adding the roster modal, Q&A offering deep links, and scoped TA offering loading
 - **Assignment default marks:** frontend production build passes; changed assignment controller and grade-template syntax checks pass after changing the assignment creation/default grade-component scale from 100 to 10
@@ -399,6 +397,9 @@ Only open work belongs here. Move an item to the verified feature inventory or r
 - [ ] **Review student registration workflow and navigation**  
   The route/page exist; verify rules and then decide whether to restore the sidebar entry.
 
+- [ ] **Assignment AI grading/review agent redesign**  
+  Replace the hidden Stage 2 AI Review prototype with a future assignment-aware agent or skill. The agent should inspect the assignment instructions/rubric and submission content, suggest grades for submissions that were not flagged by the local similarity scan, and avoid reprocessing duplicate/similar work. For locally flagged similarity groups, scan only one representative submission from the group and reuse that review context for the other similar flagged submissions so teachers are not paying for repeated AI review of the same work.
+
 ## 10. Important Engineering Rules
 
 - Current executable source and Prisma schema outrank comments or old assumptions.
@@ -441,8 +442,6 @@ SUPABASE_SERVICE_ROLE_KEY=...
 OPENAI_API_KEY=...
 OPENAI_QUIZ_MODEL=gpt-5.4-mini
 OPENAI_CHEAP_MODEL=gpt-5.4-nano
-OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-OPENAI_SIMILARITY_MODEL=gpt-5.4-nano
 ```
 
 Frontend:

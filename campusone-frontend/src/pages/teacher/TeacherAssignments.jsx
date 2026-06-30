@@ -283,14 +283,8 @@ const SimilarityResults = ({ report, onReview, reviewingMatchId }) => {
     EXACT_FILE: 'Identical file',
     EXACT_TEXT: 'Identical text',
     HIGH_LEXICAL: 'High text overlap',
-    SEMANTIC: 'Semantic similarity',
   };
-  const reviewLabels = {
-    CONFIRMED: 'Confirmed',
-    DISMISSED: 'Dismissed',
-    NEEDS_DISCUSSION: 'Discuss',
-    PENDING: 'Pending',
-  };
+  const reviewLabels = REVIEW_LABELS;
 
   return (
     <div className="overflow-hidden rounded-xl border border-violet-200 bg-white">
@@ -302,7 +296,6 @@ const SimilarityResults = ({ report, onReview, reviewingMatchId }) => {
             <p className="m-0 text-sm font-semibold text-slate-800">Similarity scan evidence</p>
             <p className="m-0 text-xs text-slate-500">
               {summary.flaggedPairs || 0} flagged of {summary.comparedPairs || 0} compared pairs
-              {summary.semanticPairs ? ` - ${summary.semanticPairs} semantic` : ''}
               {report.isStale ? ' · report is stale' : ''}
             </p>
           </div>
@@ -346,9 +339,7 @@ const SimilarityResults = ({ report, onReview, reviewingMatchId }) => {
                       {match.submissionB.student.user.name}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                        match.matchType === 'SEMANTIC' ? 'bg-violet-50 text-violet-700' : 'bg-red-50 text-red-700'
-                      }`}>{labels[match.matchType]}</span>
+                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">{labels[match.matchType]}</span>
                       <span className="text-sm font-bold text-slate-700">{Math.round(match.combinedScore * 100)}%</span>
                     </div>
                   </div>
@@ -358,11 +349,6 @@ const SimilarityResults = ({ report, onReview, reviewingMatchId }) => {
                   {match.matchedPassages?.length > 0 && (
                     <p className="m-0 mt-2 rounded bg-slate-50 px-2 py-1.5 text-xs text-slate-600">
                       Shared phrase: “{match.matchedPassages[0]}”
-                    </p>
-                  )}
-                  {match.aiExplanation && (
-                    <p className="m-0 mt-2 rounded bg-violet-50 px-2 py-1.5 text-xs text-violet-800">
-                      {match.aiExplanation}
                     </p>
                   )}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -406,21 +392,18 @@ const SIMILARITY_LABELS = {
   EXACT_FILE: 'Exact file match',
   EXACT_TEXT: 'Exact text match',
   HIGH_LEXICAL: 'High overlap',
-  SEMANTIC: 'Semantic similarity',
 };
 
 const SIMILARITY_SHORT_LABELS = {
   EXACT_FILE: 'Exact file',
   EXACT_TEXT: 'Exact text',
   HIGH_LEXICAL: 'High overlap',
-  SEMANTIC: 'Semantic',
 };
 
 const SIMILARITY_STAGE_LABELS = {
-  EXACT_FILE: 'Stage 1',
-  EXACT_TEXT: 'Stage 1',
-  HIGH_LEXICAL: 'Stage 1',
-  SEMANTIC: 'Stage 2',
+  EXACT_FILE: 'Local scan',
+  EXACT_TEXT: 'Local scan',
+  HIGH_LEXICAL: 'Local scan',
 };
 
 const SIMILARITY_TONES = {
@@ -439,11 +422,6 @@ const SIMILARITY_TONES = {
     panel: 'border-amber-100 bg-amber-50/70',
     note: 'bg-white/80 text-amber-800',
   },
-  SEMANTIC: {
-    chip: 'border-violet-200 bg-violet-50 text-violet-700',
-    panel: 'border-violet-100 bg-violet-50/70',
-    note: 'bg-white/80 text-violet-800',
-  },
 };
 
 const REVIEW_LABELS = {
@@ -453,7 +431,7 @@ const REVIEW_LABELS = {
   PENDING: 'Pending',
 };
 
-const getSimilarityScore = (match) => Math.round(Number(match.combinedScore || match.semanticScore || match.lexicalScore || 0) * 100);
+const getSimilarityScore = (match) => Math.round(Number(match.combinedScore || match.lexicalScore || 0) * 100);
 const getSubmissionName = (submission) => submission?.student?.user?.name || 'Student';
 const getSubmissionStudentId = (submission) => submission?.student?.studentId || 'Unknown ID';
 const getOtherMatchSubmission = (match, submissionId) => (
@@ -542,12 +520,6 @@ const SubmissionSimilarityFindings = ({
                     Evidence: "{match.matchedPassages[0]}"
                   </p>
                 )}
-                {match.aiExplanation && (
-                  <p className="m-0 mt-2 rounded bg-white/80 px-2 py-1.5 text-xs text-violet-800">
-                    {match.aiExplanation}
-                  </p>
-                )}
-
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {match.review?.decision && match.review.decision !== 'PENDING' && (
                     <span className="rounded-full bg-white/80 px-2 py-1 text-[11px] font-semibold text-slate-600">
@@ -591,7 +563,6 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
   const [gradeForm, setGradeForm] = useState({});
   const [similarityReport, setSimilarityReport] = useState(null);
   const [scanningStageOne, setScanningStageOne] = useState(false);
-  const [scanningStageTwo, setScanningStageTwo] = useState(false);
   const [reviewingMatchId, setReviewingMatchId] = useState(null);
   const [changingStatus, setChangingStatus] = useState(false);
   const [savingGradeId, setSavingGradeId] = useState(null);
@@ -629,25 +600,11 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
     try {
       const response = await assignmentAPI.runSimilarityScan(assignment.id);
       setSimilarityReport(response.data.data);
-      toast.success('Stage 1 similarity scan completed');
+      toast.success('Similarity scan completed');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Similarity scan failed');
     } finally {
       setScanningStageOne(false);
-    }
-  };
-
-  const runSimilarityAIScan = async () => {
-    if (!canManageAssignment) return;
-    setScanningStageTwo(true);
-    try {
-      const response = await assignmentAPI.runSimilarityAIScan(assignment.id, { includeExplanations: true });
-      setSimilarityReport(response.data.data);
-      toast.success('Stage 2 AI scan completed');
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Stage 2 AI scan failed');
-    } finally {
-      setScanningStageTwo(false);
     }
   };
 
@@ -755,17 +712,16 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
     }
   };
 
-  const scanBusy = scanningStageOne || scanningStageTwo;
-  const canRunStageTwo = Boolean(similarityReport)
-    && !similarityReport.isStale
-    && currentAssignment.status === 'CLOSED';
+  const scanBusy = scanningStageOne;
   const submissionsById = useMemo(
     () => new Map(submissions.map((submission) => [submission.id, submission])),
     [submissions]
   );
   const similarityMatchesBySubmissionId = useMemo(() => {
     const grouped = new Map();
-    (similarityReport?.matches || []).forEach((match) => {
+    (similarityReport?.matches || [])
+      .filter((match) => match.matchType !== 'SEMANTIC')
+      .forEach((match) => {
       [match.submissionA?.id, match.submissionB?.id].filter(Boolean).forEach((submissionId) => {
         const current = grouped.get(submissionId) || [];
         current.push(match);
@@ -805,21 +761,12 @@ const SubmissionsPanel = ({ assignment, onClose, onAssignmentStatusChange }) => 
                 </button>
                 <button
                   onClick={runSimilarityScan}
-                  disabled={scanningStageOne || scanningStageTwo || changingStatus || loading || submissions.length < 2 || currentAssignment.status !== 'CLOSED'}
-                  title={currentAssignment.status !== 'CLOSED' ? 'Close submissions before scanning' : 'Run local Stage 1 checks'}
+                  disabled={scanningStageOne || changingStatus || loading || submissions.length < 2 || currentAssignment.status !== 'CLOSED'}
+                  title={currentAssignment.status !== 'CLOSED' ? 'Close submissions before scanning' : 'Run similarity scan'}
                   className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {scanningStageOne ? <Loader2 size={14} className="animate-spin" /> : <ScanSearch size={14} />}
-                  {scanningStageOne ? 'Scanning...' : similarityReport ? 'Stage 1 Again' : 'Stage 1 Local Scan'}
-                </button>
-                <button
-                  onClick={runSimilarityAIScan}
-                  disabled={scanningStageTwo || scanningStageOne || changingStatus || loading || !canRunStageTwo}
-                  title={!similarityReport ? 'Run Stage 1 first' : similarityReport.isStale ? 'Run Stage 1 again before Stage 2' : 'Run Stage 2 AI semantic scan'}
-                  className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {scanningStageTwo ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-                  {scanningStageTwo ? 'AI scanning...' : 'Stage 2 AI Scan'}
+                  {scanningStageOne ? 'Scanning...' : similarityReport ? 'Scan Again' : 'Scan Similarity'}
                 </button>
               </>
             )}

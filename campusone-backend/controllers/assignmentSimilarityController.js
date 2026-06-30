@@ -36,6 +36,7 @@ const verifyTeacherAssignment = async (userId, assignmentId) => {
 
 const reportInclude = {
   matches: {
+    where: { NOT: { matchType: 'SEMANTIC' } },
     include: {
       review: true,
       submissionA: {
@@ -155,7 +156,7 @@ export const runStageTwoSimilarityScan = async (req, res) => {
       return res.status(409).json({
         success: false,
         code: 'SUBMISSIONS_NOT_CLOSED',
-        message: 'Close submissions before running the Stage 2 AI scan',
+        message: 'Close submissions before running the Stage 2 AI review',
       });
     }
 
@@ -168,7 +169,7 @@ export const runStageTwoSimilarityScan = async (req, res) => {
       return res.status(409).json({
         success: false,
         code: 'STAGE_ONE_REQUIRED',
-        message: 'Run the Stage 1 local scan before starting the Stage 2 AI scan',
+        message: 'Run the Stage 1 local scan before starting the Stage 2 AI review',
       });
     }
 
@@ -185,7 +186,7 @@ export const runStageTwoSimilarityScan = async (req, res) => {
       return res.status(429).json({
         success: false,
         code: 'AI_RATE_LIMITED',
-        message: 'Please wait a minute before running more Stage 2 AI scans',
+        message: 'Please wait a minute before running more Stage 2 AI reviews',
       });
     }
 
@@ -201,8 +202,6 @@ export const runStageTwoSimilarityScan = async (req, res) => {
     });
 
     const analysis = await analyzeSubmissionsStageTwo({
-      prisma,
-      assignmentId: check.assignment.id,
       stageOneReport: report,
       submissions,
       includeExplanations: req.body?.includeExplanations !== false,
@@ -213,9 +212,14 @@ export const runStageTwoSimilarityScan = async (req, res) => {
         where: { reportId: report.id, matchType: 'SEMANTIC' },
       });
 
-      if (analysis.matches.length > 0) {
-        await tx.similarityMatch.createMany({
-          data: analysis.matches.map((match) => ({ reportId: report.id, ...match })),
+      for (const review of analysis.reviews) {
+        await tx.similarityMatch.update({
+          where: { id: review.matchId },
+          data: {
+            aiExplanation: review.aiExplanation,
+            aiModel: review.aiModel,
+            aiUsage: review.aiUsage,
+          },
         });
       }
 
@@ -225,7 +229,8 @@ export const runStageTwoSimilarityScan = async (req, res) => {
       const nextSummary = {
         ...(report.summary || {}),
         ...analysis.summary,
-        flaggedPairs: localFlaggedPairs + analysis.matches.length,
+        semanticPairs: 0,
+        flaggedPairs: localFlaggedPairs,
       };
 
       return tx.similarityReport.update({
@@ -239,13 +244,13 @@ export const runStageTwoSimilarityScan = async (req, res) => {
     });
 
     await auditLog({
-      action: 'ASSIGNMENT_SIMILARITY_STAGE2_SCAN',
+      action: 'ASSIGNMENT_SIMILARITY_STAGE2_REVIEW',
       category: 'ACADEMIC_INTEGRITY',
       performedBy: req.user.id,
       performedByRole: req.user.role,
       targetModel: 'SimilarityReport',
       targetId: report.id,
-      description: `Stage 2 AI similarity scan completed for assignment "${check.assignment.title}"`,
+      description: `Stage 2 AI review completed for assignment "${check.assignment.title}"`,
       newValue: analysis.summary,
     });
 
@@ -253,9 +258,6 @@ export const runStageTwoSimilarityScan = async (req, res) => {
   } catch (error) {
     if (error.code === 'AI_NOT_CONFIGURED') {
       return res.status(503).json({ success: false, code: error.code, message: error.message });
-    }
-    if (error.code === 'AI_INVALID_EMBEDDING') {
-      return res.status(422).json({ success: false, code: error.code, message: error.message });
     }
     if (error.status === 401) {
       return res.status(503).json({
@@ -272,8 +274,8 @@ export const runStageTwoSimilarityScan = async (req, res) => {
       });
     }
 
-    logger.error('Stage 2 similarity scan failed:', error.message);
-    res.status(500).json({ success: false, message: 'Stage 2 AI similarity scan failed. Please try again.' });
+    logger.error('Stage 2 AI review failed:', error.message);
+    res.status(500).json({ success: false, message: 'Stage 2 AI review failed. Please try again.' });
   }
 };
 
