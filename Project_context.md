@@ -120,7 +120,7 @@ Status in this section means the relevant schema, backend route/controller, and 
 - [x] Root command starts backend and frontend with `concurrently`
 - [x] Full-screen modal overlays consistently render above the sticky CampusOne header
 - [x] PostgreSQL and Prisma adapter setup
-- [x] Local Supabase configuration
+- [x] Local Supabase configuration with offline-friendly local startup defaults: Edge Runtime and Analytics are disabled because this repo has no checked-in edge functions and those optional services can require internet/Docker TCP access on Windows
 - [x] JWT login and protected routes
 - [x] Failed-login account lockout
 - [x] Authenticator TOTP MFA
@@ -323,6 +323,7 @@ Checks run through July 1, 2026:
 - **Seed:** passes with 265 users, 250 students, 331 offerings, 8,195 enrollments, and 100,910 mark cells
 - **Fine uniqueness integration check:** passes; two identical quota-unit inserts persisted as one row and temporary verification data was removed
 - **Local Supabase Storage:** required buckets provisioned after reset
+- **Local Supabase offline startup config:** `supabase/config.toml` disables Edge Runtime and Analytics so `npx supabase start` can run from already-pulled Docker images without Deno remote import resolution or Windows Analytics TCP-daemon requirements; command not rerun in this turn
 - **Supabase Storage bucket repair:** `npm.cmd run storage:buckets` passed and confirmed the current database has `admission-documents`, `assignments`, `lectures`, and `profile-pictures`; `npx.cmd prisma validate` passes after adding the idempotent storage bucket migration, local Supabase seed, and reset hook
 - **Prisma migrate deploy note:** `npx.cmd prisma migrate deploy` cannot run on the current local DB because it is non-empty and not baselined under Prisma Migrate (`P3005`); the storage bucket SQL itself was applied through the repair script
 - **Backend health endpoint:** OK with database connected
