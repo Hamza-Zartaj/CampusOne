@@ -3,6 +3,13 @@ const KIND_LABEL = {
   QUIZ: 'Quiz',
 };
 
+const nullableNumberEqual = (left, right) => {
+  if (left === null || left === undefined || right === null || right === undefined) {
+    return left === right;
+  }
+  return Number(left) === Number(right);
+};
+
 export const parseComponentIndex = (value) => {
   const index = Number(value);
   return Number.isInteger(index) && index > 0 ? index : null;
@@ -92,12 +99,43 @@ export const syncCourseworkMark = async ({
 }) => {
   const index = parseComponentIndex(componentIndex);
   if (!index) return null;
+  const markDate = date ? new Date(date) : null;
 
   const enrollment = await client.enrollment.findUnique({
     where: { studentId_offeringId: { studentId, offeringId } },
     select: { id: true },
   });
   if (!enrollment) return null;
+
+  const existing = await client.markComponent.findUnique({
+    where: {
+      enrollmentId_kind_index: {
+        enrollmentId: enrollment.id,
+        kind,
+        index,
+      },
+    },
+  });
+
+  if (existing) {
+    const existingDate = existing.date ? existing.date.toISOString().slice(0, 10) : null;
+    const nextDate = markDate ? markDate.toISOString().slice(0, 10) : null;
+    const unchanged = existing.title === title
+      && existingDate === nextDate
+      && Number(existing.totalMarks) === Number(totalMarks)
+      && nullableNumberEqual(existing.obtainedMarks, obtainedMarks);
+    if (unchanged) return null;
+
+    return client.markComponent.update({
+      where: { id: existing.id },
+      data: {
+        title,
+        date: markDate,
+        totalMarks,
+        obtainedMarks,
+      },
+    });
+  }
 
   return client.markComponent.upsert({
     where: {
@@ -112,13 +150,13 @@ export const syncCourseworkMark = async ({
       kind,
       index,
       title,
-      date: date ? new Date(date) : null,
+      date: markDate,
       totalMarks,
       obtainedMarks,
     },
     update: {
       title,
-      date: date ? new Date(date) : null,
+      date: markDate,
       totalMarks,
       obtainedMarks,
     },
