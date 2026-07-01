@@ -1,6 +1,8 @@
 import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
 import { computeGradePointAverage } from '../utils/grading.js';
+import { summarizeAttendanceRecords } from '../utils/attendanceSummary.js';
+import { getAttendancePolicy } from '../utils/attendancePolicy.js';
 
 // ─── ADMIN DASHBOARD ─────────────────────────────────────────────────────────
 export const getAdminDashboard = async (req, res) => {
@@ -271,6 +273,7 @@ export const getStudentDashboard = async (req, res) => {
       upcomingQuizzes,
       recentGrades,
       attendanceRecords,
+      approvedLeaveApplications,
       recentAnnouncements,
       submittedQuizAttempts,
     ] = await Promise.all([
@@ -334,7 +337,11 @@ export const getStudentDashboard = async (req, res) => {
       // Attendance per offering
       prisma.attendance.findMany({
         where: { studentId: student.id, offeringId: { in: currentOfferingIds } },
-        select: { offeringId: true, status: true },
+        select: { offeringId: true, status: true, date: true },
+      }),
+      prisma.leaveApplication.findMany({
+        where: { studentId: student.id, offeringId: { in: currentOfferingIds }, status: 'APPROVED' },
+        select: { offeringId: true, fromDate: true, toDate: true },
       }),
       prisma.announcement.findMany({
         where: { OR: [{ targetAudience: 'all' }, { targetAudience: 'students' }] },
@@ -351,31 +358,38 @@ export const getStudentDashboard = async (req, res) => {
       }),
     ]);
 
-    // Build attendance summary per offering
-    const attendanceByOffering = {};
+    // Build effective attendance summary per offering. Approved leave covers
+    // matching ABSENT rows for percentage/risk, while raw counts remain visible.
+    const attendanceByOffering = new Map();
     attendanceRecords.forEach((a) => {
-      if (!attendanceByOffering[a.offeringId]) {
-        attendanceByOffering[a.offeringId] = { total: 0, present: 0, late: 0, absent: 0 };
-      }
-      const s = attendanceByOffering[a.offeringId];
-      s.total += 1;
-      if (a.status === 'PRESENT') s.present += 1;
-      else if (a.status === 'LATE') s.late += 1;
-      else if (a.status === 'ABSENT') s.absent += 1;
+      if (!attendanceByOffering.has(a.offeringId)) attendanceByOffering.set(a.offeringId, []);
+      attendanceByOffering.get(a.offeringId).push(a);
     });
+    const approvedByOffering = new Map();
+    approvedLeaveApplications.forEach((application) => {
+      if (!approvedByOffering.has(application.offeringId)) approvedByOffering.set(application.offeringId, []);
+      approvedByOffering.get(application.offeringId).push(application);
+    });
+    const attendancePolicy = await getAttendancePolicy();
 
     const attendanceSummary = currentEnrollments.map((e) => {
-      const s = attendanceByOffering[e.offeringId] || { total: 0, present: 0, late: 0, absent: 0 };
-      const presentCount = s.present + s.late;
-      const percentage = s.total > 0 ? Math.round((presentCount / s.total) * 100) : null;
+      const summary = summarizeAttendanceRecords({
+        records: attendanceByOffering.get(e.offeringId) || [],
+        approvedApplications: approvedByOffering.get(e.offeringId) || [],
+        emptyPercentage: null,
+        excusedOnlyPercentage: 100,
+        excusedAbsenceReducesTotal: attendancePolicy.excusedAbsenceReducesTotal,
+      });
+      const data = { ...summary };
+      delete data.approvedDates;
       return {
         offeringId: e.offeringId,
         courseCode: e.offering?.course?.code,
         courseTitle: e.offering?.course?.title,
         section: e.offering?.section,
-        ...s,
-        percentage,
-        isAtRisk: percentage !== null && percentage < 75,
+        total: data.totalSessions,
+        ...data,
+        isAtRisk: data.percentage !== null && data.percentage < 75,
       };
     });
 

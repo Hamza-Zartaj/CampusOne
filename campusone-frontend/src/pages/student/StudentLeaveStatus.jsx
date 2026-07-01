@@ -58,7 +58,7 @@ const groupConsecutiveDates = (dates) => {
 
 const StudentLeaveStatus = () => {
   const [data, setData]         = useState([]);
-  const [config, setConfig]     = useState({ freeQuota: 4, fineQuota: 6, finePerAbsent: 500 });
+  const [config, setConfig]     = useState({ freeQuota: 4, fineQuota: 6, finePerAbsent: 500, lateWeight: 0.5 });
   const [loading, setLoading]   = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -125,7 +125,7 @@ const StudentLeaveStatus = () => {
         <div>
           <h1 className="text-[28px] font-bold text-slate-800 m-0 max-md:text-2xl">Leave Status</h1>
           <p className="text-sm text-slate-500 m-0 mt-1">
-            {config.freeQuota} free leaves; next {config.fineQuota - config.freeQuota} are fined (PKR {config.finePerAbsent} each); over {config.fineQuota} → drop-off
+            {config.freeQuota} free units; next {config.fineQuota - config.freeQuota} are fined (PKR {config.finePerAbsent} each); late = {config.lateWeight} unit; over {config.fineQuota} → drop-off
           </p>
         </div>
         <button
@@ -195,7 +195,9 @@ const StudentLeaveStatus = () => {
                     <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
                       <span>Lectures: <b className="text-slate-700">{counter.totalLectures}</b></span>
                       <span>Present: <b className="text-green-700">{counter.present}</b></span>
-                      <span>Absent: <b className="text-red-700">{counter.absent}</b></span>
+                      <span>Recorded absent: <b className="text-red-700">{counter.absent}</b></span>
+                      <span>Excused: <b className="text-blue-700">{counter.excusedAbsent || 0}</b></span>
+                      <span>Counted absent: <b className="text-red-700">{counter.countedAbsent || 0}</b></span>
                       <span>Late: <b className="text-amber-700">{counter.late}</b></span>
                       <span>Approved leaves: <b className="text-blue-700">{counter.approvedLeaveDays}</b></span>
                       <span>n: <b className="text-slate-800">{counter.n}</b></span>

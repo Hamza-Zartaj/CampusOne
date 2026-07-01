@@ -164,6 +164,7 @@ Status in this section means the relevant schema, backend route/controller, and 
 - [x] Programs
 - [x] Versioned curricula
 - [x] Courses and prerequisites
+- [x] Course catalog stores an optional planned lecture count per course from Course Management
 - [x] Terms with single-active-term activation
 - [x] Course offerings
 - [x] Enrollments
@@ -188,6 +189,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Per-kind marks visibility backend controls
 - [x] Course-wide mark release endpoint
 - [x] Student grade-breakdown view
+- [x] Student My Courses assessment sections show only real published assignments/quizzes and teacher-created mark-only assessments, hiding uncreated configured placeholders from both sections and the compact breakdown
 - [x] Shared grading helper averages `AVERAGE` components, so multi-slot quiz/assignment components contribute only their configured weight
 - [x] Participation marks
 - [x] Assignment submission links in grade details
@@ -219,6 +221,8 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Attendance sessions and summaries
 - [x] Student attendance view
 - [x] Low-attendance flag below 75%
+- [x] Approved leave covers matching absent attendance rows in student-facing percentages, low-attendance risk, leave counters, and course-detail summaries while preserving raw recorded absence and excused/countable absence fields
+- [x] Admin Attendance Policy page controls free leave units, drop/fine threshold, fine amount per unit, late attendance weight, and whether excused absences reduce counted attendance classes; backend leave counters, fine generation, drop-off, dashboards, attendance summaries, and My Courses use the saved policy
 
 ### Quizzes
 
@@ -245,6 +249,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Transactional and idempotent attempt finalization
 - [x] Automatic MCQ and true/false grading
 - [x] Manual answer grading
+- [x] Teacher quiz attempt grading uses one modal-level save action for manual short-answer marks, puts ungraded written answers first, treats blank short answers as automatic zero marks, zeroes any stale blank-answer marks on save, and leaves MCQ/true-false rows as read-only auto-graded items
 - [x] Correct separation of automatic and manual scores
 - [x] Pending-manual-grading result state
 - [x] Mixed auto/manual quizzes do not sync a marks-grid grade until all nonblank short-answer responses are graded; blank short answers auto-score 0
@@ -352,6 +357,10 @@ Checks run through July 1, 2026:
 - **Teacher portal audit/documentation:** `teacher_portal.md` was created from a static review of teacher routes, workflows, frontend API bindings, matching backend authorization surfaces, and teacher deep links. Frontend production build passes after the documentation/tracker update with the existing Vite mixed static/dynamic `socket.js` import warning.
 - **Student and TA portal audit/documentation:** `student_portal.md` and `TA.md` were created from a static review of student routes, shared profile/notification surfaces, TA-as-student workflows, reused teacher pages, API bindings, and backend authorization checks. Frontend production build passes after the documentation/tracker update with the existing Vite mixed static/dynamic `socket.js` import warning; no dev server was started.
 - **Frontend warning inventory:** `frontend.md` was created from `npm.cmd run lint` and `npm.cmd run build`; lint passes with 0 errors and 50 warnings, and build passes with the existing Vite mixed static/dynamic `socket.js` import warning.
+- **Approved leave attendance consistency:** changed backend attendance/dashboard/student/leave controllers and attendance summary helper syntax checks pass; frontend production build passes after approved-leave-covered absences were excluded from student attendance risk/percentage summaries and labeled as excused/countable absence in student attendance views. The existing Vite mixed static/dynamic `socket.js` import warning remains.
+- **Teacher quiz manual grading UX:** frontend production build passes after replacing per-answer save buttons with one modal-level Save grades action, sorting ungraded written short answers first, rendering blank short answers as automatic zero marks, and zeroing stale blank-answer marks on save. The existing Vite mixed static/dynamic `socket.js` import warning remains.
+- **Student My Courses created-assessment display:** `node --check controllers\studentController.js` passes and frontend production build passes after the course-detail bundle and My Courses page were changed to show only real published assignments/quizzes and teacher-created mark-only assessment rows. The existing Vite mixed static/dynamic `socket.js` import warning remains.
+- **Attendance policy settings:** Prisma format/validate/generate pass, local `npm.cmd run db:push` applied `AttendancePolicy` and course planned lecture count, changed leave/attendance/course/student/dashboard backend syntax checks pass, and frontend production build passes after adding the admin Attendance Policy page plus Course Management planned-lectures field. The existing Vite mixed static/dynamic `socket.js` import warning remains.
 
 Remaining lint warnings:
 

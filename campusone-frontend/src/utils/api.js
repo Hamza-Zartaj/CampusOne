@@ -489,6 +489,8 @@ export const reportsAPI = {
 
 // Leave Management API
 export const leaveAPI = {
+  getPolicy: () => api.get('/leave/policy'),
+  updatePolicy: (data) => api.put('/leave/policy', data),
   // Student
   getMy: () => api.get('/leave/my'),
   getMyFines: () => api.get('/leave/my/fines'),

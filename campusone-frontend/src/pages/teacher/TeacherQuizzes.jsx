@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
   HelpCircle, Plus, Search, Calendar, Clock, Users, Edit3, Trash2,
   Eye, X, Loader2, Award, FileSpreadsheet, ListChecks, Download,
-  Sparkles, ChevronDown, ChevronUp, Printer,
+  Sparkles, ChevronDown, ChevronUp, Printer, Save,
 } from 'lucide-react';
 import { quizAPI, offeringAPI, taAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
@@ -81,6 +81,12 @@ const STATUS_CONFIG = {
   PUBLISHED: { bg: 'bg-blue-50',   text: 'text-blue-700',   label: 'Published' },
   CLOSED:    { bg: 'bg-slate-50',  text: 'text-slate-700',  label: 'Closed' },
 };
+
+const hasShortAnswerText = (answer) => (
+  answer !== null
+  && answer !== undefined
+  && String(answer).trim() !== ''
+);
 
 const toDateTimeLocal = (value) => {
   if (!value) return '';
@@ -801,21 +807,32 @@ const QuizModal = ({ offerings, quizzes = [], initial, onClose, onSave }) => {
 };
 
 // ─── Manual Grade Sub-component ─────────────────────────────────────────────
-const ManualGrade = ({ ans, maxMarks, onSave }) => {
-  const [marks, setMarks] = useState(ans?.marksAwarded ?? 0);
-  const [feedback, setFeedback] = useState(ans?.feedback ?? '');
+const ManualGrade = ({ ans, maxMarks, value, onChange, disabled }) => {
   if (!ans) return <p className="text-xs text-slate-400">No answer to grade</p>;
   return (
-    <div className="flex gap-2 items-end">
+    <div className="grid gap-2 sm:grid-cols-[100px_minmax(0,1fr)]">
       <div>
         <label className="block text-xs text-slate-500">Marks</label>
-        <input type="number" min="0" max={maxMarks} step="0.5" value={marks} onChange={(e) => setMarks(+e.target.value)} className="w-20 py-1.5 px-2 border border-gray-200 rounded text-sm" />
+        <input
+          type="number"
+          min="0"
+          max={maxMarks}
+          step="0.5"
+          value={value?.marks ?? ''}
+          disabled={disabled}
+          onChange={(e) => onChange({ ...value, marks: e.target.value })}
+          className="w-full py-1.5 px-2 border border-gray-200 rounded text-sm disabled:bg-slate-50"
+        />
       </div>
-      <div className="flex-1">
+      <div>
         <label className="block text-xs text-slate-500">Feedback</label>
-        <input value={feedback} onChange={(e) => setFeedback(e.target.value)} className="w-full py-1.5 px-2 border border-gray-200 rounded text-sm" />
+        <input
+          value={value?.feedback ?? ''}
+          disabled={disabled}
+          onChange={(e) => onChange({ ...value, feedback: e.target.value })}
+          className="w-full py-1.5 px-2 border border-gray-200 rounded text-sm disabled:bg-slate-50"
+        />
       </div>
-      <button type="button" onClick={() => onSave(marks, feedback)} className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Save</button>
     </div>
   );
 };
@@ -826,6 +843,8 @@ const AttemptDetailModal = ({ attemptId, onClose, onBack }) => {
   const canReviewTAGrades = currentUser.role === 'teacher' || currentUser.role === 'admin';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [gradeDrafts, setGradeDrafts] = useState({});
+  const [savingGrades, setSavingGrades] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -834,13 +853,113 @@ const AttemptDetailModal = ({ attemptId, onClose, onBack }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  const grade = async (answerId, marks, feedback) => {
+  useEffect(() => {
+    if (!data) {
+      setGradeDrafts({});
+      return;
+    }
+
+    const nextDrafts = {};
+    data.quiz.questions.forEach((question) => {
+      if (question.type !== 'SHORT') return;
+      const answer = data.answers.find((entry) => entry.questionId === question.id);
+      if (!answer || !hasShortAnswerText(answer.answer)) return;
+      nextDrafts[answer.id] = {
+        marks: answer.marksAwarded ?? 0,
+        feedback: answer.feedback ?? '',
+      };
+    });
+    setGradeDrafts(nextDrafts);
+  }, [data]);
+
+  const questionsWithAnswers = useMemo(() => {
+    if (!data) return [];
+
+    return data.quiz.questions.map((question, index) => {
+      const answer = data.answers.find((entry) => entry.questionId === question.id);
+      const hasManualAnswer = question.type === 'SHORT' && answer && hasShortAnswerText(answer.answer);
+      let rank = 3;
+      if (hasManualAnswer && answer.isCorrect === null) rank = 0;
+      else if (hasManualAnswer) rank = 1;
+      else if (question.type === 'SHORT') rank = 2;
+
+      return {
+        question,
+        answer,
+        questionNumber: index + 1,
+        rank,
+      };
+    }).sort((left, right) => left.rank - right.rank || left.questionNumber - right.questionNumber);
+  }, [data]);
+
+  const gradableShortAnswers = useMemo(
+    () => questionsWithAnswers.filter(({ question, answer }) => (
+      question.type === 'SHORT' && answer && hasShortAnswerText(answer.answer)
+    )),
+    [questionsWithAnswers]
+  );
+
+  const blankShortAnswersNeedingZero = useMemo(
+    () => questionsWithAnswers.filter(({ question, answer }) => (
+      question.type === 'SHORT'
+      && answer
+      && !hasShortAnswerText(answer.answer)
+      && (Number(answer.marksAwarded ?? 0) !== 0 || answer.isCorrect !== false)
+    )),
+    [questionsWithAnswers]
+  );
+
+  const pendingManualCount = gradableShortAnswers.filter(({ answer }) => answer.isCorrect === null).length;
+  const saveableGradeCount = gradableShortAnswers.length + blankShortAnswersNeedingZero.length;
+
+  const getChangedGradePayloads = () => [
+    ...gradableShortAnswers.map(({ question, answer }) => {
+      const draft = gradeDrafts[answer.id] || {};
+      const marks = Number(draft.marks ?? 0);
+      const feedback = String(draft.feedback ?? '').trim();
+
+      return { question, answer, marks, feedback };
+    }).filter(({ answer, marks, feedback }) => (
+      answer.isCorrect === null
+      || Number(answer.marksAwarded ?? 0) !== marks
+      || String(answer.feedback ?? '').trim() !== feedback
+    )),
+    ...blankShortAnswersNeedingZero.map(({ question, answer }) => ({
+      question,
+      answer,
+      marks: 0,
+      feedback: String(answer.feedback ?? '').trim(),
+    })),
+  ];
+
+  const saveManualGrades = async () => {
+    const payloads = getChangedGradePayloads();
+    if (!payloads.length) {
+      toast('No grade changes to save');
+      return;
+    }
+
+    const invalid = payloads.find(({ question, marks }) => (
+      !Number.isFinite(marks) || marks < 0 || marks > question.marks
+    ));
+    if (invalid) {
+      const questionNumber = questionsWithAnswers.find((entry) => entry.question.id === invalid.question.id)?.questionNumber;
+      toast.error(`Marks for Q${questionNumber || ''} must be between 0 and ${invalid.question.marks}`);
+      return;
+    }
+
     try {
-      const response = await quizAPI.gradeAnswer(answerId, { marksAwarded: marks, feedback });
-      toast.success(response.data.pendingApproval ? 'Saved for teacher approval' : 'Saved');
+      setSavingGrades(true);
+      const responses = await Promise.all(payloads.map(({ answer, marks, feedback }) => (
+        quizAPI.gradeAnswer(answer.id, { marksAwarded: marks, feedback })
+      )));
+      const pendingApproval = responses.some((response) => response.data.pendingApproval);
+      toast.success(pendingApproval ? 'Saved for teacher approval' : 'Grades saved');
       load();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to grade');
+      toast.error(err.response?.data?.message || 'Failed to save grades');
+    } finally {
+      setSavingGrades(false);
     }
   };
 
@@ -873,20 +992,42 @@ const AttemptDetailModal = ({ attemptId, onClose, onBack }) => {
             <h2 className="text-xl font-bold text-slate-800 m-0">Attempt Detail</h2>
             {data && <p className="text-sm text-slate-500 mt-1">{data.student.user.name} · Score: {data.totalScore ?? '—'} / {data.quiz.totalMarks} · {data.violations} violations</p>}
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100"><X size={20} /></button>
+          <div className="flex items-center gap-2">
+            {data && (
+              <button
+                type="button"
+                onClick={saveManualGrades}
+                disabled={savingGrades || !saveableGradeCount}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                title={pendingManualCount ? `${pendingManualCount} short answer(s) need grading` : 'Save short-answer grades'}
+              >
+                {savingGrades ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                Save grades
+              </button>
+            )}
+            <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100"><X size={20} /></button>
+          </div>
         </div>
         <div className="p-6 space-y-4">
-          {loading ? <div className="py-10 text-center"><Loader2 className="animate-spin inline" /></div> : data?.quiz.questions.map((q, idx) => {
-            const ans = data.answers.find((a) => a.questionId === q.id);
+          {loading ? <div className="py-10 text-center"><Loader2 className="animate-spin inline" /></div> : questionsWithAnswers.map(({ question: q, answer: ans, questionNumber }) => {
             const correct = q.correctAnswer;
             const opts = q.options || [];
+            const hasManualAnswer = q.type === 'SHORT' && ans && hasShortAnswerText(ans.answer);
+            const displayedMarks = q.type === 'SHORT' && !hasManualAnswer ? 0 : (ans?.marksAwarded ?? 0);
+            const scoreTone = q.type === 'SHORT' && !hasManualAnswer
+              ? 'text-red-700'
+              : ans?.isCorrect
+                ? 'text-green-700'
+                : ans?.isCorrect === false
+                  ? 'text-red-700'
+                  : 'text-amber-700';
 
             return (
               <div key={q.id} className="border border-slate-200 rounded-lg p-4">
                 <div className="flex justify-between mb-2">
-                  <div className="font-semibold text-slate-800">Q{idx + 1} · {q.type} · {q.marks} marks</div>
-                  <div className={`text-sm font-medium ${ans?.isCorrect ? 'text-green-700' : ans?.isCorrect === false ? 'text-red-700' : 'text-amber-700'}`}>
-                    {ans?.marksAwarded ?? 0} / {q.marks}
+                  <div className="font-semibold text-slate-800">Q{questionNumber} · {q.type} · {q.marks} marks</div>
+                  <div className={`text-sm font-medium ${scoreTone}`}>
+                    {displayedMarks} / {q.marks}
                   </div>
                 </div>
                 <p className="text-slate-700 mb-3">{q.questionText}</p>
@@ -905,6 +1046,11 @@ const AttemptDetailModal = ({ attemptId, onClose, onBack }) => {
                   <div className="space-y-2">
                     <div className="text-xs text-slate-500">Expected: <span className="text-slate-700">{q.correctAnswer}</span></div>
                     <div className="bg-slate-50 p-2 rounded text-sm">Student: {ans?.answer || <em className="text-slate-400">No answer</em>}</div>
+                    {!hasManualAnswer && (
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500">
+                        Blank answer is automatically scored 0 / {q.marks}.
+                      </div>
+                    )}
                     {canReviewTAGrades && (ans?.taPendingGrades || []).filter((pending) => pending.status === 'PENDING').map((pending) => (
                       <div key={pending.id} className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -935,7 +1081,15 @@ const AttemptDetailModal = ({ attemptId, onClose, onBack }) => {
                         </div>
                       </div>
                     ))}
-                    <ManualGrade ans={ans} maxMarks={q.marks} onSave={(m, f) => grade(ans.id, m, f)} />
+                    {hasManualAnswer && (
+                      <ManualGrade
+                        ans={ans}
+                        maxMarks={q.marks}
+                        value={gradeDrafts[ans.id]}
+                        disabled={savingGrades}
+                        onChange={(nextValue) => setGradeDrafts((current) => ({ ...current, [ans.id]: nextValue }))}
+                      />
+                    )}
                   </div>
                 )}
               </div>

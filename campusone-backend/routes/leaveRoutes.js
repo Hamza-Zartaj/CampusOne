@@ -1,10 +1,14 @@
 import express from 'express';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, authorizePermission } from '../middleware/auth.js';
 import * as ctrl from '../controllers/leaveController.js';
 
 const router = express.Router();
 
 router.use(protect);
+
+// Admin policy
+router.get('/policy', authorizePermission('manage_academic'), ctrl.getPolicy);
+router.put('/policy', authorizePermission('manage_academic'), ctrl.updatePolicy);
 
 // Student
 router.get('/my', authorize('student'), ctrl.getMyLeaveStatus);

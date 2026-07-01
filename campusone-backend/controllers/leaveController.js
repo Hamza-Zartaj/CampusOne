@@ -3,40 +3,34 @@ import prisma from '../prisma/client.js';
 import { notify } from '../services/notificationService.js';
 import AuditLogger from '../services/auditLogger.js';
 import { assertDateWithinTerm, parseDateOnly, serializeDateFields, toDateOnlyString } from '../utils/dateOnly.js';
+import { summarizeAttendanceRecords } from '../utils/attendanceSummary.js';
+import {
+  DEFAULT_ATTENDANCE_POLICY,
+  getAttendancePolicy,
+  normalizeAttendancePolicy,
+  validateAttendancePolicyInput,
+} from '../utils/attendancePolicy.js';
 
 // ─── CONFIG ────────────────────────────────────────────────────────
 // UCP-style quota:
 //   n = counted ABSENT + 0.5 * LATE.
 //   n <= 4 is free, 4 < n <= 6 is fined, n > 6 triggers drop-off.
 export const LEAVE_CONFIG = {
-  freeQuota: 4,
-  fineQuota: 6,
-  finePerAbsent: 500,  // PKR per weighted quota unit inside the fined band
+  ...DEFAULT_ATTENDANCE_POLICY,
 };
 
 const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
-const getLeaveBand = (n) => {
+const getLeaveBand = (n, policy = LEAVE_CONFIG) => {
   // Inclusive boundaries: n <= 4 is free, 4 < n <= 6 is fined, n > 6 is drop-off.
-  if (n > LEAVE_CONFIG.fineQuota) return 'dropoff';
-  if (n > LEAVE_CONFIG.freeQuota) return 'fined';
+  if (n > policy.fineQuota) return 'dropoff';
+  if (n > policy.freeQuota) return 'fined';
   return 'free';
 };
 
-const getFineableUnits = (n) => {
-  const fineableWeight = Math.max(0, Math.min(n, LEAVE_CONFIG.fineQuota) - LEAVE_CONFIG.freeQuota);
+const getFineableUnits = (n, policy = LEAVE_CONFIG) => {
+  const fineableWeight = Math.max(0, Math.min(n, policy.fineQuota) - policy.freeQuota);
   return Math.ceil(fineableWeight);
-};
-
-// Expand a from/to range into list of YYYY-MM-DD dates.
-const expandDateRange = (from, to) => {
-  const dates = [];
-  const start = parseDateOnly(toDateOnlyString(from));
-  const end = parseDateOnly(toDateOnlyString(to));
-  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
-    dates.push(d.toISOString().slice(0, 10));
-  }
-  return dates;
 };
 
 const serializeLeaveApplication = (application) => serializeDateFields(application, ['fromDate', 'toDate']);
@@ -108,7 +102,8 @@ const buildUpcomingLectureSlots = async ({ offering, limit = 8 }) => {
 
 // Compute the leave-status counter for one student in one offering.
 // Returns { totalLectures, present, absent, late, approvedLeaveDays, n, band, dropOff }
-const computeCounter = async ({ studentId, offeringId }) => {
+const computeCounter = async ({ studentId, offeringId, policy: providedPolicy }) => {
+  const policy = normalizeAttendancePolicy(providedPolicy || await getAttendancePolicy());
   const [attendances, approvedApps] = await Promise.all([
     prisma.attendance.findMany({ where: { studentId, offeringId } }),
     prisma.leaveApplication.findMany({
@@ -116,43 +111,27 @@ const computeCounter = async ({ studentId, offeringId }) => {
     }),
   ]);
 
-  const totalLectures = attendances.length;
-  let present = 0, absent = 0, late = 0;
-  for (const a of attendances) {
-    if (a.status === 'PRESENT') present++;
-    else if (a.status === 'ABSENT') absent++;
-    else if (a.status === 'LATE') late++;
-  }
-
-  // Days that are ABSENT but covered by an approved leave don't count toward `n`.
-  const approvedDates = new Set();
-  let approvedLeaveDays = 0;
-  for (const app of approvedApps) {
-    for (const d of expandDateRange(app.fromDate, app.toDate)) {
-      if (!approvedDates.has(d)) {
-        approvedDates.add(d);
-        approvedLeaveDays++;
-      }
-    }
-  }
-
-  let countedAbsent = 0;
-  for (const a of attendances) {
-    if (a.status === 'ABSENT' && !approvedDates.has(toDateOnlyString(a.date))) countedAbsent++;
-  }
-
-  const n = countedAbsent + 0.5 * late;
-  const band = getLeaveBand(n);
+  const summary = summarizeAttendanceRecords({
+    records: attendances,
+    approvedApplications: approvedApps,
+    emptyPercentage: null,
+    excusedAbsenceReducesTotal: policy.excusedAbsenceReducesTotal,
+  });
+  const n = summary.countedAbsent + policy.lateWeight * summary.late;
+  const band = getLeaveBand(n, policy);
 
   return {
-    totalLectures,
-    present,
-    absent,
-    late,
-    approvedLeaveDays,
-    countedAbsent,
+    totalLectures: summary.totalSessions,
+    effectiveTotalLectures: summary.effectiveTotalSessions,
+    present: summary.present,
+    absent: summary.rawAbsent,
+    late: summary.late,
+    approvedLeaveDays: summary.approvedLeaveDays,
+    excusedAbsent: summary.excusedAbsent,
+    countedAbsent: summary.countedAbsent,
+    attendancePercentage: summary.percentage,
     n,
-    fineableUnits: getFineableUnits(n),
+    fineableUnits: getFineableUnits(n, policy),
     band,
     dropOff: band === 'dropoff',
   };
@@ -161,7 +140,8 @@ const computeCounter = async ({ studentId, offeringId }) => {
 // Generate Fine rows for a student/offering when n is in 4..6 band.
 // Idempotent: quotaUnit is unique per student/offering, so concurrent calls
 // converge on the same generated rows.
-const generateFines = async ({ studentId, offeringId, counter }) => {
+const generateFines = async ({ studentId, offeringId, counter, policy: providedPolicy }) => {
+  const policy = normalizeAttendancePolicy(providedPolicy || await getAttendancePolicy());
   if (counter.band === 'free') return 0;
   // Fine rows are whole quota units; a partial weighted unit is rounded up.
   const fineable = counter.fineableUnits;
@@ -195,8 +175,8 @@ const generateFines = async ({ studentId, offeringId, counter }) => {
       studentId,
       offeringId,
       quotaUnit: index + 1,
-      reason: `Absent over ${LEAVE_CONFIG.freeQuota}-leave free quota`,
-      amount: LEAVE_CONFIG.finePerAbsent,
+      reason: `Absent over ${policy.freeQuota}-leave free quota`,
+      amount: policy.finePerAbsent,
   }));
   const created = await prisma.fine.createMany({ data: rows, skipDuplicates: true });
   if (created.count === 0) return 0;
@@ -207,7 +187,7 @@ const generateFines = async ({ studentId, offeringId, counter }) => {
     await notify({
       userId: student.userId,
       type: 'FINE_ISSUED',
-      title: `Fine issued: PKR ${LEAVE_CONFIG.finePerAbsent * created.count}`,
+      title: `Fine issued: PKR ${policy.finePerAbsent * created.count}`,
       body: `You have crossed your free leave quota for one of your courses.`,
       linkUrl: '/student/leave-status',
     });
@@ -260,6 +240,54 @@ const triggerDropOff = async ({ studentId, offeringId, counter, performedById })
 
 // ─── STUDENT ENDPOINTS ────────────────────────────────────────────────────────
 
+export const getPolicy = async (req, res) => {
+  try {
+    const policy = await getAttendancePolicy();
+    res.json({ success: true, data: policy });
+  } catch (err) {
+    logger.error('[leave] policy get error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const updatePolicy = async (req, res) => {
+  try {
+    const validated = validateAttendancePolicyInput(req.body);
+    if (validated.error) {
+      return res.status(400).json({ success: false, message: validated.error });
+    }
+
+    const policy = await prisma.attendancePolicy.upsert({
+      where: { id: DEFAULT_ATTENDANCE_POLICY.id },
+      create: {
+        id: DEFAULT_ATTENDANCE_POLICY.id,
+        ...validated.data,
+        updatedBy: req.user.id,
+      },
+      update: {
+        ...validated.data,
+        updatedBy: req.user.id,
+      },
+    });
+
+    await AuditLogger.log({
+      action: 'UPDATE_ATTENDANCE_POLICY',
+      category: 'ACADEMIC',
+      performedBy: req.user.id,
+      performedByRole: req.user.role,
+      targetModel: 'AttendancePolicy',
+      targetId: policy.id,
+      description: 'Updated attendance and leave policy',
+      newValue: validated.data,
+    });
+
+    res.json({ success: true, data: normalizeAttendancePolicy(policy) });
+  } catch (err) {
+    logger.error('[leave] policy update error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // GET /api/leave/my  — student's leave-status grouped per enrolled offering
 export const getMyLeaveStatus = async (req, res) => {
   try {
@@ -279,10 +307,11 @@ export const getMyLeaveStatus = async (req, res) => {
         },
       },
     });
+    const policy = await getAttendancePolicy();
 
     const courses = await Promise.all(
       enrollments.map(async (e) => {
-        const counter = await computeCounter({ studentId: student.id, offeringId: e.offeringId });
+        const counter = await computeCounter({ studentId: student.id, offeringId: e.offeringId, policy });
         const applications = await prisma.leaveApplication.findMany({
           where: { studentId: student.id, offeringId: e.offeringId },
           orderBy: { createdAt: 'desc' },
@@ -296,7 +325,7 @@ export const getMyLeaveStatus = async (req, res) => {
       })
     );
 
-    res.json({ success: true, config: LEAVE_CONFIG, data: courses });
+    res.json({ success: true, config: policy, data: courses });
   } catch (err) {
     logger.error('[leave] my error:', err);
     res.status(500).json({ success: false, message: err.message });
@@ -440,10 +469,11 @@ export const getOfferingLeaveStatus = async (req, res) => {
       },
       orderBy: { student: { studentId: 'asc' } },
     });
+    const policy = await getAttendancePolicy();
 
     const rows = await Promise.all(
       enrollments.map(async (e) => {
-        const counter = await computeCounter({ studentId: e.studentId, offeringId });
+        const counter = await computeCounter({ studentId: e.studentId, offeringId, policy });
         return { student: e.student, enrollmentStatus: e.status, counter };
       })
     );
@@ -456,7 +486,7 @@ export const getOfferingLeaveStatus = async (req, res) => {
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     });
 
-    res.json({ success: true, config: LEAVE_CONFIG, data: { rows, applications: applications.map(serializeLeaveApplication) } });
+    res.json({ success: true, config: policy, data: { rows, applications: applications.map(serializeLeaveApplication) } });
   } catch (err) {
     logger.error('[leave] offering error:', err);
     res.status(500).json({ success: false, message: err.message });
@@ -527,14 +557,17 @@ const decideApplication = async (req, res, decision) => {
     });
 
     // Re-evaluate counter on rejection (now counts as absent if there was attendance) and approval
+    const policy = await getAttendancePolicy();
     const counter = await computeCounter({
       studentId: application.studentId,
       offeringId: application.offeringId,
+      policy,
     });
     await generateFines({
       studentId: application.studentId,
       offeringId: application.offeringId,
       counter,
+      policy,
     });
     await triggerDropOff({
       studentId: application.studentId,
@@ -557,9 +590,10 @@ export const rejectApplication = (req, res) => decideApplication(req, res, 'REJE
 // Exported so attendanceController can call it as a fire-and-forget after upsert.
 export const reevaluateAfterAttendance = async ({ offeringId, studentIds, performedById }) => {
   try {
+    const policy = await getAttendancePolicy();
     for (const studentId of studentIds) {
-      const counter = await computeCounter({ studentId, offeringId });
-      await generateFines({ studentId, offeringId, counter });
+      const counter = await computeCounter({ studentId, offeringId, policy });
+      await generateFines({ studentId, offeringId, counter, policy });
       await triggerDropOff({ studentId, offeringId, counter, performedById });
     }
   } catch (err) {

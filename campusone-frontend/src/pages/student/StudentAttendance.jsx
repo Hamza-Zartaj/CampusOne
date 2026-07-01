@@ -6,7 +6,8 @@ import {
 import toast from 'react-hot-toast';
 import { attendanceAPI } from '../../utils/api';
 
-const statusBadge = (status) => {
+const statusBadge = (status, isExcused = false) => {
+  if (isExcused) return 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border capitalize bg-blue-50 text-blue-700 border-blue-200';
   const s = {
     PRESENT: 'bg-green-50 text-green-700 border-green-200',
     ABSENT:  'bg-red-50 text-red-700 border-red-200',
@@ -15,7 +16,8 @@ const statusBadge = (status) => {
   return `inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border capitalize ${s[status] || s.PRESENT}`;
 };
 
-const StatusIcon = ({ status }) => {
+const StatusIcon = ({ status, isExcused = false }) => {
+  if (isExcused) return <Calendar size={16} className="text-blue-600" />;
   if (status === 'PRESENT') return <CheckCircle size={16} className="text-green-600" />;
   if (status === 'ABSENT')  return <XCircle size={16} className="text-red-500" />;
   return <Clock size={16} className="text-amber-500" />;
@@ -33,13 +35,15 @@ const StudentAttendance = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const overallClasses = courses.reduce((s, c) => s + c.totalSessions, 0);
+  const countedSessionsFor = (course) => course.effectiveTotalSessions ?? course.totalSessions ?? 0;
+  const countedAbsentFor = (course) => course.countedAbsent ?? course.absent ?? 0;
+  const overallClasses = courses.reduce((s, c) => s + countedSessionsFor(c), 0);
   const overallAttended = courses.reduce((s, c) => s + c.present + c.late, 0);
   const overallRate = overallClasses > 0 ? Math.round(overallAttended / overallClasses * 100) : 100;
   const atRiskCount = courses.filter(c => c.isAtRisk).length;
 
   const stats = [
-    { icon: Calendar,    label: 'Total Sessions',  value: overallClasses,     color: '#3b82f6' },
+    { icon: Calendar,    label: 'Counted Sessions', value: overallClasses,    color: '#3b82f6' },
     { icon: CheckCircle, label: 'Attended',         value: overallAttended,    color: '#10b981' },
     { icon: TrendingUp,  label: 'Overall Rate',     value: `${overallRate}%`,  color: '#06b6d4' },
     { icon: AlertCircle, label: 'At Risk Courses',  value: atRiskCount,        color: '#ef4444' },
@@ -117,9 +121,15 @@ const StudentAttendance = () => {
                       <p className="text-sm font-bold text-amber-500 m-0">{c.late}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-xs text-slate-500 m-0">Absent</p>
-                      <p className="text-sm font-bold text-red-500 m-0">{c.absent}</p>
+                      <p className="text-xs text-slate-500 m-0">Counted Absent</p>
+                      <p className="text-sm font-bold text-red-500 m-0">{countedAbsentFor(c)}</p>
                     </div>
+                    {c.excusedAbsent > 0 && (
+                      <div className="text-center">
+                        <p className="text-xs text-slate-500 m-0">Excused</p>
+                        <p className="text-sm font-bold text-blue-600 m-0">{c.excusedAbsent}</p>
+                      </div>
+                    )}
                     <div className="w-24">
                       <div className="flex items-center justify-between mb-1">
                         <span className={`text-sm font-bold ${c.isAtRisk ? 'text-red-600' : 'text-green-600'}`}>
@@ -154,9 +164,9 @@ const StudentAttendance = () => {
                             <span className="text-sm text-slate-600">
                               {new Date(r.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                             </span>
-                            <span className={statusBadge(r.status)}>
-                              <StatusIcon status={r.status} />
-                              {r.status.charAt(0) + r.status.slice(1).toLowerCase()}
+                            <span className={statusBadge(r.status, r.isExcused)}>
+                              <StatusIcon status={r.status} isExcused={r.isExcused} />
+                              {r.isExcused ? 'Excused' : r.status.charAt(0) + r.status.slice(1).toLowerCase()}
                             </span>
                           </div>
                         ))}

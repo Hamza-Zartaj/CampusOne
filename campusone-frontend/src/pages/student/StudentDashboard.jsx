@@ -67,6 +67,8 @@ const StudentDashboard = () => {
     availableQuizzes, upcomingQuizzes, recentGrades, recentQuizAttempts,
     attendanceSummary, recentAnnouncements,
   } = data;
+  const countedSessionsFor = (a) => a.effectiveTotalSessions ?? a.totalSessions ?? a.total ?? 0;
+  const countedAbsentFor = (a) => a.countedAbsent ?? a.absent ?? 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
@@ -240,7 +242,10 @@ const StudentDashboard = () => {
                     <div className="flex items-center justify-between gap-3 mb-2">
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-slate-800 m-0 truncate">{a.courseCode} <span className="text-slate-500 font-normal">— Sec {a.section}</span></p>
-                        <p className="text-xs text-slate-500 m-0">{a.total} sessions ({a.present} present, {a.late} late, {a.absent} absent)</p>
+                        <p className="text-xs text-slate-500 m-0">
+                          {countedSessionsFor(a)} counted sessions ({a.present} present, {a.late} late, {countedAbsentFor(a)} counted absent)
+                          {a.excusedAbsent > 0 && <span className="text-blue-600"> - {a.excusedAbsent} excused</span>}
+                        </p>
                       </div>
                       <span className={`text-lg font-bold ${a.isAtRisk ? 'text-red-600' : a.percentage >= 85 ? 'text-green-600' : 'text-slate-700'}`}>
                         {a.percentage !== null ? `${a.percentage}%` : '—'}
