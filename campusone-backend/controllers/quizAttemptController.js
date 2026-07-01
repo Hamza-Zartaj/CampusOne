@@ -46,6 +46,8 @@ const isQuizOpen = (quiz) => {
   return quiz.status === 'PUBLISHED' && now >= new Date(quiz.startAt) && now <= new Date(quiz.endAt);
 };
 
+const isGrantActive = (grant) => grant && new Date(grant.until).getTime() > Date.now();
+
 const hasShortAnswerText = (answer) => (
   answer !== null
   && answer !== undefined
@@ -78,6 +80,10 @@ export const getMyQuizzes = async (req, res) => {
           },
         },
         _count: { select: { questions: true } },
+        reopenGrants: {
+          where: { studentId: student.id, until: { gt: new Date() } },
+          select: { id: true, until: true, reason: true, usedAt: true },
+        },
         attempts: {
           where: { studentId: student.id },
           select: { id: true, status: true, startedAt: true, submittedAt: true, totalScore: true, violations: true },
@@ -86,7 +92,13 @@ export const getMyQuizzes = async (req, res) => {
       orderBy: { startAt: 'desc' },
     });
 
-    res.json({ success: true, count: quizzes.length, data: quizzes });
+    const data = quizzes.map((quiz) => {
+      const [reopenGrant] = quiz.reopenGrants || [];
+      const { reopenGrants, ...rest } = quiz;
+      return { ...rest, reopenGrant: reopenGrant || null };
+    });
+
+    res.json({ success: true, count: data.length, data });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -116,9 +128,25 @@ export const startAttempt = async (req, res) => {
     let attempt = await prisma.quizAttempt.findUnique({
       where: { quizId_studentId: { quizId: quiz.id, studentId: student.id } },
     });
+    const reopenGrant = await prisma.quizReopenGrant.findUnique({
+      where: { quizId_studentId: { quizId: quiz.id, studentId: student.id } },
+    });
+    const activeGrant = isGrantActive(reopenGrant) ? reopenGrant : null;
 
     if (attempt && attempt.status !== 'IN_PROGRESS') {
       return res.status(400).json({ success: false, message: 'You have already submitted this quiz' });
+    }
+
+    if (attempt && activeGrant && (!attempt.reopenedUntil || new Date(activeGrant.until) > new Date(attempt.reopenedUntil))) {
+      attempt = await prisma.quizAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          reopenedUntil: activeGrant.until,
+          reopenedBy: activeGrant.grantedBy,
+          reopenedAt: new Date(),
+          reopenGrantId: activeGrant.id,
+        },
+      });
     }
 
     if (attempt && isAttemptExpired({ ...attempt, quiz })) {
@@ -131,7 +159,7 @@ export const startAttempt = async (req, res) => {
       });
     }
 
-    if (!isQuizOpen(quiz)) {
+    if (!isQuizOpen(quiz) && !activeGrant) {
       return res.status(400).json({ success: false, message: 'Quiz is not currently open' });
     }
 
@@ -140,7 +168,22 @@ export const startAttempt = async (req, res) => {
         ? shuffled(quiz.questions.map((question) => question.id))
         : quiz.questions.map((question) => question.id);
       attempt = await prisma.quizAttempt.create({
-        data: { quizId: quiz.id, studentId: student.id, status: 'IN_PROGRESS', questionOrder },
+        data: {
+          quizId: quiz.id,
+          studentId: student.id,
+          status: 'IN_PROGRESS',
+          questionOrder,
+          reopenedUntil: activeGrant?.until || null,
+          reopenedBy: activeGrant?.grantedBy || null,
+          reopenedAt: activeGrant ? new Date() : null,
+          reopenGrantId: activeGrant?.id || null,
+        },
+      });
+    }
+    if (activeGrant && !activeGrant.usedAt) {
+      await prisma.quizReopenGrant.update({
+        where: { id: activeGrant.id },
+        data: { usedAt: new Date() },
       });
     }
 
@@ -180,6 +223,7 @@ export const startAttempt = async (req, res) => {
           maxViolations: quiz.maxViolations,
           startAt: quiz.startAt,
           endAt: quiz.endAt,
+          reopenedUntil: attempt.reopenedUntil,
         },
         questions,
         savedAnswers,

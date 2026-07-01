@@ -83,6 +83,7 @@ model Student {
   submissions       Submission[]
   attendances       Attendance[]
   quizAttempts      QuizAttempt[]
+  quizReopenGrants  QuizReopenGrant[]
   leaveApplications LeaveApplication[]
   fines             Fine[]
   taAssignments     TAAssignment[]
@@ -166,10 +167,10 @@ model Admin {
 // ============ ANNOUNCEMENTS ============
 
 model Announcement {
-  id              String  @id @default(cuid())
+  id              String          @id @default(cuid())
   title           String
   content         String
-  priority        String  @default("medium") // "low", "medium", "high"
+  priority        String          @default("medium") // "low", "medium", "high"
   targetAudience  String? // "all", "teachers", "students", "course", "filtered"
   audienceFilters Json? // { departmentIds, programIds, batches, semesters, role }
   offeringId      String? // set when targetAudience = "course"
@@ -564,27 +565,27 @@ enum SimilarityReviewDecision {
 }
 
 model Assignment {
-  id            String           @id @default(cuid())
-  offeringId    String
+  id             String           @id @default(cuid())
+  offeringId     String
   componentIndex Int?
-  title         String
-  description   String?
-  totalMarks    Float            @default(100)
-  dueDate       DateTime
-  allowLate     Boolean          @default(false)
-  attachmentUrl String?
-  status        AssignmentStatus @default(PUBLISHED)
+  title          String
+  description    String?
+  totalMarks     Float            @default(100)
+  dueDate        DateTime
+  allowLate      Boolean          @default(false)
+  attachmentUrl  String?
+  status         AssignmentStatus @default(PUBLISHED)
 
-  offering          CourseOffering     @relation(fields: [offeringId], references: [id])
-  submissions       Submission[]
-  similarityReports SimilarityReport[]
+  offering             CourseOffering        @relation(fields: [offeringId], references: [id])
+  submissions          Submission[]
+  similarityReports    SimilarityReport[]
   similarityEmbeddings SimilarityEmbedding[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([offeringId])
   @@unique([offeringId, componentIndex])
+  @@index([offeringId])
   @@index([dueDate])
   @@index([status])
 }
@@ -632,12 +633,12 @@ model Submission {
 
   status SubmissionStatus @default(SUBMITTED)
 
-  assignment         Assignment        @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  student            Student           @relation(fields: [studentId], references: [id])
-  similarityMatchesA SimilarityMatch[] @relation("SimilaritySubmissionA")
-  similarityMatchesB SimilarityMatch[] @relation("SimilaritySubmissionB")
+  assignment           Assignment            @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student              Student               @relation(fields: [studentId], references: [id])
+  similarityMatchesA   SimilarityMatch[]     @relation("SimilaritySubmissionA")
+  similarityMatchesB   SimilarityMatch[]     @relation("SimilaritySubmissionB")
   similarityEmbeddings SimilarityEmbedding[]
-  taPendingGrades    TAPendingGrade[]  @relation("PendingSubmissionGrade")
+  taPendingGrades      TAPendingGrade[]      @relation("PendingSubmissionGrade")
 
   submittedAt DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -658,10 +659,10 @@ model TAPendingGrade {
   feedback     String?
   status       TAPendingGradeStatus @default(PENDING)
 
-  reviewedBy    String?
-  reviewedAt    DateTime?
-  reviewNotes   String?
-  appliedGrade  Float?
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  reviewNotes  String?
+  appliedGrade Float?
 
   taStudent  Student     @relation(fields: [taStudentId], references: [id])
   submission Submission? @relation("PendingSubmissionGrade", fields: [submissionId], references: [id], onDelete: Cascade)
@@ -713,9 +714,9 @@ model SimilarityMatch {
   aiModel         String?
   aiUsage         Json?
 
-  report      SimilarityReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  submissionA Submission       @relation("SimilaritySubmissionA", fields: [submissionAId], references: [id], onDelete: Cascade)
-  submissionB Submission       @relation("SimilaritySubmissionB", fields: [submissionBId], references: [id], onDelete: Cascade)
+  report      SimilarityReport       @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  submissionA Submission             @relation("SimilaritySubmissionA", fields: [submissionAId], references: [id], onDelete: Cascade)
+  submissionB Submission             @relation("SimilaritySubmissionB", fields: [submissionBId], references: [id], onDelete: Cascade)
   review      SimilarityMatchReview?
 
   createdAt DateTime @default(now())
@@ -744,7 +745,7 @@ model SimilarityMatchReview {
 }
 
 model SimilarityEmbedding {
-  id           String                  @id @default(cuid())
+  id           String                      @id @default(cuid())
   assignmentId String
   submissionId String
   model        String
@@ -789,30 +790,31 @@ enum QuizAttemptStatus {
 }
 
 model Quiz {
-  id               String     @id @default(cuid())
+  id               String           @id @default(cuid())
   offeringId       String
   componentIndex   Int?
   title            String
   description      String?
-  totalMarks       Float      @default(0)
-  durationMinutes  Int        @default(30)
+  totalMarks       Float            @default(0)
+  durationMinutes  Int              @default(30)
   startAt          DateTime
   endAt            DateTime
-  status           QuizStatus @default(DRAFT)
+  status           QuizStatus       @default(DRAFT)
   deliveryMode     QuizDeliveryMode @default(ONLINE)
-  shuffleQuestions Boolean    @default(false)
-  maxViolations    Int        @default(3)
-  allowReview      Boolean    @default(true)
+  shuffleQuestions Boolean          @default(false)
+  maxViolations    Int              @default(3)
+  allowReview      Boolean          @default(true)
 
-  offering  CourseOffering @relation(fields: [offeringId], references: [id])
-  questions QuizQuestion[]
-  attempts  QuizAttempt[]
+  offering     CourseOffering    @relation(fields: [offeringId], references: [id])
+  questions    QuizQuestion[]
+  attempts     QuizAttempt[]
+  reopenGrants QuizReopenGrant[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([offeringId])
   @@unique([offeringId, componentIndex])
+  @@index([offeringId])
   @@index([status])
   @@index([startAt])
 }
@@ -838,9 +840,13 @@ model QuizAttempt {
   quizId    String
   studentId String
 
-  startedAt   DateTime          @default(now())
-  submittedAt DateTime?
-  status      QuizAttemptStatus @default(IN_PROGRESS)
+  startedAt     DateTime          @default(now())
+  submittedAt   DateTime?
+  status        QuizAttemptStatus @default(IN_PROGRESS)
+  reopenedUntil DateTime?
+  reopenedBy    String?
+  reopenedAt    DateTime?
+  reopenGrantId String?
 
   totalScore      Float?
   autoGradedScore Float? // sum of MCQ + TRUE_FALSE auto-marks
@@ -859,6 +865,26 @@ model QuizAttempt {
   @@index([studentId])
 }
 
+model QuizReopenGrant {
+  id        String    @id @default(cuid())
+  quizId    String
+  studentId String
+  grantedBy String
+  until     DateTime
+  reason    String?
+  usedAt    DateTime?
+
+  quiz    Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([quizId, studentId])
+  @@index([quizId, until])
+  @@index([studentId, until])
+}
+
 model QuizAnswer {
   id         String @id @default(cuid())
   attemptId  String
@@ -869,8 +895,8 @@ model QuizAnswer {
   marksAwarded Float    @default(0)
   feedback     String?
 
-  attempt  QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  question QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attempt         QuizAttempt      @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question        QuizQuestion     @relation(fields: [questionId], references: [id], onDelete: Cascade)
   taPendingGrades TAPendingGrade[] @relation("PendingQuizAnswerGrade")
 
   @@unique([attemptId, questionId])
@@ -1011,7 +1037,7 @@ model TAAssignment {
   targetSemesterMax Int
 
   reason      String?
-  reviewNotes String? @db.VarChar(1000)
+  reviewNotes String?   @db.VarChar(1000)
   reviewedBy  String?
   reviewedAt  DateTime?
 
@@ -1019,8 +1045,8 @@ model TAAssignment {
   startedAt DateTime?
   endedAt   DateTime?
 
-  student  Student        @relation(fields: [studentId], references: [id])
-  offering CourseOffering @relation(fields: [offeringId], references: [id])
+  student   Student        @relation(fields: [studentId], references: [id])
+  offering  CourseOffering @relation(fields: [offeringId], references: [id])
   resources TAResource[]
 
   @@unique([studentId, offeringId])
@@ -1029,9 +1055,9 @@ model TAAssignment {
 }
 
 model TAResource {
-  id         String @id @default(cuid())
-  offeringId String
-  taAssignmentId String
+  id                  String @id @default(cuid())
+  offeringId          String
+  taAssignmentId      String
   uploadedByStudentId String
 
   title       String
@@ -1041,9 +1067,9 @@ model TAResource {
   filePath    String?
   mimeType    String?
 
-  offering CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
-  taAssignment TAAssignment @relation(fields: [taAssignmentId], references: [id], onDelete: Cascade)
-  uploadedBy Student @relation(fields: [uploadedByStudentId], references: [id])
+  offering     CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  taAssignment TAAssignment   @relation(fields: [taAssignmentId], references: [id], onDelete: Cascade)
+  uploadedBy   Student        @relation(fields: [uploadedByStudentId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

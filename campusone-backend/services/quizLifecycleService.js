@@ -32,7 +32,7 @@ const autoGrade = (question, submittedAnswer) => {
 
 export const getAttemptDeadline = (attempt) => new Date(Math.min(
   new Date(attempt.startedAt).getTime() + attempt.quiz.durationMinutes * 60_000,
-  new Date(attempt.quiz.endAt).getTime(),
+  new Date(attempt.reopenedUntil || attempt.quiz.endAt).getTime(),
 ));
 
 export const isAttemptExpired = (attempt) => Date.now() >= getAttemptDeadline(attempt).getTime();
@@ -229,6 +229,10 @@ export const syncMissedQuizMarks = async ({ studentId, offeringId, activeTermOnl
     },
     include: {
       attempts: { select: { studentId: true } },
+      reopenGrants: {
+        where: { until: { gt: now } },
+        select: { studentId: true },
+      },
       offering: {
         include: {
           course: {
@@ -263,9 +267,11 @@ export const syncMissedQuizMarks = async ({ studentId, offeringId, activeTermOnl
     if (!component) continue;
     const totalPerInstance = getQuizMarkTotal(component);
     const attemptedStudentIds = new Set(quiz.attempts.map((attempt) => attempt.studentId));
+    const activeGrantStudentIds = new Set(quiz.reopenGrants.map((grant) => grant.studentId));
 
     for (const enrollment of quiz.offering.enrollments) {
       if (attemptedStudentIds.has(enrollment.studentId)) continue;
+      if (activeGrantStudentIds.has(enrollment.studentId)) continue;
 
       const existing = await prisma.markComponent.findUnique({
         where: {

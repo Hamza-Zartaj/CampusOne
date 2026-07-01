@@ -952,9 +952,11 @@ const AttemptsModal = ({ quiz, onClose, onChanged }) => {
   const [rows, setRows] = useState([]);
   const [draftMarks, setDraftMarks] = useState({});
   const [savingStudentId, setSavingStudentId] = useState(null);
+  const [reopeningStudentId, setReopeningStudentId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const isOffline = quiz.deliveryMode === 'OFFLINE';
+  const isClosedOnline = !isOffline && Date.now() > new Date(quiz.endAt).getTime();
 
   const loadRoster = useCallback(async () => {
     setLoading(true);
@@ -991,11 +993,38 @@ const AttemptsModal = ({ quiz, onClose, onChanged }) => {
     }
   };
 
+  const reopenForStudent = async (row) => {
+    const minutesText = window.prompt(
+      `Allow ${row.student.user.name} to take this quiz for how many minutes?`,
+      String(quiz.durationMinutes || 30),
+    );
+    if (minutesText === null) return;
+
+    const minutes = Number(minutesText);
+    if (!Number.isFinite(minutes) || minutes < 1) {
+      toast.error('Enter a valid number of minutes');
+      return;
+    }
+
+    setReopeningStudentId(row.student.id);
+    try {
+      await quizAPI.reopenForStudent(quiz.id, { studentId: row.student.id, minutes });
+      toast.success('Quiz reopened for this student');
+      await loadRoster();
+      onChanged?.();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to reopen quiz');
+    } finally {
+      setReopeningStudentId(null);
+    }
+  };
+
   const statusCopy = (row) => {
+    if (row.status === 'REOPENED') return { label: 'Reopened', tone: 'bg-blue-50 text-blue-700 border-blue-200' };
     if (row.status === 'IN_PROGRESS') return { label: 'Attempting now', tone: 'bg-amber-50 text-amber-700 border-amber-200' };
     if (row.status === 'SUBMITTED') return { label: 'Submitted', tone: 'bg-green-50 text-green-700 border-green-200' };
     if (row.status === 'AUTO_SUBMITTED') return { label: 'Auto-submitted', tone: 'bg-orange-50 text-orange-700 border-orange-200' };
-    if (quiz.deliveryMode === 'ONLINE' && Date.now() > new Date(quiz.endAt).getTime()) {
+    if (isClosedOnline) {
       return { label: 'Missed', tone: 'bg-red-50 text-red-700 border-red-200' };
     }
     return { label: 'Not attempted', tone: 'bg-slate-50 text-slate-600 border-slate-200' };
@@ -1060,8 +1089,23 @@ const AttemptsModal = ({ quiz, onClose, onChanged }) => {
                           <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${status.tone}`}>{status.label}</span>
                           <div className="text-right">
                             <div className="font-semibold text-slate-800">{row.totalScore ?? '—'} / {quiz.totalMarks}</div>
-                            <div className="text-xs text-slate-500">{row.violations} violations</div>
+                            <div className="text-xs text-slate-500">
+                              {row.reopenedUntil && row.status === 'REOPENED'
+                                ? `until ${fmtDateTime(row.reopenedUntil)}`
+                                : `${row.violations} violations`}
+                            </div>
                           </div>
+                          {isClosedOnline && !row.attempt && (
+                            <button
+                              type="button"
+                              onClick={() => reopenForStudent(row)}
+                              disabled={reopeningStudentId === row.student.id}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+                            >
+                              {reopeningStudentId === row.student.id && <Loader2 size={14} className="animate-spin" />}
+                              {row.status === 'REOPENED' ? 'Extend' : 'Allow'}
+                            </button>
+                          )}
                           {row.attempt && (
                             <button onClick={() => setSelected(row.attempt.id)} className="px-3 py-1.5 text-sm border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50">View</button>
                           )}

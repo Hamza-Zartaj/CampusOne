@@ -398,7 +398,7 @@ export const getQuizAttempts = async (req, res) => {
 
     await runQuizExpiryMaintenance({ offeringId: check.quiz.offeringId });
 
-    const [enrollments, attempts] = await Promise.all([
+    const [enrollments, attempts, grants] = await Promise.all([
       prisma.enrollment.findMany({
         where: { offeringId: check.quiz.offeringId, status: { in: ['ENROLLED', 'COMPLETED'] } },
         include: {
@@ -412,17 +412,26 @@ export const getQuizAttempts = async (req, res) => {
           student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } },
         },
       }),
+      prisma.quizReopenGrant.findMany({
+        where: { quizId: req.params.id },
+      }),
     ]);
     const attemptsByStudentId = new Map(attempts.map((attempt) => [attempt.studentId, attempt]));
+    const grantsByStudentId = new Map(grants.map((grant) => [grant.studentId, grant]));
+    const now = Date.now();
     const roster = enrollments.map((enrollment) => {
       const attempt = attemptsByStudentId.get(enrollment.studentId) || null;
+      const reopenGrant = grantsByStudentId.get(enrollment.studentId) || null;
+      const grantActive = reopenGrant && new Date(reopenGrant.until).getTime() > now;
       return {
         id: attempt?.id || `student-${enrollment.studentId}`,
         enrollmentId: enrollment.id,
         enrollmentStatus: enrollment.status,
         student: enrollment.student,
         attempt,
-        status: attempt?.status || 'NOT_STARTED',
+        reopenGrant,
+        reopenedUntil: attempt?.reopenedUntil || reopenGrant?.until || null,
+        status: attempt?.status || (grantActive ? 'REOPENED' : 'NOT_STARTED'),
         totalScore: attempt?.totalScore ?? null,
         submittedAt: attempt?.submittedAt ?? null,
         startedAt: attempt?.startedAt ?? null,
@@ -431,6 +440,98 @@ export const getQuizAttempts = async (req, res) => {
     });
 
     res.json({ success: true, count: roster.length, attemptedCount: attempts.length, data: roster });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// PUT /api/quizzes/:id/reopen — teacher grants one student a personal reopen window
+export const grantQuizReopen = async (req, res) => {
+  try {
+    const access = await verifyQuizGradingAccess(req.user, req.params.id);
+    if (access.error) return res.status(access.status).json({ success: false, message: access.error });
+    if (access.taAccess) {
+      return res.status(403).json({ success: false, message: 'Teaching assistants cannot reopen quizzes' });
+    }
+    const { quiz } = access;
+    if (quiz.deliveryMode !== 'ONLINE') {
+      return res.status(400).json({ success: false, message: 'Only online quizzes can be reopened' });
+    }
+
+    const studentId = String(req.body.studentId || '').trim();
+    const minutes = req.body.minutes === undefined || req.body.minutes === ''
+      ? quiz.durationMinutes
+      : Number(req.body.minutes);
+    const reason = req.body.reason ? String(req.body.reason).trim().slice(0, 500) : null;
+
+    if (!studentId) return res.status(400).json({ success: false, message: 'studentId is required' });
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 10080) {
+      return res.status(400).json({ success: false, message: 'Minutes must be between 1 and 10080' });
+    }
+
+    const enrollment = await prisma.enrollment.findFirst({
+      where: { studentId, offeringId: quiz.offeringId, status: { in: ['ENROLLED', 'COMPLETED', 'INCOMPLETE'] } },
+      select: { id: true },
+    });
+    if (!enrollment) return res.status(404).json({ success: false, message: 'Student is not enrolled in this offering' });
+
+    const existingAttempt = await prisma.quizAttempt.findUnique({
+      where: { quizId_studentId: { quizId: quiz.id, studentId } },
+    });
+    if (existingAttempt && existingAttempt.status !== 'IN_PROGRESS') {
+      return res.status(409).json({ success: false, message: 'This student already has a submitted attempt' });
+    }
+
+    const until = new Date(Date.now() + minutes * 60_000);
+    const result = await prisma.$transaction(async (tx) => {
+      const grant = await tx.quizReopenGrant.upsert({
+        where: { quizId_studentId: { quizId: quiz.id, studentId } },
+        create: {
+          quizId: quiz.id,
+          studentId,
+          grantedBy: req.user.id,
+          until,
+          reason,
+        },
+        update: {
+          grantedBy: req.user.id,
+          until,
+          reason,
+          usedAt: null,
+        },
+      });
+
+      if (existingAttempt?.status === 'IN_PROGRESS') {
+        await tx.quizAttempt.update({
+          where: { id: existingAttempt.id },
+          data: {
+            reopenedUntil: until,
+            reopenedBy: req.user.id,
+            reopenedAt: new Date(),
+            reopenGrantId: grant.id,
+          },
+        });
+      }
+
+      if (quiz.componentIndex) {
+        await tx.markComponent.updateMany({
+          where: {
+            enrollmentId: enrollment.id,
+            kind: 'QUIZ',
+            index: quiz.componentIndex,
+          },
+          data: {
+            title: quiz.title,
+            date: quiz.endAt,
+            obtainedMarks: null,
+          },
+        });
+      }
+
+      return grant;
+    });
+
+    res.json({ success: true, data: result });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
