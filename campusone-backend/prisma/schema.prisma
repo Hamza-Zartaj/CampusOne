@@ -387,11 +387,12 @@ model Curriculum {
 }
 
 model Course {
-  id          String  @id @default(cuid())
-  code        String  @unique
-  title       String
-  description String?
-  creditHours Int
+  id                   String  @id @default(cuid())
+  code                 String  @unique
+  title                String
+  description          String?
+  creditHours          Int
+  expectedLectureCount Int?
 
   departmentId String
   department   Department @relation(fields: [departmentId], references: [id])
@@ -1004,6 +1005,18 @@ model Fine {
   @@index([studentId])
   @@index([offeringId])
   @@index([status])
+}
+
+model AttendancePolicy {
+  id                         String   @id @default("default")
+  freeQuota                  Float    @default(4)
+  fineQuota                  Float    @default(6)
+  finePerAbsent              Float    @default(500)
+  lateWeight                 Float    @default(0.5)
+  excusedAbsenceReducesTotal Boolean  @default(true)
+  updatedBy                  String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 }
 
 // ============ TA ASSIGNMENTS ============

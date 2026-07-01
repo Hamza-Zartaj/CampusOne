@@ -187,8 +187,21 @@ const MyCourses = () => {
 
   const orderedComponents = useMemo(() => {
     if (!detail) return [];
-    return (detail.offering.course.gradeComponents || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
-  }, [detail]);
+    return (detail.offering.course.gradeComponents || [])
+      .filter((component) => (marksByKind[component.kind] || []).length > 0)
+      .slice()
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+  }, [detail, marksByKind]);
+  const visibleBreakdown = useMemo(() => {
+    if (!detail) return [];
+    const visibleKinds = new Set(Object.entries(marksByKind)
+      .filter(([, marks]) => marks.length > 0)
+      .map(([kind]) => kind));
+    return (detail.runningGrade.breakdown || []).filter((item) => visibleKinds.has(item.kind));
+  }, [detail, marksByKind]);
+  const attendanceSummary = detail?.attendance?.summary;
+  const attendanceCountedTotal = attendanceSummary?.effectiveTotalSessions ?? attendanceSummary?.total ?? 0;
+  const attendanceCountedAbsent = attendanceSummary?.countedAbsent ?? attendanceSummary?.absent ?? 0;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -258,7 +271,10 @@ const MyCourses = () => {
                     {detail.attendance.summary.percentage != null ? `${detail.attendance.summary.percentage}%` : '—'}
                   </div>
                   <div className="text-[11px] text-slate-400 mt-0.5">
-                    {detail.attendance.summary.present + detail.attendance.summary.late}/{detail.attendance.summary.total} classes
+                    {detail.attendance.summary.present + detail.attendance.summary.late}/{attendanceCountedTotal} counted classes, {attendanceCountedAbsent} absent
+                    {detail.attendance.summary.excusedAbsent > 0 && (
+                      <span className="text-blue-600"> - {detail.attendance.summary.excusedAbsent} excused</span>
+                    )}
                   </div>
                 </div>
                 <div className="bg-white rounded-lg px-4 py-2 border border-blue-100 min-w-32">
@@ -368,10 +384,11 @@ const MyCourses = () => {
                         <td className="px-4 py-2.5 text-slate-700">{a.date}</td>
                         <td className="px-4 py-2.5">
                           <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                            a.isExcused ? 'bg-blue-100 text-blue-700' :
                             a.status === 'PRESENT' ? 'bg-green-100 text-green-700' :
                             a.status === 'LATE'    ? 'bg-amber-100 text-amber-700' :
                                                      'bg-red-100 text-red-700'
-                          }`}>{a.status}</span>
+                          }`}>{a.isExcused ? 'EXCUSED' : a.status}</span>
                         </td>
                       </tr>
                     ))}
@@ -381,8 +398,8 @@ const MyCourses = () => {
             </Section>
           )}
 
-          {/* Grade Breakdown summary (all components incl. PARTICIPATION) */}
-          {detail.runningGrade.breakdown?.length > 0 && (
+          {/* Grade Breakdown summary for created assessment kinds */}
+          {visibleBreakdown.length > 0 && (
             <Section icon={Award} title="Grade Breakdown" count={null}>
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500">
@@ -395,7 +412,7 @@ const MyCourses = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {detail.runningGrade.breakdown.map((b) => (
+                  {visibleBreakdown.map((b) => (
                     <tr key={b.kind} className="hover:bg-slate-50">
                       <td className="px-4 py-2.5 text-slate-700">
                         {b.label || KIND_LABEL[b.kind]}

@@ -48,9 +48,15 @@ export const getCourseById = async (req, res) => {
 // POST /api/courses
 export const createCourse = async (req, res) => {
   try {
-    const { code, title, description, creditHours, departmentId, prerequisiteIds } = req.body;
+    const { code, title, description, creditHours, departmentId, prerequisiteIds, expectedLectureCount } = req.body;
     if (!code || !title || !creditHours || !departmentId) {
       return res.status(400).json({ success: false, message: 'code, title, creditHours, departmentId are required' });
+    }
+    const plannedLectures = expectedLectureCount === undefined || expectedLectureCount === '' || expectedLectureCount === null
+      ? null
+      : Number(expectedLectureCount);
+    if (plannedLectures !== null && (!Number.isInteger(plannedLectures) || plannedLectures < 0)) {
+      return res.status(400).json({ success: false, message: 'expectedLectureCount must be a whole number 0 or greater' });
     }
 
     const existing = await prisma.course.findUnique({ where: { code: code.toUpperCase() } });
@@ -62,6 +68,7 @@ export const createCourse = async (req, res) => {
         title,
         description,
         creditHours: +creditHours,
+        expectedLectureCount: plannedLectures,
         departmentId,
         prerequisites: prerequisiteIds?.length
           ? { connect: prerequisiteIds.map((id) => ({ id })) }
@@ -81,13 +88,22 @@ export const createCourse = async (req, res) => {
 // PUT /api/courses/:id
 export const updateCourse = async (req, res) => {
   try {
-    const { title, description, creditHours, departmentId, isActive } = req.body;
+    const { title, description, creditHours, departmentId, isActive, expectedLectureCount } = req.body;
+    const plannedLectures = expectedLectureCount === undefined
+      ? undefined
+      : expectedLectureCount === '' || expectedLectureCount === null
+        ? null
+        : Number(expectedLectureCount);
+    if (plannedLectures !== undefined && plannedLectures !== null && (!Number.isInteger(plannedLectures) || plannedLectures < 0)) {
+      return res.status(400).json({ success: false, message: 'expectedLectureCount must be a whole number 0 or greater' });
+    }
     const course = await prisma.course.update({
       where: { id: req.params.id },
       data: {
         title,
         description,
         creditHours: creditHours !== undefined ? +creditHours : undefined,
+        expectedLectureCount: plannedLectures,
         departmentId,
         isActive,
       },

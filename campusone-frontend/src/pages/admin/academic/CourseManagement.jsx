@@ -157,7 +157,7 @@ const btnPrimary = 'inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm 
 const btnSecondary = 'inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-medium border border-gray-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors';
 const btnGhost = 'inline-flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs font-medium border border-gray-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors';
 
-const emptyForm = { code: '', title: '', description: '', creditHours: 3, departmentId: '', prerequisiteIds: [] };
+const emptyForm = { code: '', title: '', description: '', creditHours: 3, expectedLectureCount: '', departmentId: '', prerequisiteIds: [] };
 
 const CourseManagement = () => {
   const [courses, setCourses] = useState([]);
@@ -189,7 +189,15 @@ const CourseManagement = () => {
   const openCreate = () => { setEditId(null); setForm(emptyForm); setShowForm(true); };
   const openEdit = (c) => {
     setEditId(c.id);
-    setForm({ code: c.code, title: c.title, description: c.description || '', creditHours: c.creditHours, departmentId: c.departmentId, prerequisiteIds: c.prerequisites?.map((p) => p.id) || [] });
+    setForm({
+      code: c.code,
+      title: c.title,
+      description: c.description || '',
+      creditHours: c.creditHours,
+      expectedLectureCount: c.expectedLectureCount ?? '',
+      departmentId: c.departmentId,
+      prerequisiteIds: c.prerequisites?.map((p) => p.id) || [],
+    });
     setShowForm(true);
   };
 
@@ -198,7 +206,13 @@ const CourseManagement = () => {
     try {
       setSaving(true);
       if (editId) {
-        await courseAPI.update(editId, { title: form.title, description: form.description, creditHours: form.creditHours, departmentId: form.departmentId });
+        await courseAPI.update(editId, {
+          title: form.title,
+          description: form.description,
+          creditHours: form.creditHours,
+          expectedLectureCount: form.expectedLectureCount,
+          departmentId: form.departmentId,
+        });
         toast.success('Course updated');
       } else {
         await courseAPI.create(form);
@@ -286,14 +300,17 @@ const CourseManagement = () => {
                   <input type="number" className={inputClass} min={1} max={6} value={form.creditHours} onChange={(e) => setForm({ ...form, creditHours: +e.target.value })} required />
                 </div>
                 <div>
-                  <label className={labelClass}>Department *</label>
-                  <select className={inputClass} value={form.departmentId} onChange={(e) => setForm({ ...form, departmentId: e.target.value })} required>
-                    <option value="">Select…</option>
-                    {departments.map((d) => <option key={d.id} value={d.id}>{d.code} – {d.name}</option>)}
-                  </select>
+                  <label className={labelClass}>Planned Lectures</label>
+                  <input type="number" className={inputClass} min={0} value={form.expectedLectureCount} onChange={(e) => setForm({ ...form, expectedLectureCount: e.target.value })} placeholder="e.g. 32" />
                 </div>
               </div>
-
+              <div>
+                <label className={labelClass}>Department *</label>
+                <select className={inputClass} value={form.departmentId} onChange={(e) => setForm({ ...form, departmentId: e.target.value })} required>
+                  <option value="">Select...</option>
+                  {departments.map((d) => <option key={d.id} value={d.id}>{d.code} - {d.name}</option>)}
+                </select>
+              </div>
               {!editId && courses.length > 0 && (
                 <div>
                   <label className={labelClass}>Prerequisites (optional)</label>
@@ -331,6 +348,7 @@ const CourseManagement = () => {
                 <th className="text-left py-3 px-4 font-medium text-slate-600">Title</th>
                 <th className="text-left py-3 px-4 font-medium text-slate-600">Dept</th>
                 <th className="text-center py-3 px-4 font-medium text-slate-600">Credits</th>
+                <th className="text-center py-3 px-4 font-medium text-slate-600">Lectures</th>
                 <th className="text-left py-3 px-4 font-medium text-slate-600">Prerequisites</th>
                 <th className="py-3 px-4"></th>
               </tr>
@@ -342,6 +360,7 @@ const CourseManagement = () => {
                   <td className="py-3 px-4 font-medium text-slate-800">{c.title}</td>
                   <td className="py-3 px-4 text-slate-500">{c.department?.code}</td>
                   <td className="py-3 px-4 text-center text-slate-600">{c.creditHours}</td>
+                  <td className="py-3 px-4 text-center text-slate-600">{c.expectedLectureCount ?? '-'}</td>
                   <td className="py-3 px-4">
                     {c.prerequisites?.length > 0 ? (
                       <div className="flex flex-wrap gap-1">

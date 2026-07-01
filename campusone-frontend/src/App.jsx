@@ -21,6 +21,7 @@ const TAOversight = lazy(() => import('./pages/admin/TAOversight'));
 const DepartmentManagement = lazy(() => import('./pages/admin/academic/DepartmentManagement'));
 const ProgramManagement = lazy(() => import('./pages/admin/academic/ProgramManagement'));
 const CourseManagement = lazy(() => import('./pages/admin/academic/CourseManagement'));
+const AttendancePolicySettings = lazy(() => import('./pages/admin/academic/AttendancePolicySettings'));
 const TermManagement = lazy(() => import('./pages/admin/academic/TermManagement'));
 const CourseOfferingManagement = lazy(() => import('./pages/admin/academic/CourseOfferingManagement'));
 const EnrollmentManagement = lazy(() => import('./pages/admin/academic/EnrollmentManagement'));
@@ -100,6 +101,7 @@ function App() {
           <Route path="/admin/academic/departments" element={<DepartmentManagement />} />
           <Route path="/admin/academic/programs" element={<ProgramManagement />} />
           <Route path="/admin/academic/courses" element={<CourseManagement />} />
+          <Route path="/admin/academic/attendance-policy" element={<AttendancePolicySettings />} />
           <Route path="/admin/academic/terms" element={<TermManagement />} />
           <Route path="/admin/academic/offerings" element={<CourseOfferingManagement />} />
           <Route path="/admin/academic/enrollments" element={<EnrollmentManagement />} />

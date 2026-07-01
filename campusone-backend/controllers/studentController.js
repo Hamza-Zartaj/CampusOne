@@ -2,6 +2,33 @@ import prisma from '../prisma/client.js';
 import { runQuizExpiryMaintenance } from '../services/quizLifecycleService.js';
 import { buildTranscriptData } from '../utils/transcript.js';
 import { computeWeightedBreakdown } from '../utils/grading.js';
+import { isExcusedAbsence, summarizeAttendanceRecords } from '../utils/attendanceSummary.js';
+import { getQuizMarkTotal } from '../utils/courseworkMarks.js';
+import { getAttendancePolicy } from '../utils/attendancePolicy.js';
+
+const MARK_ONLY_KINDS = new Set(['MID', 'FINAL', 'PROJECT_PRESENTATION', 'PARTICIPATION', 'LAB_WORK']);
+
+const markKey = (kind, index) => `${kind}:${index}`;
+
+const filenameFromUrl = (url, fallback = 'file') => {
+  if (!url) return null;
+  try {
+    const segs = new URL(url).pathname.split('/');
+    return decodeURIComponent(segs[segs.length - 1]) || fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const hasCreatedMarkOnlySlot = (mark) => (
+  MARK_ONLY_KINDS.has(mark.kind)
+  && (
+    !!mark.title
+    || !!mark.date
+    || (mark.obtainedMarks !== null && mark.obtainedMarks !== undefined)
+    || !!mark.fileUrl
+  )
+);
 
 // GET /api/students/me/course-detail/:offeringId
 // Bundle endpoint for the My Courses page.
@@ -33,7 +60,7 @@ export const courseDetail = async (req, res) => {
 
     await runQuizExpiryMaintenance({ studentId: student.id, offeringId });
 
-    const [lectures, taResources, attendance, assignments, quizzes] = await Promise.all([
+    const [lectures, taResources, attendance, approvedLeaveApplications, assignments, quizzes] = await Promise.all([
       prisma.lecture.findMany({
         where: { offeringId },
         orderBy: { date: 'desc' },
@@ -46,6 +73,10 @@ export const courseDetail = async (req, res) => {
       prisma.attendance.findMany({
         where: { offeringId, studentId: student.id },
         orderBy: { date: 'desc' },
+      }),
+      prisma.leaveApplication.findMany({
+        where: { offeringId, studentId: student.id, status: 'APPROVED' },
+        select: { fromDate: true, toDate: true },
       }),
       prisma.assignment.findMany({
         where: { offeringId, status: { in: ['PUBLISHED', 'CLOSED'] } },
@@ -63,53 +94,89 @@ export const courseDetail = async (req, res) => {
         orderBy: { startAt: 'asc' },
       }),
     ]);
+    const attendancePolicy = await getAttendancePolicy();
 
     // Attendance summary
-    const att = { total: attendance.length, present: 0, late: 0, absent: 0 };
-    for (const a of attendance) {
-      if (a.status === 'PRESENT') att.present++;
-      else if (a.status === 'LATE') att.late++;
-      else att.absent++;
-    }
-    att.percentage = att.total ? Math.round(((att.present + att.late) / att.total) * 100) : null;
+    const attendanceSummary = summarizeAttendanceRecords({
+      records: attendance,
+      approvedApplications: approvedLeaveApplications,
+      emptyPercentage: null,
+      excusedOnlyPercentage: 100,
+      excusedAbsenceReducesTotal: attendancePolicy.excusedAbsenceReducesTotal,
+    });
+    const { approvedDates, ...att } = attendanceSummary;
 
     // Compute running grade — weighted % over graded *and released* portion
     const components = enrollment.offering.course.gradeComponents;
     const releasedKinds = new Set(components.filter((c) => c.marksReleased).map((c) => c.kind));
 
-    // Redact obtainedMarks for unreleased components before sending to student
+    // Redact obtainedMarks for unreleased components before sending to student.
+    // The full mark set is still used for running-grade math below; the
+    // student-facing list is trimmed to real coursework/configured assessments.
     const myMarks = enrollment.markComponents.map((m) => ({
       ...m,
       obtainedMarks: releasedKinds.has(m.kind) ? m.obtainedMarks : null,
     }));
 
-    // Attach submission file (URL/name) to ASSIGNMENT mark rows so students can
-    // re-download what they submitted.
     const subByAssignment = new Map(
       assignments.flatMap((a) => (a.submissions || []).map((s) => [a.id, s])),
     );
-    // We need to match assignment marks to assignments. The MarkComponent rows
-    // for ASSIGNMENT kind are indexed 1..count by orderIndex; we match by index
-    // against assignments sorted by createdAt.
-    const sortedAssignments = [...assignments].sort(
-      (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+    const marksBySlot = new Map(
+      myMarks.map((mark) => [markKey(mark.kind, mark.index), mark]),
     );
-    for (const m of myMarks) {
-      if (m.kind !== 'ASSIGNMENT') continue;
-      const a = sortedAssignments[m.index - 1];
-      if (!a) continue;
-      const sub = subByAssignment.get(a.id);
-      if (sub?.attachmentUrl) {
-        m.submissionFileUrl = sub.attachmentUrl;
-        // Derive a friendly filename from the URL (last path segment, decoded).
-        try {
-          const segs = new URL(sub.attachmentUrl).pathname.split('/');
-          m.submissionFileName = decodeURIComponent(segs[segs.length - 1]) || 'submission';
-        } catch {
-          m.submissionFileName = 'submission';
-        }
-      }
-    }
+    const componentByKind = new Map(components.map((component) => [component.kind, component]));
+
+    const assignmentMarks = assignments
+      .filter((assignment) => assignment.componentIndex)
+      .sort((a, b) => Number(a.componentIndex) - Number(b.componentIndex))
+      .map((assignment) => {
+        const index = Number(assignment.componentIndex);
+        const mark = marksBySlot.get(markKey('ASSIGNMENT', index));
+        const sub = subByAssignment.get(assignment.id);
+        return {
+          ...(mark || {}),
+          id: mark?.id || `assignment-${assignment.id}`,
+          kind: 'ASSIGNMENT',
+          index,
+          title: assignment.title,
+          date: assignment.dueDate,
+          totalMarks: assignment.totalMarks,
+          fileUrl: assignment.attachmentUrl,
+          fileName: filenameFromUrl(assignment.attachmentUrl),
+          obtainedMarks: mark?.obtainedMarks ?? null,
+          submissionFileUrl: sub?.attachmentUrl || null,
+          submissionFileName: sub?.attachmentUrl ? filenameFromUrl(sub.attachmentUrl, 'submission') : null,
+        };
+      });
+
+    const quizTotalMarks = getQuizMarkTotal(componentByKind.get('QUIZ'));
+    const quizMarks = quizzes
+      .filter((quiz) => quiz.componentIndex)
+      .sort((a, b) => Number(a.componentIndex) - Number(b.componentIndex))
+      .map((quiz) => {
+        const index = Number(quiz.componentIndex);
+        const mark = marksBySlot.get(markKey('QUIZ', index));
+        return {
+          ...(mark || {}),
+          id: mark?.id || `quiz-${quiz.id}`,
+          kind: 'QUIZ',
+          index,
+          title: quiz.title,
+          date: quiz.startAt,
+          totalMarks: mark?.totalMarks ?? quizTotalMarks ?? quiz.totalMarks,
+          obtainedMarks: mark?.obtainedMarks ?? null,
+        };
+      });
+
+    const markOnlyRows = myMarks
+      .filter(hasCreatedMarkOnlySlot)
+      .sort((a, b) => a.index - b.index);
+
+    const visibleMarkComponents = [
+      ...assignmentMarks,
+      ...quizMarks,
+      ...markOnlyRows,
+    ];
 
     const runningGrade = computeWeightedBreakdown(components, enrollment.markComponents, { releasedOnly: true });
 
@@ -124,8 +191,14 @@ export const courseDetail = async (req, res) => {
         },
         lectures,
         taResources,
-        attendance: { records: attendance, summary: att },
-        markComponents: myMarks,
+        attendance: {
+          records: attendance.map((record) => ({
+            ...record,
+            isExcused: isExcusedAbsence(record, approvedDates),
+          })),
+          summary: { total: att.totalSessions, ...att },
+        },
+        markComponents: visibleMarkComponents,
         assignments,
         quizzes,
         runningGrade: {

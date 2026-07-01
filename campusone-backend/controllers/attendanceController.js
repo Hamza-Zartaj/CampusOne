@@ -2,6 +2,8 @@ import prisma from '../prisma/client.js';
 import { reevaluateAfterAttendance } from './leaveController.js';
 import { assertDateWithinTerm, parseDateOnly, toDateOnlyString } from '../utils/dateOnly.js';
 import { findHolidayForDate } from '../utils/holidayRules.js';
+import { isExcusedAbsence, summarizeAttendanceRecords } from '../utils/attendanceSummary.js';
+import { getAttendancePolicy } from '../utils/attendancePolicy.js';
 
 const VALID_ATTENDANCE_STATUSES = new Set(['PRESENT', 'ABSENT', 'LATE']);
 const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -211,17 +213,34 @@ export const getStudentSummary = async (req, res) => {
       include: { student: { select: { id: true, studentId: true, user: { select: { name: true } } } } },
     });
 
-    const allAttendance = await prisma.attendance.findMany({ where: { offeringId } });
+    const [allAttendance, approvedApplications] = await Promise.all([
+      prisma.attendance.findMany({ where: { offeringId } }),
+      prisma.leaveApplication.findMany({
+        where: { offeringId, status: 'APPROVED' },
+        select: { studentId: true, fromDate: true, toDate: true },
+      }),
+    ]);
+    const policy = await getAttendancePolicy();
     const uniqueDates = [...new Set(allAttendance.map(a => toDateOnlyString(a.date)))];
     const totalSessions = uniqueDates.length;
+    const approvedByStudent = new Map();
+    for (const application of approvedApplications) {
+      if (!approvedByStudent.has(application.studentId)) approvedByStudent.set(application.studentId, []);
+      approvedByStudent.get(application.studentId).push(application);
+    }
 
     const summary = enrollments.map(({ student }) => {
       const records = allAttendance.filter(a => a.studentId === student.id);
-      const present = records.filter(r => r.status === 'PRESENT').length;
-      const absent  = records.filter(r => r.status === 'ABSENT').length;
-      const late    = records.filter(r => r.status === 'LATE').length;
-      const percentage = totalSessions > 0 ? Math.round((present + late) / totalSessions * 100) : 100;
-      return { student, totalSessions, present, absent, late, percentage, isAtRisk: percentage < 75 };
+      const attendance = summarizeAttendanceRecords({
+        records,
+        approvedApplications: approvedByStudent.get(student.id) || [],
+        totalSessions,
+        emptyPercentage: 100,
+        excusedAbsenceReducesTotal: policy.excusedAbsenceReducesTotal,
+      });
+      const data = { ...attendance };
+      delete data.approvedDates;
+      return { student, ...data, isAtRisk: data.percentage < 75 };
     });
 
     res.json({ success: true, data: summary });
@@ -256,7 +275,7 @@ export const getMyAttendance = async (req, res) => {
     const offeringIds = enrollments.map(e => e.offeringId);
 
     // Fetch all attendance in two queries (no N+1)
-    const [myRecords, allSessions] = await Promise.all([
+    const [myRecords, allSessions, approvedApplications] = await Promise.all([
       prisma.attendance.findMany({
         where: { offeringId: { in: offeringIds }, studentId: student.id },
         orderBy: { date: 'desc' },
@@ -266,15 +285,29 @@ export const getMyAttendance = async (req, res) => {
         select: { offeringId: true, date: true },
         distinct: ['offeringId', 'date'],
       }),
+      prisma.leaveApplication.findMany({
+        where: { offeringId: { in: offeringIds }, studentId: student.id, status: 'APPROVED' },
+        select: { offeringId: true, fromDate: true, toDate: true },
+      }),
     ]);
+    const policy = await getAttendancePolicy();
+    const approvedByOffering = new Map();
+    for (const application of approvedApplications) {
+      if (!approvedByOffering.has(application.offeringId)) approvedByOffering.set(application.offeringId, []);
+      approvedByOffering.get(application.offeringId).push(application);
+    }
 
     const result = enrollments.map(({ offering }) => {
       const records       = myRecords.filter(r => r.offeringId === offering.id);
       const totalSessions = allSessions.filter(s => s.offeringId === offering.id).length;
-      const present  = records.filter(r => r.status === 'PRESENT').length;
-      const absent   = records.filter(r => r.status === 'ABSENT').length;
-      const late     = records.filter(r => r.status === 'LATE').length;
-      const percentage = totalSessions > 0 ? Math.round((present + late) / totalSessions * 100) : 100;
+      const attendance = summarizeAttendanceRecords({
+        records,
+        approvedApplications: approvedByOffering.get(offering.id) || [],
+        totalSessions,
+        emptyPercentage: 100,
+        excusedAbsenceReducesTotal: policy.excusedAbsenceReducesTotal,
+      });
+      const { approvedDates, ...summary } = attendance;
 
       return {
         offering: {
@@ -284,13 +317,13 @@ export const getMyAttendance = async (req, res) => {
           term:    offering.term,
           teacher: offering.teacher.user.name,
         },
-        totalSessions,
-        present,
-        absent,
-        late,
-        percentage,
-        isAtRisk: percentage < 75,
-        records: records.slice(0, 20).map((record) => ({ ...record, date: toDateOnlyString(record.date) })),
+        ...summary,
+        isAtRisk: summary.percentage < 75,
+        records: records.slice(0, 20).map((record) => ({
+          ...record,
+          date: toDateOnlyString(record.date),
+          isExcused: isExcusedAbsence(record, approvedDates),
+        })),
       };
     });
 

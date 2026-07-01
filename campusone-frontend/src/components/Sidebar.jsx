@@ -75,6 +75,7 @@ const Sidebar = ({ isOpen }) => {
     { path: '/admin/academic/departments', icon: Building2, label: 'Departments', perm: 'manage_academic' },
     { path: '/admin/academic/programs', icon: GraduationCap, label: 'Programs', perm: 'manage_academic' },
     { path: '/admin/academic/courses', icon: BookMarked, label: 'Courses', perm: 'manage_academic' },
+    { path: '/admin/academic/attendance-policy', icon: CalendarOff, label: 'Attendance Policy', perm: 'manage_academic' },
     { path: '/admin/academic/terms', icon: Calendar, label: 'Terms', perm: 'manage_academic' },
     { path: '/admin/academic/offerings', icon: Layers, label: 'Offerings', perm: 'manage_offerings' },
     { path: '/admin/academic/enrollments', icon: ClipboardList, label: 'Enrollments', perm: 'manage_offerings' },
