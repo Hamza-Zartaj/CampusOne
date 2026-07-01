@@ -458,9 +458,7 @@ const StudentQuizzes = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Only show ACTIVE quizzes (not yet attempted, not yet expired). Completed quizzes live inside My Courses.
-      const { studentAPI } = await import('../../utils/api');
-      const r = await studentAPI.activeQuizzes();
+      const r = await quizAPI.getMy();
       setQuizzes(r.data.data);
     } catch {
       toast.error('Failed to load quizzes');
@@ -506,7 +504,7 @@ const StudentQuizzes = () => {
     const start = new Date(q.startAt).getTime();
     const end = new Date(q.endAt).getTime();
     if (now < start) return 'upcoming';
-    if (now > end || q.status === 'CLOSED') return 'expired';
+    if (now > end || q.status === 'CLOSED') return 'missed';
     return 'available';
   };
 
@@ -537,7 +535,7 @@ const StudentQuizzes = () => {
                 available:  { tag: 'Available', tagClass: 'bg-green-100 text-green-700', action: 'Start Quiz', actionClass: 'bg-blue-600 hover:bg-blue-700 text-white' },
                 inprogress: { tag: 'In Progress', tagClass: 'bg-amber-100 text-amber-700', action: 'Resume', actionClass: 'bg-amber-600 hover:bg-amber-700 text-white' },
                 upcoming:   { tag: 'Upcoming', tagClass: 'bg-blue-100 text-blue-700', action: null },
-                expired:    { tag: 'Closed', tagClass: 'bg-slate-100 text-slate-600', action: null },
+                missed:     { tag: 'Missed', tagClass: 'bg-red-50 text-red-700', action: null },
                 completed:  { tag: 'Submitted', tagClass: 'bg-green-100 text-green-700', action: 'View Result', actionClass: 'border border-blue-200 text-blue-700 hover:bg-blue-50' },
               }[cat];
 
@@ -562,6 +560,11 @@ const StudentQuizzes = () => {
                         <div className="mt-2 text-sm">
                           <span className="font-semibold text-slate-800">Score: {attempt.totalScore ?? '—'} / {q.totalMarks}</span>
                           {attempt.violations > 0 && <span className="ml-3 text-amber-700">{attempt.violations} violations</span>}
+                        </div>
+                      )}
+                      {cat === 'missed' && (
+                        <div className="mt-2 text-sm text-red-700">
+                          No attempt was recorded before the quiz closed.
                         </div>
                       )}
                     </div>

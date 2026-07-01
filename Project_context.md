@@ -225,6 +225,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Quiz and question CRUD
 - [x] Quiz create/edit flow links each quiz to a configured grade-component slot and blocks creation beyond the configured count
 - [x] Quiz raw scores are scaled into the grade-component total before syncing to the lecturer marks grid
+- [x] Default lecture and lab quiz slots are 10 marks each; legacy 4-quiz/10%-average `/20` components are normalized to `/10` during quiz maintenance
 - [x] Online and printed/offline quiz delivery modes, with printable question papers, mode-specific scheduling, full enrolled-student roster status, and offline mark entry synced to the marks grid
 - [x] Excel question import with a verified downloadable sample template
 - [x] Prompt-based AI quiz question generation
@@ -238,13 +239,14 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Stable per-attempt shuffled question order
 - [x] Answer saving
 - [x] Server-enforced attempt deadlines and automatic expiry submission
+- [x] Quiz expiry maintenance finalizes stale in-progress attempts, records closed never-started online quizzes as missed zero marks, repairs finalized objective quiz mark sync, and shows missed quizzes in student/teacher records
 - [x] Final-answer question ownership validation
 - [x] Transactional and idempotent attempt finalization
 - [x] Automatic MCQ and true/false grading
 - [x] Manual answer grading
 - [x] Correct separation of automatic and manual scores
 - [x] Pending-manual-grading result state
-- [x] Mixed auto/manual quizzes do not sync a marks-grid grade until all short-answer questions are graded
+- [x] Mixed auto/manual quizzes do not sync a marks-grid grade until all nonblank short-answer responses are graded; blank short answers auto-score 0
 - [x] Tab/window and fullscreen violation tracking
 - [x] Copy, paste, context-menu, and common developer-tool shortcut blocking
 - [x] Violation-based automatic submission
@@ -327,6 +329,7 @@ Checks run through July 1, 2026:
 - **Teacher marks grid assessment UI:** backend mark-component route/controller syntax checks and frontend production build pass after removing the visibility/weightage panel, showing only created coursework/configured assessment columns, adding in-page configured assessment creation, and allowing teacher-selected out-of marks with automatic weight scaling
 - **Coursework grade-slot linking:** Prisma schema validation, changed backend syntax checks, and frontend production build pass
 - **Quiz score scaling and averaged component weighting:** changed backend syntax checks and frontend production build pass
+- **Quiz expiry/missed-record workflow:** changed quiz lifecycle service, quiz/student/mark controllers, coursework mark helper, grade templates, and notification cron syntax checks pass; frontend production build passes after student quizzes switched to the full quiz history with missed labels, teacher roster missed labels, legacy quiz `/20` normalization to `/10`, and blank short-answer auto-zero handling
 - **Printed/offline quiz workflow:** Prisma schema validation, Prisma Client generation, local `npm.cmd run db:push`, direct `deliveryMode` read check, changed quiz backend route/controller syntax checks, and frontend production build pass; mode-specific quiz scheduling UI build passes
 - **Frontend build size:** route-level splitting reduced the initial app chunk to about 373 KB before gzip
 - **Frontend build warnings:** API/socket mixed static and dynamic imports still produce one Vite warning, but the oversized entry warning is gone

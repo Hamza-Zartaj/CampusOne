@@ -1,4 +1,5 @@
 import prisma from '../prisma/client.js';
+import { runQuizExpiryMaintenance } from '../services/quizLifecycleService.js';
 import { buildTranscriptData } from '../utils/transcript.js';
 import { computeWeightedBreakdown } from '../utils/grading.js';
 
@@ -29,6 +30,8 @@ export const courseDetail = async (req, res) => {
       },
     });
     if (!enrollment) return res.status(404).json({ success: false, message: 'You are not enrolled in this offering' });
+
+    await runQuizExpiryMaintenance({ studentId: student.id, offeringId });
 
     const [lectures, taResources, attendance, assignments, quizzes] = await Promise.all([
       prisma.lecture.findMany({

@@ -1,5 +1,6 @@
 import prisma from '../prisma/client.js';
 import { notify, notifyMany, TYPE } from '../services/notificationService.js';
+import { runQuizExpiryMaintenance } from '../services/quizLifecycleService.js';
 import { getGradingWindowError } from '../utils/gradingWindow.js';
 import { validateQuizPayload } from '../utils/quizValidation.js';
 import { createQuizImportTemplate, parseQuizQuestionsWorkbook } from '../utils/quizExcel.js';
@@ -79,6 +80,12 @@ const verifyQuizGradingAccess = async (user, quizId) => {
   return { error: 'Not authorised', status: 403 };
 };
 
+const hasShortAnswerText = (answer) => (
+  answer !== null
+  && answer !== undefined
+  && String(answer).trim() !== ''
+);
+
 const recomputeAttemptScores = async (tx, attemptId) => {
   const allAnswers = await tx.quizAnswer.findMany({
     where: { attemptId },
@@ -91,7 +98,7 @@ const recomputeAttemptScores = async (tx, attemptId) => {
     .filter((entry) => entry.question.type === 'SHORT' && entry.isCorrect !== null)
     .reduce((sum, entry) => sum + (entry.marksAwarded || 0), 0);
   const pending = allAnswers.filter(
-    (entry) => entry.question.type === 'SHORT' && entry.isCorrect === null
+    (entry) => entry.question.type === 'SHORT' && entry.isCorrect === null && hasShortAnswerText(entry.answer)
   ).length;
   const totalScore = autoScore + manualScore;
   const attempt = await tx.quizAttempt.update({
@@ -388,6 +395,8 @@ export const getQuizAttempts = async (req, res) => {
   try {
     const check = await verifyQuizGradingAccess(req.user, req.params.id);
     if (check.error) return res.status(check.status).json({ success: false, message: check.error });
+
+    await runQuizExpiryMaintenance({ offeringId: check.quiz.offeringId });
 
     const [enrollments, attempts] = await Promise.all([
       prisma.enrollment.findMany({

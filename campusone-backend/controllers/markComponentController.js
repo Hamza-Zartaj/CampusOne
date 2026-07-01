@@ -1,5 +1,6 @@
 import prisma from '../prisma/client.js';
 import { notifyMany, TYPE } from '../services/notificationService.js';
+import { runQuizExpiryMaintenance } from '../services/quizLifecycleService.js';
 import { getGradingWindowError } from '../utils/gradingWindow.js';
 
 const COURSEWORK_KINDS = new Set(['ASSIGNMENT', 'QUIZ']);
@@ -24,6 +25,8 @@ export const initForOffering = async (req, res) => {
     const offeringId = req.params.id;
     const access = await assertTeacherOfOffering(offeringId, req.user);
     if (!access.ok) return res.status(access.code).json({ success: false, message: access.message });
+
+    await runQuizExpiryMaintenance({ offeringId });
 
     const offering = await prisma.courseOffering.findUnique({
       where: { id: offeringId },
@@ -67,6 +70,8 @@ export const listForOffering = async (req, res) => {
     const offeringId = req.params.id;
     const access = await assertTeacherOfOffering(offeringId, req.user);
     if (!access.ok) return res.status(access.code).json({ success: false, message: access.message });
+
+    await runQuizExpiryMaintenance({ offeringId });
 
     const offering = await prisma.courseOffering.findUnique({
       where: { id: offeringId },

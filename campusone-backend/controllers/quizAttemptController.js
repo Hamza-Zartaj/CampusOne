@@ -1,5 +1,10 @@
 import prisma from '../prisma/client.js';
-import { syncQuizAttemptMark } from '../utils/courseworkMarks.js';
+import {
+  finalizeAttempt,
+  getAttemptDeadline,
+  isAttemptExpired,
+  runQuizExpiryMaintenance,
+} from '../services/quizLifecycleService.js';
 
 // Strip correctAnswer from questions before sending to student
 const sanitizeQuestion = (q) => ({
@@ -10,15 +15,6 @@ const sanitizeQuestion = (q) => ({
   marks: q.marks,
   order: q.order,
 });
-
-// Auto-grade an answer for MCQ / TRUE_FALSE
-const autoGrade = (question, submittedAnswer) => {
-  if (question.type === 'SHORT') return { isCorrect: null, marksAwarded: 0 };
-  if (submittedAnswer === null || submittedAnswer === undefined) return { isCorrect: false, marksAwarded: 0 };
-  const correct = question.correctAnswer;
-  const isCorrect = Number(submittedAnswer) === Number(correct);
-  return { isCorrect, marksAwarded: isCorrect ? question.marks : 0 };
-};
 
 const normalizeAnswer = (question, answer) => {
   if (answer === null || answer === undefined || answer === '') return null;
@@ -50,14 +46,11 @@ const isQuizOpen = (quiz) => {
   return quiz.status === 'PUBLISHED' && now >= new Date(quiz.startAt) && now <= new Date(quiz.endAt);
 };
 
-const getAttemptDeadline = (attempt) => new Date(Math.min(
-  new Date(attempt.startedAt).getTime() + attempt.quiz.durationMinutes * 60_000,
-  new Date(attempt.quiz.endAt).getTime()
-));
-
-const isAttemptExpired = (attempt) => {
-  return Date.now() >= getAttemptDeadline(attempt).getTime();
-};
+const hasShortAnswerText = (answer) => (
+  answer !== null
+  && answer !== undefined
+  && String(answer).trim() !== ''
+);
 
 // ─── STUDENT ENDPOINTS ────────────────────────────────────────────────────────
 
@@ -72,6 +65,8 @@ export const getMyQuizzes = async (req, res) => {
       select: { offeringId: true },
     });
     const offeringIds = enrollments.map((e) => e.offeringId);
+
+    await runQuizExpiryMaintenance({ studentId: student.id });
 
     const quizzes = await prisma.quiz.findMany({
       where: { offeringId: { in: offeringIds }, status: { not: 'DRAFT' }, deliveryMode: 'ONLINE' },
@@ -326,107 +321,6 @@ export const submitAttempt = async (req, res) => {
   }
 };
 
-// Internal: grade all auto-gradable answers and compute totals
-const finalizeAttempt = async (attemptId, status, extra = {}, finalAnswers = []) => {
-  return prisma.$transaction(async (tx) => {
-    const attempt = await tx.quizAttempt.findUnique({
-      where: { id: attemptId },
-      include: { quiz: { include: { questions: true } }, answers: true },
-    });
-    if (!attempt) throw new Error('Attempt not found');
-    if (attempt.status !== 'IN_PROGRESS') return attempt;
-
-    const claimed = await tx.quizAttempt.updateMany({
-      where: { id: attemptId, status: 'IN_PROGRESS' },
-      data: { status, submittedAt: new Date() },
-    });
-    if (claimed.count === 0) {
-      return tx.quizAttempt.findUnique({ where: { id: attemptId } });
-    }
-
-    const questionsById = new Map(attempt.quiz.questions.map((question) => [question.id, question]));
-    const answersByQuestion = new Map(attempt.answers.map((answer) => [answer.questionId, answer]));
-
-    for (const submitted of finalAnswers) {
-      if (!submitted?.questionId || !questionsById.has(submitted.questionId)) {
-        throw new Error('Invalid question in final answers');
-      }
-      const question = questionsById.get(submitted.questionId);
-      const answer = normalizeAnswer(question, submitted.answer);
-      const saved = await tx.quizAnswer.upsert({
-        where: { attemptId_questionId: { attemptId, questionId: question.id } },
-        create: { attemptId, questionId: question.id, answer },
-        update: { answer },
-      });
-      answersByQuestion.set(question.id, saved);
-    }
-
-    let autoScore = 0;
-    let manualPending = 0;
-    for (const question of attempt.quiz.questions) {
-      const savedAnswer = answersByQuestion.get(question.id);
-      if (question.type === 'SHORT') {
-        manualPending += 1;
-        if (!savedAnswer) {
-          const created = await tx.quizAnswer.create({
-            data: {
-              attemptId,
-              questionId: question.id,
-              answer: null,
-              isCorrect: null,
-              marksAwarded: 0,
-            },
-          });
-          answersByQuestion.set(question.id, created);
-        } else {
-          await tx.quizAnswer.update({
-            where: { id: savedAnswer.id },
-            data: { isCorrect: null, marksAwarded: 0 },
-          });
-        }
-        continue;
-      }
-
-      const grade = autoGrade(question, savedAnswer?.answer);
-      autoScore += grade.marksAwarded;
-      if (savedAnswer) {
-        await tx.quizAnswer.update({
-          where: { id: savedAnswer.id },
-          data: grade,
-        });
-      } else {
-        await tx.quizAnswer.create({
-          data: {
-            attemptId,
-            questionId: question.id,
-            answer: null,
-            ...grade,
-          },
-        });
-      }
-    }
-
-    const updated = await tx.quizAttempt.update({
-      where: { id: attemptId },
-      data: {
-        status,
-        submittedAt: new Date(),
-        autoGradedScore: autoScore,
-        manualScore: 0,
-        totalScore: autoScore,
-        ...extra,
-      },
-    });
-    await syncQuizAttemptMark({ client: tx, attempt, totalScore: autoScore, manualPending });
-
-    return {
-      ...updated,
-      gradingStatus: manualPending > 0 ? 'PENDING_MANUAL' : 'FINAL',
-      manualPending,
-    };
-  });
-};
-
 // GET /api/quizzes/attempts/:attemptId/result  — student views own result
 export const getMyAttemptResult = async (req, res) => {
   try {
@@ -448,7 +342,7 @@ export const getMyAttemptResult = async (req, res) => {
       attempt.quiz.questions.filter((question) => question.type === 'SHORT').map((question) => question.id)
     );
     const manualPending = attempt.answers.filter(
-      (answer) => shortQuestionIds.has(answer.questionId) && answer.isCorrect === null
+      (answer) => shortQuestionIds.has(answer.questionId) && answer.isCorrect === null && hasShortAnswerText(answer.answer)
     ).length;
     const allowReview = attempt.quiz.allowReview
       && (attempt.quiz.status === 'CLOSED' || Date.now() > new Date(attempt.quiz.endAt).getTime());
@@ -491,6 +385,3 @@ export const getMyAttemptResult = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
-// Re-export internal helper for external auto-submit on stale attempts (optional cron usage)
-export { finalizeAttempt, isAttemptExpired };

@@ -995,6 +995,9 @@ const AttemptsModal = ({ quiz, onClose, onChanged }) => {
     if (row.status === 'IN_PROGRESS') return { label: 'Attempting now', tone: 'bg-amber-50 text-amber-700 border-amber-200' };
     if (row.status === 'SUBMITTED') return { label: 'Submitted', tone: 'bg-green-50 text-green-700 border-green-200' };
     if (row.status === 'AUTO_SUBMITTED') return { label: 'Auto-submitted', tone: 'bg-orange-50 text-orange-700 border-orange-200' };
+    if (quiz.deliveryMode === 'ONLINE' && Date.now() > new Date(quiz.endAt).getTime()) {
+      return { label: 'Missed', tone: 'bg-red-50 text-red-700 border-red-200' };
+    }
     return { label: 'Not attempted', tone: 'bg-slate-50 text-slate-600 border-slate-200' };
   };
 

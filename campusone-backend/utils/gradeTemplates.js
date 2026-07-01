@@ -4,7 +4,7 @@
 export const TEMPLATES = {
   LECTURE: [
     { kind: 'ASSIGNMENT',           label: 'Assignment',            count: 4, totalPerInstance: 10,  weightPercent: 5,  aggregation: 'AVERAGE', orderIndex: 1 },
-    { kind: 'QUIZ',                 label: 'Quiz',                  count: 4, totalPerInstance: 20,  weightPercent: 10, aggregation: 'AVERAGE', orderIndex: 2 },
+    { kind: 'QUIZ',                 label: 'Quiz',                  count: 4, totalPerInstance: 10,  weightPercent: 10, aggregation: 'AVERAGE', orderIndex: 2 },
     { kind: 'PROJECT_PRESENTATION', label: 'Project / Presentation', count: 1, totalPerInstance: 100, weightPercent: 10, aggregation: 'SINGLE',  orderIndex: 3 },
     { kind: 'MID',                  label: 'Mid Term',              count: 1, totalPerInstance: 30,  weightPercent: 30, aggregation: 'SINGLE',  orderIndex: 4 },
     { kind: 'FINAL',                label: 'Final Term',            count: 1, totalPerInstance: 40,  weightPercent: 40, aggregation: 'SINGLE',  orderIndex: 5 },
@@ -13,7 +13,7 @@ export const TEMPLATES = {
 
   LAB: [
     { kind: 'LAB_WORK', label: 'Lab Work',   count: 4, totalPerInstance: 100, weightPercent: 20, aggregation: 'AVERAGE', orderIndex: 1 },
-    { kind: 'QUIZ',     label: 'Lab Quiz',   count: 4, totalPerInstance: 20,  weightPercent: 20, aggregation: 'AVERAGE', orderIndex: 2 },
+    { kind: 'QUIZ',     label: 'Lab Quiz',   count: 4, totalPerInstance: 10,  weightPercent: 20, aggregation: 'AVERAGE', orderIndex: 2 },
     { kind: 'MID',      label: 'Mid Term',   count: 1, totalPerInstance: 30,  weightPercent: 10, aggregation: 'SINGLE',  orderIndex: 3 },
     { kind: 'FINAL',    label: 'Final Term', count: 1, totalPerInstance: 100, weightPercent: 50, aggregation: 'SINGLE',  orderIndex: 4 },
   ],
