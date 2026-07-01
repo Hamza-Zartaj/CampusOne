@@ -2,6 +2,7 @@ import logger from '../utils/logger.js';
 import cron from 'node-cron';
 import prisma from '../prisma/client.js';
 import { notifyMany, TYPE } from './notificationService.js';
+import { runQuizExpiryMaintenance } from './quizLifecycleService.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -97,6 +98,17 @@ const sendQuizOpeningSoon = async () => {
 };
 
 export const startNotificationCron = () => {
+  cron.schedule('* * * * *', async () => {
+    try {
+      const result = await runQuizExpiryMaintenance({ activeTermOnly: true });
+      if (result.finalized || result.missed || result.syncedAttempts || result.normalized?.components || result.normalized?.markRows) {
+        logger.info(`[quiz-cron] finalized ${result.finalized} expired attempt(s), recorded ${result.missed} missed quiz mark(s), synced ${result.syncedAttempts} submitted attempt mark(s), normalized ${result.normalized?.components || 0} quiz component(s)`);
+      }
+    } catch (err) {
+      logger.error('[quiz-cron] tick failed:', err.message);
+    }
+  });
+
   // Hourly at minute 0
   cron.schedule('0 * * * *', async () => {
     try {
@@ -106,5 +118,5 @@ export const startNotificationCron = () => {
       logger.error('[notification-cron] tick failed:', err.message);
     }
   });
-  logger.info('🕐 Notification cron started (hourly: assignment + quiz 24h reminders)');
+  logger.info('🕐 Notification cron started (minutely quiz expiry, hourly assignment + quiz 24h reminders)');
 };

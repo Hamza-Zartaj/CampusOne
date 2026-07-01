@@ -21,6 +21,8 @@ export const getCourseworkComponent = async (client, offeringId, kind) => {
               label: true,
               count: true,
               totalPerInstance: true,
+              weightPercent: true,
+              aggregation: true,
             },
           },
         },
@@ -129,6 +131,19 @@ const scaleScore = (score, fromTotal, toTotal) => {
   return Math.round(scaled * 100) / 100;
 };
 
+export const getQuizMarkTotal = (component) => {
+  if (
+    component?.kind === 'QUIZ'
+    && Number(component.count) === 4
+    && Number(component.totalPerInstance) === 20
+    && Number(component.weightPercent) === 10
+    && component.aggregation === 'AVERAGE'
+  ) {
+    return 10;
+  }
+  return component?.totalPerInstance;
+};
+
 export const syncQuizAttemptMark = async ({ client, attempt, totalScore, manualPending }) => {
   if (manualPending > 0) return null;
   if (!attempt?.quiz) return null;
@@ -136,7 +151,8 @@ export const syncQuizAttemptMark = async ({ client, attempt, totalScore, manualP
   const component = await getCourseworkComponent(client, attempt.quiz.offeringId, 'QUIZ');
   if (!component) return null;
 
-  const obtainedMarks = scaleScore(totalScore, attempt.quiz.totalMarks, component.totalPerInstance);
+  const totalPerInstance = getQuizMarkTotal(component);
+  const obtainedMarks = scaleScore(totalScore, attempt.quiz.totalMarks, totalPerInstance);
   if (obtainedMarks === null) return null;
 
   return syncCourseworkMark({
@@ -147,7 +163,7 @@ export const syncQuizAttemptMark = async ({ client, attempt, totalScore, manualP
     componentIndex: attempt.quiz.componentIndex,
     title: attempt.quiz.title,
     date: attempt.quiz.endAt,
-    totalMarks: component.totalPerInstance,
+    totalMarks: totalPerInstance,
     obtainedMarks,
   });
 };
