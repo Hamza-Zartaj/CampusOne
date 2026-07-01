@@ -501,6 +501,7 @@ const StudentQuizzes = () => {
   const categorize = (q) => {
     const a = q.attempts?.[0];
     if (a) return a.status === 'IN_PROGRESS' ? 'inprogress' : 'completed';
+    if (q.reopenGrant && new Date(q.reopenGrant.until).getTime() > now) return 'reopened';
     const start = new Date(q.startAt).getTime();
     const end = new Date(q.endAt).getTime();
     if (now < start) return 'upcoming';
@@ -533,6 +534,7 @@ const StudentQuizzes = () => {
               const attempt = q.attempts?.[0];
               const config = {
                 available:  { tag: 'Available', tagClass: 'bg-green-100 text-green-700', action: 'Start Quiz', actionClass: 'bg-blue-600 hover:bg-blue-700 text-white' },
+                reopened:   { tag: 'Reopened', tagClass: 'bg-blue-100 text-blue-700', action: 'Start Quiz', actionClass: 'bg-blue-600 hover:bg-blue-700 text-white' },
                 inprogress: { tag: 'In Progress', tagClass: 'bg-amber-100 text-amber-700', action: 'Resume', actionClass: 'bg-amber-600 hover:bg-amber-700 text-white' },
                 upcoming:   { tag: 'Upcoming', tagClass: 'bg-blue-100 text-blue-700', action: null },
                 missed:     { tag: 'Missed', tagClass: 'bg-red-50 text-red-700', action: null },
@@ -555,6 +557,7 @@ const StudentQuizzes = () => {
                         <span className="inline-flex items-center gap-1"><Clock size={14} /> {q.durationMinutes} min</span>
                         <span className="inline-flex items-center gap-1">{q._count?.questions || 0} questions</span>
                         <span className="inline-flex items-center gap-1"><Calendar size={14} /> Closes {fmtDateTime(q.endAt)}</span>
+                        {cat === 'reopened' && <span className="inline-flex items-center gap-1 text-blue-700">Reopened until {fmtDateTime(q.reopenGrant.until)}</span>}
                       </div>
                       {attempt && cat === 'completed' && (
                         <div className="mt-2 text-sm">

@@ -415,6 +415,7 @@ export const quizAPI = {
   downloadImportTemplate: () => api.get('/quizzes/import-excel/template', { responseType: 'blob' }),
   importExcel: (formData) => api.post('/quizzes/import-excel', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   getAttempts: (id) => api.get(`/quizzes/${id}/attempts`),
+  reopenForStudent: (id, data) => api.put(`/quizzes/${id}/reopen`, data),
   saveOfflineMark: (id, data) => api.put(`/quizzes/${id}/offline-marks`, data),
   getAttemptDetail: (attemptId) => api.get(`/quizzes/teacher/attempts/${attemptId}`),
   gradeAnswer: (answerId, data) => api.put(`/quizzes/answers/${answerId}/grade`, data),
