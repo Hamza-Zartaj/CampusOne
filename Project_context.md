@@ -243,7 +243,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Stable per-attempt shuffled question order
 - [x] Answer saving
 - [x] Server-enforced attempt deadlines and automatic expiry submission
-- [x] Quiz expiry maintenance finalizes stale in-progress attempts, records closed never-started online quizzes as missed zero marks, repairs finalized objective quiz mark sync, and shows missed quizzes in student/teacher records
+- [x] Quiz expiry maintenance finalizes stale in-progress attempts, records closed never-started online quizzes as missed zero marks, repairs finalized objective quiz mark sync without re-saving unchanged mark rows, and shows missed quizzes in student/teacher records
 - [x] Teacher/admin per-student online quiz reopen grants let a missed student start after the original close time within a personal time window, clear the missed zero while active, and preserve normal auto-submit/mark-sync behavior
 - [x] Final-answer question ownership validation
 - [x] Transactional and idempotent attempt finalization
@@ -336,6 +336,7 @@ Checks run through July 1, 2026:
 - **Coursework grade-slot linking:** Prisma schema validation, changed backend syntax checks, and frontend production build pass
 - **Quiz score scaling and averaged component weighting:** changed backend syntax checks and frontend production build pass
 - **Quiz expiry/missed-record workflow:** changed quiz lifecycle service, quiz/student/mark controllers, coursework mark helper, grade templates, and notification cron syntax checks pass; frontend production build passes after student quizzes switched to the full quiz history with missed labels, teacher roster missed labels, legacy quiz `/20` normalization to `/10`, and blank short-answer auto-zero handling
+- **Quiz cron mark-sync idempotency:** `node --check campusone-backend\utils\courseworkMarks.js` and `node --check campusone-backend\services\quizLifecycleService.js` pass after unchanged coursework mark syncs were made no-op so minutely quiz maintenance stays quiet unless it creates or updates data.
 - **Per-student quiz reopen workflow:** Prisma schema format/validate/generate pass; local `npx.cmd prisma db push` applied `QuizReopenGrant` and reopened-attempt fields after `migrate deploy` hit the known non-empty DB baseline `P3005`; changed quiz backend syntax checks and frontend production build pass
 - **Printed/offline quiz workflow:** Prisma schema validation, Prisma Client generation, local `npm.cmd run db:push`, direct `deliveryMode` read check, changed quiz backend route/controller syntax checks, and frontend production build pass; mode-specific quiz scheduling UI build passes
 - **Frontend build size:** route-level splitting reduced the initial app chunk to about 373 KB before gzip
