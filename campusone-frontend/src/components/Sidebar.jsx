@@ -31,7 +31,7 @@ import {
 
 const NAV_LABEL_CLASS = 'text-[10px] font-semibold uppercase tracking-wider text-slate-400 px-6 pt-4 pb-1 select-none';
 
-const Sidebar = ({ isOpen }) => {
+const Sidebar = ({ isOpen, onNavigate }) => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const userRole = user.role?.toLowerCase() || 'student';
   const isSuperAdmin = !!user.isSuperAdmin;
@@ -159,6 +159,7 @@ const Sidebar = ({ isOpen }) => {
               <li key={item.path}>
                 <NavLink
                   to={item.path}
+                  onClick={onNavigate}
                   className={({ isActive }) => `
                     flex items-center gap-3 py-3 px-6 text-slate-500 no-underline transition-colors text-[14px] font-medium relative
                     before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-gradient-secondary before:scale-y-0 before:transition-transform
