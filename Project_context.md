@@ -2,7 +2,7 @@
 
 > **Canonical project tracker and source of truth**
 >
-> Last verified: **July 1, 2026**
+> Last verified: **July 11, 2026**
 >
 > Update this file whenever a feature, architectural rule, known issue, or future task changes. Do not create a separate audit or to-do document.
 
@@ -121,6 +121,7 @@ Status in this section means the relevant schema, backend route/controller, and 
 - [x] Full-screen modal overlays consistently render above the sticky CampusOne header
 - [x] PostgreSQL and Prisma adapter setup
 - [x] Local Supabase configuration with offline-friendly local startup defaults: Edge Runtime and Analytics are disabled because this repo has no checked-in edge functions and those optional services can require internet/Docker TCP access on Windows
+- [x] Backend `.env` Prisma URLs configured for Supabase shared poolers: transaction-mode `DATABASE_URL` on port `6543` with `pgbouncer=true`, and session-mode `DIRECT_URL` on port `5432` for migrations
 - [x] JWT login and protected routes
 - [x] Failed-login account lockout
 - [x] Authenticator TOTP MFA
@@ -307,7 +308,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 
 ## 7. Verification Snapshot
 
-Checks run through July 1, 2026:
+Checks run through July 11, 2026:
 
 - **Prisma schema:** valid
 - **Prisma Client generation:** passes
@@ -363,6 +364,11 @@ Checks run through July 1, 2026:
 - **Teacher quiz manual grading UX:** frontend production build passes after replacing per-answer save buttons with one modal-level Save grades action, sorting ungraded written short answers first, rendering blank short answers as automatic zero marks, and zeroing stale blank-answer marks on save. The existing Vite mixed static/dynamic `socket.js` import warning remains.
 - **Student My Courses created-assessment display:** `node --check controllers\studentController.js` passes and frontend production build passes after the course-detail bundle and My Courses page were changed to show only real published assignments/quizzes and teacher-created mark-only assessment rows. The existing Vite mixed static/dynamic `socket.js` import warning remains.
 - **Attendance policy settings:** Prisma format/validate/generate pass, local `npm.cmd run db:push` applied `AttendancePolicy` and course planned lecture count, changed leave/attendance/course/student/dashboard backend syntax checks pass, and frontend production build passes after adding the admin Attendance Policy page plus Course Management planned-lectures field. The existing Vite mixed static/dynamic `socket.js` import warning remains.
+- **Supabase pooler environment update:** `campusone-backend/.env` `DATABASE_URL` and `DIRECT_URL` were updated to the Supabase shared transaction/session pooler hosts with the database password URL-encoded; redacted key check passed.
+- **Prisma Client regeneration:** `npx.cmd prisma generate` passes in `campusone-backend` after the environment update; `@prisma/client` now exports `PrismaClient`, and `node --check server.js` passes.
+- **Remote Supabase migration deploy:** `npx.cmd prisma migrate deploy` applied all 16 checked-in migrations to the Supabase database via `DIRECT_URL`. The initially failed `20260628170000_assignment_similarity_stage2` migration was marked rolled back, patched to create the missing base similarity report/match enum and tables before stage-2 semantic review changes, then redeployed successfully; `npx.cmd prisma migrate status` reports the database schema is up to date, and `npx.cmd prisma validate` passes.
+- **Remote schema catch-up and seed:** `npx.cmd prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script --output prisma/migrations/20260711120000_remote_schema_catchup/migration.sql` created a catch-up migration for schema objects present in `schema.prisma` but absent from the remote database, including `CourseGradeComponent`, `MarkComponent`, `Lecture`, and `ComponentKind`. `npx.cmd prisma migrate deploy` applied the 17th migration, `npx.cmd prisma migrate status` reports the database schema is up to date, `npx.cmd prisma validate` passes, and `npm.cmd run db:seed` passes against the remote Supabase database.
+- **Remote Supabase Storage URL:** backend `.env` `SUPABASE_URL` was updated from the local Supabase URL to `https://ypbsyppjrbvvyhvokwme.supabase.co` so assignment file uploads use the same remote Supabase project as the database. Temporary upload/delete checks passed for both `services/storageService.js` and the assignment controller's `utils/supabaseStorage.js` helper against the `assignments` bucket.
 
 Remaining lint warnings:
 
