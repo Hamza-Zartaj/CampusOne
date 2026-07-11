@@ -302,6 +302,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Backend runtime logging uses a structured logger wrapper
 - [x] Frontend runtime diagnostics use a dev-only client logger wrapper
 - [x] Frontend route/page-level code splitting reduces the initial entry bundle
+- [x] Mobile dashboard sidebar defaults closed on phone-sized screens and auto-closes after sidebar navigation while preserving desktop sidebar behavior
 - [x] Full and mini seed scripts
 - [x] Focused seed creates admin, teacher, student, TA, academic setup, grade components, schedule config, rooms, and class sessions without seeding assignments or quizzes
 - [x] Database helper scripts for push, reset, seed, super-admin, and Studio
@@ -371,6 +372,7 @@ Checks run through July 11, 2026:
 - **Remote Supabase Storage URL:** backend `.env` `SUPABASE_URL` was updated from the local Supabase URL to `https://ypbsyppjrbvvyhvokwme.supabase.co` so assignment file uploads use the same remote Supabase project as the database. Temporary upload/delete checks passed for both `services/storageService.js` and the assignment controller's `utils/supabaseStorage.js` helper against the `assignments` bucket.
 - **Vercel frontend SPA refresh routing:** `campusone-frontend/vercel.json` adds a fallback rewrite to `index.html` for React Router deep links such as `/teacher/dashboard`, and `index.html` now references a CampusOne `favicon.svg`; frontend production build passes with the existing mixed static/dynamic `socket.js` warning.
 - **Frontend production API/socket origin:** frontend API, Socket.IO, and admin admission document links now share `src/utils/env.js` URL derivation from `VITE_API_URL`, removing production `localhost:5000` socket attempts while keeping local dev fallback; frontend production build passes with the existing mixed static/dynamic `socket.js` warning.
+- **Mobile sidebar navigation UX:** frontend production build passes after the dashboard sidebar was changed to start closed on phone-sized screens and close after mobile sidebar navigation. The existing Vite mixed static/dynamic `socket.js` import warning remains.
 
 Remaining lint warnings:
 
