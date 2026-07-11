@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { X, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clientLogger from '../../../../utils/clientLogger';
-
-const API_SERVER_URL = 'http://localhost:5000';
+import { API_SERVER_URL } from '../../../../utils/env';
 
 const ApplicationDetail = ({
   application,
