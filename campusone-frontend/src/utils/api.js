@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { attachCacheInterceptors, clearAllApiCache } from './apiCache';
-
-const API_BASE_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+import { API_BASE_URL } from './env';
 
 // Create axios instance
 const api = axios.create({
