@@ -19,17 +19,17 @@ const fmtRelative = (d) => {
 
 const StatCard = ({ icon: Icon, label, value, sub, color, link }) => {
   const card = (
-    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 p-5 ${link ? 'hover:shadow-md hover:border-blue-300 cursor-pointer transition-all' : ''}`}>
+    <div className={`flex h-full min-h-[8.5rem] flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm max-[380px]:p-4 ${link ? 'cursor-pointer transition-all hover:border-blue-300 hover:shadow-md' : ''}`}>
       <div className="flex items-start justify-between mb-2">
         <div className={`p-2 rounded-lg ${color}`}><Icon className="w-5 h-5 text-white" /></div>
         {link && <ChevronRight size={16} className="text-slate-300" />}
       </div>
-      <div className="text-3xl font-bold text-slate-900">{value}</div>
-      <div className="text-sm text-slate-600">{label}</div>
-      {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
+      <div className="break-anywhere text-3xl font-bold leading-tight text-slate-900 max-[380px]:text-2xl">{value}</div>
+      <div className="break-anywhere text-sm text-slate-600">{label}</div>
+      {sub && <div className="break-anywhere mt-auto pt-2 text-xs text-slate-400">{sub}</div>}
     </div>
   );
-  return link ? <Link to={link}>{card}</Link> : card;
+  return link ? <Link to={link} className="block h-full min-w-0">{card}</Link> : card;
 };
 
 const PRIORITY_COLOR = {
@@ -56,7 +56,7 @@ const Dashboard = () => {
   const { stats, recentAdmissions, recentAnnouncements, recentAuditLogs } = data;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-full bg-gradient-to-br from-slate-50 to-slate-100 p-6 max-sm:p-3">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-slate-900 m-0">Welcome back, {user.name?.split(' ')[0] || 'Admin'} 👋</h1>
@@ -64,7 +64,7 @@ const Dashboard = () => {
         </div>
 
         {/* Stat cards — gated by permissions */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="mb-6 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 md:grid-cols-4">
           {hasPermission('manage_users') && (
             <StatCard icon={Users} label="Total Users" value={stats.totalUsers} sub={`${stats.newSignupsThisWeek} new this week`} color="bg-blue-500" link="/admin/users" />
           )}
@@ -77,7 +77,7 @@ const Dashboard = () => {
         </div>
 
         {hasPermission('manage_users') && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="mb-6 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 md:grid-cols-4">
             <StatCard icon={GraduationCap} label="Students" value={stats.students} color="bg-green-500" />
             <StatCard icon={Briefcase} label="Teachers" value={stats.teachers} color="bg-blue-500" />
             <StatCard icon={Shield} label="Admins" value={stats.admins} color="bg-slate-600" />
@@ -88,7 +88,7 @@ const Dashboard = () => {
         )}
 
         {hasPermission('manage_academic') && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+          <div className="mb-6 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 md:grid-cols-3">
             <StatCard icon={Building2} label="Departments" value={stats.departments} color="bg-orange-500" link="/admin/academic/departments" />
             <StatCard icon={TrendingUp} label="Programs" value={stats.programs} color="bg-pink-500" link="/admin/academic/programs" />
             <StatCard icon={BookOpen} label="Courses" value={stats.courses} color="bg-teal-500" link="/admin/academic/courses" />

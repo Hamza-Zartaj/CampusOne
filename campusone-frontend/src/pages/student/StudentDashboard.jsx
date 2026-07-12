@@ -29,17 +29,17 @@ const dueLabel = (dueDate) => {
 
 const StatCard = ({ icon: Icon, label, value, sub, color, link, valueColor }) => {
   const card = (
-    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 p-5 ${link ? 'hover:shadow-md hover:border-blue-300 cursor-pointer transition-all' : ''}`}>
+    <div className={`flex h-full min-h-[9.5rem] flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm max-[380px]:min-h-[8.5rem] max-[380px]:p-4 ${link ? 'cursor-pointer transition-all hover:border-blue-300 hover:shadow-md' : ''}`}>
       <div className="flex items-start justify-between mb-2">
         <div className={`p-2 rounded-lg ${color}`}><Icon className="w-5 h-5 text-white" /></div>
         {link && <ChevronRight size={16} className="text-slate-300" />}
       </div>
-      <div className={`text-3xl font-bold ${valueColor || 'text-slate-900'}`}>{value}</div>
-      <div className="text-sm text-slate-600">{label}</div>
-      {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
+      <div className={`text-3xl font-bold leading-tight max-[380px]:text-2xl ${valueColor || 'text-slate-900'}`}>{value}</div>
+      <div className="break-anywhere text-sm text-slate-600">{label}</div>
+      {sub && <div className="break-anywhere mt-auto pt-2 text-xs text-slate-400">{sub}</div>}
     </div>
   );
-  return link ? <Link to={link}>{card}</Link> : card;
+  return link ? <Link to={link} className="block h-full min-w-0">{card}</Link> : card;
 };
 
 const PRIORITY_COLOR = {
@@ -71,11 +71,11 @@ const StudentDashboard = () => {
   const countedAbsentFor = (a) => a.countedAbsent ?? a.absent ?? 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-full bg-gradient-to-br from-slate-50 to-slate-100 p-6 max-sm:p-3">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-900 m-0">Welcome back, {student.name?.split(' ')[0] || 'Student'} 👋</h1>
-          <p className="text-slate-600 m-0">
+          <h1 className="m-0 text-3xl font-bold text-slate-900 max-sm:text-2xl">Welcome back, {student.name?.split(' ')[0] || 'Student'} 👋</h1>
+          <p className="m-0 break-anywhere text-slate-600">
             {student.studentId} · {student.program}
             {student.batch && <> · Batch {student.batch}</>}
             {student.currentSemester && <> · Sem {student.currentSemester}</>}
@@ -84,7 +84,7 @@ const StudentDashboard = () => {
         </div>
 
         {/* Stat cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+        <div className="mb-6 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           <StatCard
             icon={BookOpen} label="Enrolled Courses"
             value={stats.enrolledCourses}

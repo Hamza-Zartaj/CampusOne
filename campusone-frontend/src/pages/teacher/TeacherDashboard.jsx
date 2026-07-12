@@ -19,17 +19,17 @@ const fmtDateTime = (d) => new Date(d).toLocaleString('en-GB', { day: '2-digit',
 
 const StatCard = ({ icon: Icon, label, value, sub, color, link }) => {
   const card = (
-    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 p-5 ${link ? 'hover:shadow-md hover:border-blue-300 cursor-pointer transition-all' : ''}`}>
+    <div className={`flex h-full min-h-[9.5rem] flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm max-[380px]:min-h-[8.5rem] max-[380px]:p-4 ${link ? 'cursor-pointer transition-all hover:border-blue-300 hover:shadow-md' : ''}`}>
       <div className="flex items-start justify-between mb-2">
         <div className={`p-2 rounded-lg ${color}`}><Icon className="w-5 h-5 text-white" /></div>
         {link && <ChevronRight size={16} className="text-slate-300" />}
       </div>
-      <div className="text-3xl font-bold text-slate-900">{value}</div>
-      <div className="text-sm text-slate-600">{label}</div>
-      {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
+      <div className="break-anywhere text-3xl font-bold leading-tight text-slate-900 max-[380px]:text-2xl">{value}</div>
+      <div className="break-anywhere text-sm text-slate-600">{label}</div>
+      {sub && <div className="break-anywhere mt-auto pt-2 text-xs text-slate-400">{sub}</div>}
     </div>
   );
-  return link ? <Link to={link}>{card}</Link> : card;
+  return link ? <Link to={link} className="block h-full min-w-0">{card}</Link> : card;
 };
 
 const PRIORITY_COLOR = {
@@ -55,7 +55,7 @@ const TeacherDashboard = () => {
   const { teacher, activeTerm, stats, myOfferings, recentQna, upcomingQuizzes, recentAnnouncements } = data;
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-full bg-linear-to-br from-slate-50 to-slate-100 p-6 max-sm:p-3">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-slate-900 m-0">Welcome back, {teacher.name?.split(' ')[0] || 'Teacher'} 👋</h1>
@@ -66,7 +66,7 @@ const TeacherDashboard = () => {
         </div>
 
         {/* Stat cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+        <div className="mb-6 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           <StatCard icon={BookOpen} label="My Offerings" value={stats.myOfferings} sub="This term" color="bg-blue-500" link="/teacher/offerings" />
           <StatCard icon={Users} label="Total Students" value={stats.totalStudents} sub="Across all sections" color="bg-purple-500" />
           <StatCard icon={FileText} label="Pending Grading" value={stats.pendingSubmissions} sub="Assignment submissions" color="bg-amber-500" link="/teacher/assignments" />

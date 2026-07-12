@@ -30,11 +30,11 @@ const DashboardLayout = () => {
   }, [closeMobileSidebar, location.pathname]);
 
   return (
-    <div className="flex flex-col h-screen bg-slate-100">
+    <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-slate-100">
       <Header toggleSidebar={toggleSidebar} />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 overflow-hidden">
         <Sidebar isOpen={sidebarOpen} onNavigate={closeMobileSidebar} />
-        <main className={`flex-1 overflow-y-auto p-6 transition-all duration-300 ease-in-out md:p-4 sm:p-3`}>
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 transition-all duration-300 ease-in-out max-sm:p-3 md:p-4">
           <Outlet />
         </main>
       </div>

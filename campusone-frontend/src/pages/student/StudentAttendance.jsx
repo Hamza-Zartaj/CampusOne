@@ -70,16 +70,16 @@ const StudentAttendance = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-5 mb-6 max-sm:grid-cols-2">
+      <div className="mb-6 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
         {stats.map((s, i) => (
-          <div key={i} className="bg-white rounded-2xl p-5 flex items-center gap-3 shadow-sm">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center"
+          <div key={i} className="flex min-w-0 items-center gap-3 rounded-2xl bg-white p-5 shadow-sm max-[380px]:p-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
               style={{ backgroundColor: `${s.color}15`, color: s.color }}>
               <s.icon size={22} />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-slate-500 m-0 mb-0.5 font-medium">{s.label}</p>
-              <h3 className="text-2xl font-bold text-slate-800 m-0">{s.value}</h3>
+              <h3 className="m-0 break-anywhere text-2xl font-bold text-slate-800 max-[380px]:text-xl">{s.value}</h3>
             </div>
           </div>
         ))}
@@ -104,14 +104,14 @@ const StudentAttendance = () => {
                     <BookOpen size={20} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-[0.95rem] font-semibold text-slate-800 m-0">
+                    <h3 className="m-0 break-anywhere text-[0.95rem] font-semibold text-slate-800">
                       {c.offering.course.code} — {c.offering.course.title}
                     </h3>
                     <p className="text-xs text-slate-500 m-0 mt-0.5">
                       {c.offering.teacher} &middot; Section {c.offering.section}
                     </p>
                   </div>
-                  <div className="flex items-center gap-5 max-sm:w-full max-sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-5 max-sm:w-full max-sm:justify-between">
                     <div className="text-center">
                       <p className="text-xs text-slate-500 m-0">Present</p>
                       <p className="text-sm font-bold text-green-600 m-0">{c.present}</p>

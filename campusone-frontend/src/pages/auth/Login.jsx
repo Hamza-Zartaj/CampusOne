@@ -225,7 +225,7 @@ export default function Login() {
 
   return (
     <>
-      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-600 via-blue-500 to-cyan-400 p-4 relative overflow-hidden">
+      <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-linear-to-br from-blue-600 via-blue-500 to-cyan-400 p-4 max-[380px]:p-3">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
@@ -233,22 +233,22 @@ export default function Login() {
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
       </div>
 
-      <div className="w-full max-w-md relative z-10">
+      <div className="relative z-10 w-full max-w-md">
         {/* Card with glass morphism effect */}
-        <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8 sm:p-10 border border-white/20 animate-fade-in">
+        <div className="animate-fade-in rounded-2xl border border-white/20 bg-white/95 p-8 shadow-2xl backdrop-blur-xl max-[380px]:p-5 sm:p-10">
           {/* Logo/Header */}
           <div className="text-center mb-8">
             <Link to="/" className="inline-block group">
-              <div className="inline-block p-3 bg-linear-to-br from-blue-600 to-cyan-500 rounded-2xl mb-4 shadow-lg transition-transform group-hover:scale-105">
-                <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="mb-4 inline-block rounded-2xl bg-linear-to-br from-blue-600 to-cyan-500 p-3 shadow-lg transition-transform group-hover:scale-105 max-[380px]:p-2.5">
+                <svg className="h-12 w-12 text-white max-[380px]:h-10 max-[380px]:w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
               </div>
-              <h1 className="text-4xl font-bold bg-linear-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent mb-2 transition-opacity group-hover:opacity-80">
+              <h1 className="mb-2 bg-linear-to-r from-blue-600 to-cyan-500 bg-clip-text text-4xl font-bold text-transparent transition-opacity group-hover:opacity-80 max-[380px]:text-3xl">
                 CampusOne
               </h1>
             </Link>
-            <p className="text-slate-600 text-sm">Welcome back! Please sign in to continue</p>
+            <p className="text-sm text-slate-600 max-[380px]:text-xs">Welcome back! Please sign in to continue</p>
           </div>
 
           {/* Login Form */}
@@ -270,7 +270,7 @@ export default function Login() {
                   name="username"
                   value={formData.username}
                   onChange={handleChange}
-                  className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-900 placeholder-slate-400 hover:border-slate-300"
+                  className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-slate-900 transition-all placeholder-slate-400 hover:border-slate-300 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 max-[380px]:py-3 max-[380px]:pl-11 max-[380px]:text-sm"
                   placeholder="Enter your username or email"
                   required
                 />
@@ -294,7 +294,7 @@ export default function Login() {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  className="w-full pl-12 pr-12 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-900 placeholder-slate-400 hover:border-slate-300"
+                  className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 py-3.5 pl-12 pr-12 text-slate-900 transition-all placeholder-slate-400 hover:border-slate-300 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 max-[380px]:py-3 max-[380px]:pl-11 max-[380px]:text-sm"
                   placeholder="Enter your password"
                   required
                 />
@@ -318,18 +318,18 @@ export default function Login() {
             </div>
 
             {/* Forgot Password */}
-            <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center justify-between gap-3 pt-1 max-[380px]:flex-col max-[380px]:items-stretch">
               <button
                 type="button"
                 onClick={() => setShowRecovery(true)}
-                className="text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+                className="text-left text-sm font-semibold text-slate-500 transition-colors hover:text-slate-700 max-[380px]:text-center"
               >
                 Locked out? Use recovery key
               </button>
               <a
                 href="#"
                 onClick={handleForgotPasswordClick}
-                className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                className="text-sm font-semibold text-blue-600 transition-colors hover:text-blue-700 max-[380px]:text-center"
               >
                 Forgot password?
               </a>
