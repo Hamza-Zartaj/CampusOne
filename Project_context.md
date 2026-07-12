@@ -2,7 +2,7 @@
 
 > **Canonical project tracker and source of truth**
 >
-> Last verified: **July 11, 2026**
+> Last verified: **July 12, 2026**
 >
 > Update this file whenever a feature, architectural rule, known issue, or future task changes. Do not create a separate audit or to-do document.
 
@@ -303,6 +303,7 @@ The registration page exists, but its sidebar entry remains intentionally disabl
 - [x] Frontend runtime diagnostics use a dev-only client logger wrapper
 - [x] Frontend route/page-level code splitting reduces the initial entry bundle
 - [x] Mobile dashboard sidebar defaults closed on phone-sized screens and auto-closes after sidebar navigation while preserving desktop sidebar behavior
+- [x] Mobile dashboard shell, header, notification dropdown, auth login, student dashboard cards, transcript, course detail, assignment, attendance, leave, admin dashboard, and teacher dashboard layouts are responsive on narrow phone widths while leaving the full-screen quiz attempt UI unchanged
 - [x] Full and mini seed scripts
 - [x] Focused seed creates admin, teacher, student, TA, academic setup, grade components, schedule config, rooms, and class sessions without seeding assignments or quizzes
 - [x] Database helper scripts for push, reset, seed, super-admin, and Studio
@@ -373,6 +374,7 @@ Checks run through July 11, 2026:
 - **Vercel frontend SPA refresh routing:** `campusone-frontend/vercel.json` adds a fallback rewrite to `index.html` for React Router deep links such as `/teacher/dashboard`, and `index.html` now references a CampusOne `favicon.svg`; frontend production build passes with the existing mixed static/dynamic `socket.js` warning.
 - **Frontend production API/socket origin:** frontend API, Socket.IO, and admin admission document links now share `src/utils/env.js` URL derivation from `VITE_API_URL`, removing production `localhost:5000` socket attempts while keeping local dev fallback; frontend production build passes with the existing mixed static/dynamic `socket.js` warning.
 - **Mobile sidebar navigation UX:** frontend production build passes after the dashboard sidebar was changed to start closed on phone-sized screens and close after mobile sidebar navigation. The existing Vite mixed static/dynamic `socket.js` import warning remains.
+- **Narrow-phone responsive frontend pass:** frontend production build passes after tightening mobile shell spacing, preventing horizontal overflow, clamping the header controls, centering the notification dropdown on phone widths, equalizing dashboard stat cards, and improving wrapping/stacking for login, transcript, My Courses, assignments, attendance, leave, admin dashboard, and teacher dashboard surfaces. The full-screen quiz attempt UI was intentionally left unchanged. The existing Vite mixed static/dynamic `socket.js` import warning remains.
 
 Remaining lint warnings:
 

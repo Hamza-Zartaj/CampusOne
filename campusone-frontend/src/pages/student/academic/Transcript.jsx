@@ -32,36 +32,37 @@ const Transcript = () => {
   const { student, terms, cgpa, completedCredits, totalRequiredCredits } = transcript;
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="mx-auto max-w-3xl p-6 max-sm:p-3">
+      <div className="overflow-hidden rounded-xl border bg-white">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-700 to-blue-600 text-white px-8 py-6">
-          <h1 className="text-2xl font-bold tracking-wide">Official Transcript</h1>
+        <div className="bg-gradient-to-r from-blue-700 to-blue-600 px-8 py-6 text-white max-sm:px-5 max-sm:py-5">
+          <h1 className="text-2xl font-bold tracking-wide max-sm:text-xl">Official Transcript</h1>
           <p className="text-blue-200 text-sm mt-1">CampusOne University</p>
         </div>
 
         {/* Student info */}
-        <div className="px-8 py-5 border-b grid grid-cols-2 gap-4 text-sm">
-          <div><span className="text-slate-500">Name</span><p className="font-semibold text-slate-800">{student?.user?.name}</p></div>
-          <div><span className="text-slate-500">Email</span><p className="font-semibold text-slate-800">{student?.user?.email}</p></div>
-          <div><span className="text-slate-500">Program</span><p className="font-semibold text-slate-800">{student?.program?.name} ({student?.program?.programCode})</p></div>
-          <div><span className="text-slate-500">Department</span><p className="font-semibold text-slate-800">{student?.department?.name}</p></div>
-          <div><span className="text-slate-500">CGPA</span><p className="text-xl font-bold text-blue-700">{cgpa ?? '—'} / 4.00</p></div>
-          <div><span className="text-slate-500">Credits</span><p className="font-semibold text-slate-800">{completedCredits} / {totalRequiredCredits} completed</p></div>
+        <div className="grid grid-cols-2 gap-4 border-b px-8 py-5 text-sm max-sm:grid-cols-1 max-sm:px-5">
+          <div className="min-w-0"><span className="text-slate-500">Name</span><p className="break-anywhere font-semibold text-slate-800">{student?.user?.name}</p></div>
+          <div className="min-w-0"><span className="text-slate-500">Email</span><p className="break-anywhere font-semibold text-slate-800">{student?.user?.email}</p></div>
+          <div className="min-w-0"><span className="text-slate-500">Program</span><p className="break-anywhere font-semibold text-slate-800">{student?.program?.name} ({student?.program?.programCode})</p></div>
+          <div className="min-w-0"><span className="text-slate-500">Department</span><p className="break-anywhere font-semibold text-slate-800">{student?.department?.name}</p></div>
+          <div className="min-w-0"><span className="text-slate-500">CGPA</span><p className="text-xl font-bold text-blue-700">{cgpa ?? '—'} / 4.00</p></div>
+          <div className="min-w-0"><span className="text-slate-500">Credits</span><p className="break-anywhere font-semibold text-slate-800">{completedCredits} / {totalRequiredCredits} completed</p></div>
         </div>
 
         {/* Per-term tables */}
         {terms.length === 0 ? (
           <div className="text-center py-8 text-slate-400">No completed courses yet.</div>
         ) : (
-          <div className="px-8 py-5 space-y-6">
+          <div className="space-y-6 px-8 py-5 max-sm:px-5">
             {terms.map((t) => (
               <div key={t.term.code}>
-                <div className="flex items-center justify-between mb-2">
+                <div className="mb-2 flex items-center justify-between gap-2 max-sm:flex-col max-sm:items-start">
                   <h3 className="font-semibold text-slate-800 text-sm">{t.term.code} — {t.term.academicYear}</h3>
                   <span className="text-sm text-slate-600">GPA: <span className="font-bold text-blue-700">{t.termGPA ?? '—'}</span> · {t.termCredits} credits</span>
                 </div>
-                <table className="w-full text-xs border rounded-lg overflow-hidden">
+                <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full min-w-[560px] text-xs">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="text-left py-2 px-3 font-medium text-slate-600">Course Code</th>
@@ -83,12 +84,13 @@ const Transcript = () => {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             ))}
           </div>
         )}
 
-        <div className="px-8 py-4 bg-slate-50 border-t text-xs text-slate-400 text-center">
+        <div className="border-t bg-slate-50 px-8 py-4 text-center text-xs text-slate-400 max-sm:px-5">
           Generated from CampusOne — {new Date().toLocaleDateString()}
         </div>
       </div>

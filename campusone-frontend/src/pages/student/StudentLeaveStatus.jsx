@@ -144,21 +144,21 @@ const StudentLeaveStatus = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-5 mb-6 max-sm:grid-cols-2">
+      <div className="mb-6 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
         {[
           { icon: BookOpen,   label: 'Active Courses', value: data.length,        color: '#3b82f6' },
           { icon: Clock,      label: 'Pending Apps',   value: pendingApps,        color: '#f59e0b' },
           { icon: AlertCircle,label: 'Drop-off Risk',  value: dropOffCount,       color: '#ef4444' },
           { icon: Wallet,     label: 'Unpaid Fines',   value: `PKR ${totalUnpaid}`, color: '#8b5cf6' },
         ].map((s, i) => (
-          <div key={i} className="bg-white rounded-2xl p-5 flex items-center gap-3 shadow-sm">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center"
+          <div key={i} className="flex min-w-0 items-center gap-3 rounded-2xl bg-white p-5 shadow-sm max-[380px]:p-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
               style={{ backgroundColor: `${s.color}15`, color: s.color }}>
               <s.icon size={22} />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-slate-500 m-0 mb-0.5 font-medium">{s.label}</p>
-              <h3 className="text-2xl font-bold text-slate-800 m-0">{s.value}</h3>
+              <h3 className="m-0 break-anywhere text-2xl font-bold text-slate-800 max-[380px]:text-xl">{s.value}</h3>
             </div>
           </div>
         ))}
@@ -203,7 +203,7 @@ const StudentLeaveStatus = () => {
                       <span>n: <b className="text-slate-800">{counter.n}</b></span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex flex-wrap items-center justify-end gap-3 shrink-0 max-sm:w-full max-sm:justify-start">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${band.color}`}>
                       {band.text}
                     </span>

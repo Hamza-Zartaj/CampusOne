@@ -129,7 +129,7 @@ const NotificationBell = () => {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setOpen(!open)}
-        className="relative bg-transparent border-none text-white cursor-pointer p-2 rounded-lg flex items-center justify-center transition-colors hover:bg-white/10"
+        className="relative flex cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-2 text-white transition-colors hover:bg-white/10 max-sm:p-1.5"
         aria-label="Notifications"
       >
         <Bell size={22} />
@@ -141,15 +141,15 @@ const NotificationBell = () => {
       </button>
 
       {open && (
-        <div className="absolute top-[calc(100%+8px)] right-0 bg-white rounded-xl shadow-lg w-95 max-h-125 overflow-hidden z-100 flex flex-col">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="absolute right-0 top-[calc(100%+8px)] z-100 flex max-h-125 w-95 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl bg-white shadow-lg max-sm:fixed max-sm:left-3 max-sm:right-3 max-sm:top-[calc(var(--header-height)+0.5rem)] max-sm:w-auto">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4">
             <div>
               <h3 className="text-base font-semibold text-slate-800 m-0">Notifications</h3>
               <p className="text-xs text-slate-500 m-0">{unreadCount} unread</p>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               {unreadCount > 0 && (
-                <button onClick={handleMarkAllRead} className="text-xs text-blue-600 hover:underline px-2">
+                <button onClick={handleMarkAllRead} className="px-2 text-xs text-blue-600 hover:underline">
                   Mark all read
                 </button>
               )}
@@ -170,14 +170,14 @@ const NotificationBell = () => {
                 <div
                   key={n.id}
                   onClick={() => handleClick(n)}
-                  className={`group p-3 border-b border-slate-50 cursor-pointer hover:bg-slate-50 transition-colors flex gap-3 ${
+                  className={`group flex cursor-pointer gap-3 border-b border-slate-50 p-3 transition-colors hover:bg-slate-50 ${
                     !n.isRead ? 'bg-blue-50/50' : ''
                   }`}
                 >
                   <div className="text-2xl shrink-0 leading-none">{ICON[n.type] || '🔔'}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <p className={`text-sm m-0 ${!n.isRead ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
+                      <p className={`m-0 break-anywhere text-sm ${!n.isRead ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
                         {n.title}
                       </p>
                       <button

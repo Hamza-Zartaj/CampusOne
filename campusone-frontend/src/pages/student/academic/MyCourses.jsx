@@ -43,8 +43,8 @@ const downloadFile = async (url, filename) => {
 };
 
 const Section = ({ icon: Icon, title, count, children }) => (
-  <section className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-    <header className="px-5 py-3 border-b border-slate-100 flex items-center gap-2 bg-slate-50/60">
+  <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <header className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-5 py-3 max-sm:px-4">
       <Icon size={16} className="text-blue-600" />
       <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-700">{title}</h3>
       {count != null && <span className="ml-auto text-xs text-slate-500">{count}</span>}
@@ -204,20 +204,20 @@ const MyCourses = () => {
   const attendanceCountedAbsent = attendanceSummary?.countedAbsent ?? attendanceSummary?.absent ?? 0;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div className="flex items-center gap-3">
+    <div className="mx-auto max-w-7xl p-6 max-sm:p-3">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <BookOpen size={24} className="text-blue-600" />
-          <div>
+          <div className="min-w-0">
             <h1 className="text-xl font-semibold text-slate-800">My Courses</h1>
-            {term && <p className="text-sm text-slate-500">{term.code} — {term.academicYear}</p>}
+            {term && <p className="break-anywhere text-sm text-slate-500">{term.code} — {term.academicYear}</p>}
           </div>
         </div>
         {enrollments.length > 0 && (
           <select
             value={selectedOfferingId}
             onChange={(e) => setSelectedOfferingId(e.target.value)}
-            className="py-2 px-3 border border-gray-200 rounded-lg text-sm min-w-80 max-w-full"
+            className="w-full min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm sm:w-auto sm:min-w-80"
           >
             {enrollments.map((e) => (
               <option key={e.offering.id} value={e.offering.id}>
@@ -239,20 +239,20 @@ const MyCourses = () => {
       ) : (
         <div className="space-y-5">
           {/* Course Summary */}
-          <section className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-5">
-            <div className="flex items-start justify-between flex-wrap gap-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
+          <section className="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-5 max-sm:p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-bold text-blue-700">{courseHeader.code}</span>
                   <span className="text-xs text-slate-500">· Sec {courseHeader.section}</span>
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200">
                     {courseHeader.sessionType}
                   </span>
                 </div>
-                <h2 className="text-lg font-bold text-slate-800">{courseHeader.title}</h2>
-                <div className="flex items-center gap-1.5 mt-2 text-sm text-slate-600">
+                <h2 className="break-anywhere text-lg font-bold text-slate-800">{courseHeader.title}</h2>
+                <div className="mt-2 flex items-center gap-1.5 text-sm text-slate-600">
                   <User size={13} className="text-slate-400" />
-                  <span>{detail.offering.teacher?.user?.name || '—'}</span>
+                  <span className="break-anywhere">{detail.offering.teacher?.user?.name || '—'}</span>
                 </div>
                 {detail.offering.sessions?.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2">
@@ -264,8 +264,8 @@ const MyCourses = () => {
                   </div>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3 text-center">
-                <div className="bg-white rounded-lg px-4 py-2 border border-blue-100 min-w-32">
+              <div className="grid w-full grid-cols-1 gap-3 text-center min-[360px]:grid-cols-2 sm:w-auto">
+                <div className="min-w-0 rounded-lg border border-blue-100 bg-white px-4 py-2">
                   <div className="text-xs text-slate-500">Attendance</div>
                   <div className="text-2xl font-bold text-slate-800">
                     {detail.attendance.summary.percentage != null ? `${detail.attendance.summary.percentage}%` : '—'}
@@ -277,7 +277,7 @@ const MyCourses = () => {
                     )}
                   </div>
                 </div>
-                <div className="bg-white rounded-lg px-4 py-2 border border-blue-100 min-w-32">
+                <div className="min-w-0 rounded-lg border border-blue-100 bg-white px-4 py-2">
                   <div className="text-xs text-slate-500">Running Grade</div>
                   <div className="text-2xl font-bold text-slate-800">
                     {detail.runningGrade.earnedPercent != null ? `${detail.runningGrade.earnedPercent}%` : '—'}

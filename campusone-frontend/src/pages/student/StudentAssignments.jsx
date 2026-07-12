@@ -168,27 +168,27 @@ const StudentAssignments = () => {
   ];
 
   return (
-    <div className="max-w-[1400px] mx-auto">
+    <div className="mx-auto max-w-[1400px]">
       <div className="mb-6">
         <h1 className="text-[28px] font-bold text-slate-800 m-0 max-md:text-2xl">My Assignments</h1>
         <p className="text-sm text-slate-500 m-0 mt-1">View and submit your course assignments</p>
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-5 mb-6 max-sm:grid-cols-2">
+      <div className="mb-6 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
         {stats.map((s, i) => (
-          <div key={i} className="bg-white rounded-2xl p-5 flex items-center gap-3 shadow-sm">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${s.color}15`, color: s.color }}>
+          <div key={i} className="flex min-w-0 items-center gap-3 rounded-2xl bg-white p-5 shadow-sm max-[380px]:p-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: `${s.color}15`, color: s.color }}>
               <s.icon size={22} />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-slate-500 m-0 mb-0.5 font-medium">{s.label}</p>
-              <h3 className="text-2xl font-bold text-slate-800 m-0">{s.value}</h3>
+              <h3 className="m-0 break-anywhere text-2xl font-bold text-slate-800 max-[380px]:text-xl">{s.value}</h3>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-4 mb-5 flex items-center gap-3 max-sm:flex-col">
+      <div className="mb-5 flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm max-sm:flex-col">
         <div className="flex-1 relative max-sm:w-full">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -198,7 +198,7 @@ const StudentAssignments = () => {
           />
         </div>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-          className="py-2.5 px-3.5 border border-gray-200 rounded-lg text-[0.95rem] bg-white focus:outline-none focus:border-blue-500">
+          className="rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-[0.95rem] focus:border-blue-500 focus:outline-none max-sm:w-full">
           <option value="">All Status</option>
           <option value="pending">Pending</option>
           <option value="submitted">Submitted</option>
@@ -230,14 +230,14 @@ const StudentAssignments = () => {
                     <FileText size={20} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h3 className="text-[0.95rem] font-semibold text-slate-800 m-0 truncate">{a.title}</h3>
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <h3 className="m-0 break-anywhere text-[0.95rem] font-semibold text-slate-800">{a.title}</h3>
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
                         <StatusIcon size={12} /> {sc.label}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                      <span>{a.offering?.course?.code} — {a.offering?.course?.title}</span>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                      <span className="break-anywhere">{a.offering?.course?.code} — {a.offering?.course?.title}</span>
                       <span>&middot;</span>
                       <span className="flex items-center gap-1"><Calendar size={12} /> Due: {fmtDate(a.dueDate)}</span>
                       <span>&middot;</span>
