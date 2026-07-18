@@ -419,43 +419,7 @@ This table replaces the previous audit document.
 | 29 | TA oversight has no pagination | Resolved | Backend `getAllAssignments` returns paginated results and the admin UI sends page/limit controls |
 | 30 | Audit timestamp precision is implicit | Resolved | `AuditLog.createdAt` is declared with explicit `@db.Timestamp(3)` precision and a migration |
 
-## 9. Future Tasks
-
-Only open work belongs here. Move an item to the verified feature inventory or resolved audit status when completed.
-
-### Deferred product features
-
-- [ ] **Admin portal audit follow-ups**
-  Address the issues documented in `Admin_Portal.md`, especially admin dashboard API authorization, manual single-student enrollment identifier mismatch, teacher enrollment listing scope, broken dashboard offering link, hidden Reports navigation, and admin route guarding.
-
-- [ ] **Admissions audit follow-ups**
-  Address the issues documented in `Admission.md`, especially public document route authorization, backend closed-window/max-application enforcement, server-side application/document validation, admin detail permission checks, application status field mismatch, live program selection, and settings/date/document policy management.
-
-- [ ] **Teacher portal audit follow-ups**
-  Address the issues documented in `teacher_portal.md`, especially offering detail authorization, lecture list authorization, the broken dashboard announcements link, role-specific route guarding, and stale teacher notification component cleanup.
-
-- [ ] **Student portal audit follow-ups**
-  Address the issues documented in `student_portal.md`, especially broken course registration, broken My Grades enrollment-transcript route, frontend route guarding, over-broad offering/lecture read endpoints, stale localStorage dependency, assignment stat mismatch, mojibake text, and duplicate grades/transcript pages.
-
-- [ ] **TA portal audit follow-ups**
-  Address the issues documented in `TA.md`, especially TA attendance lecture creation, all-course filter failures on reused teacher pages, offline quiz mark controls for TAs, permission-specific TA dropdown scoping, unfiltered TA Q&A listing, TA resource editing, legacy TA profile code, and teacher-oriented wording on TA pages.
-
-- [ ] **Frontend warning cleanup**
-  Address the lint and build warnings documented in `frontend.md`, especially unused variables/imports, React hook dependency warnings, and the mixed static/dynamic `socket.js` import warning.
-
-- [ ] **Inbound Q&A email replies**  
-  Parse supported inbound email webhooks and create `QnaReply` records with a clear email source.
-
-- [ ] **Advanced quiz monitoring**  
-  Optional screen-sharing capture and webcam snapshots with explicit user permission and a defined privacy policy.
-
-- [ ] **Review student registration workflow and navigation**  
-  The route/page exist; verify rules and then decide whether to restore the sidebar entry.
-
-- [ ] **Assignment AI grading/review agent redesign**  
-  Replace the hidden Stage 2 AI Review prototype with a future assignment-aware agent or skill. The agent should inspect the assignment instructions/rubric and submission content, suggest grades for submissions that were not flagged by the local similarity scan, and avoid reprocessing duplicate/similar work. For locally flagged similarity groups, scan only one representative submission from the group and reuse that review context for the other similar flagged submissions so teachers are not paying for repeated AI review of the same work.
-
-## 10. Important Engineering Rules
+## 9. Important Engineering Rules
 
 - Current executable source and Prisma schema outrank comments or old assumptions.
 - Inspect the controller, route, schema model, and frontend caller before changing a feature.
@@ -477,7 +441,7 @@ Only open work belongs here. Move an item to the verified feature inventory or r
 - Database invariants should be enforced in the schema when concurrency can bypass controller checks.
 - Avoid destructive `db:reset` unless data loss is explicitly intended.
 
-## 11. Environment Variables
+## 10. Environment Variables
 
 Backend:
 
@@ -507,7 +471,7 @@ VITE_API_URL=http://localhost:5000/api
 
 `VITE_API_URL` is consumed by the frontend API client, with a same-origin `/api` fallback.
 
-## 12. Common Commands
+## 11. Common Commands
 
 From the repository root:
 
@@ -540,13 +504,12 @@ npm run lint
 npm run build
 ```
 
-## 13. Maintenance Procedure
+## 12. Maintenance Procedure
 
 When work is completed:
 
 1. Verify the relevant source paths and schema.
 2. Update the matching audit row.
-3. Remove the item from **Future Tasks**.
-4. Add or adjust the item in **Verified Implemented Features** when appropriate.
-5. Update the verification date at the top.
-6. Keep this file as the only project status and future-work tracker.
+3. Add or adjust the item in **Verified Implemented Features** when appropriate.
+4. Update the verification date at the top.
+5. Keep this file as the only project status tracker.
