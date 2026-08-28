@@ -2,9 +2,17 @@ import express from 'express';
 import multer from 'multer';
 import { protect, authorize, authorizePermission } from '../middleware/auth.js';
 import * as ctrl from '../controllers/enrollmentController.js';
+import { XLSX_MIME_TYPE } from '../utils/excelWorkbook.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === XLSX_MIME_TYPE) return cb(null, true);
+    cb(new Error('Only Excel .xlsx files are allowed'));
+  },
+});
 
 router.get('/bulk-import/template', protect, authorizePermission('manage_offerings'), ctrl.bulkImportTemplate);
 router.post('/bulk-import', protect, authorizePermission('manage_offerings'), upload.single('file'), ctrl.bulkImport);

@@ -1,6 +1,6 @@
 import logger from '../utils/logger.js';
 import prisma from '../prisma/client.js';
-import xlsx from 'xlsx';
+import { createWorkbookBuffer, readFirstWorksheetRows } from '../utils/excelWorkbook.js';
 import bcrypt from 'bcryptjs';
 import { auditLog } from '../utils/auditLogger.js';
 
@@ -909,9 +909,6 @@ export const searchStudents = async (req, res) => {
  */
 export const downloadBulkUploadTemplate = async (req, res) => {
   try {
-    // Create workbook
-    const wb = xlsx.utils.book_new();
-    
     // Define template headers and sample data
     const templateData = [
       {
@@ -936,26 +933,34 @@ export const downloadBulkUploadTemplate = async (req, res) => {
       }
     ];
     
-    // Create worksheet
-    const ws = xlsx.utils.json_to_sheet(templateData);
-    
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 20 },
-      { wch: 30 },
-      { wch: 15 },
-      { wch: 15 },
-      { wch: 25 },
-      { wch: 15 },
-      { wch: 10 },
-      { wch: 17 }
-    ];
-    
-    // Add worksheet to workbook
-    xlsx.utils.book_append_sheet(wb, ws, 'Students');
-    
     // Generate buffer
-    const excelBuffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const excelBuffer = await createWorkbookBuffer([
+      {
+        name: 'Students',
+        rows: templateData,
+        header: [
+          'Full Name',
+          'Email',
+          'Student ID',
+          'Password',
+          'Department',
+          'Enrollment Year',
+          'Batch',
+          'Current Semester',
+        ],
+        columns: [
+          { wch: 20 },
+          { wch: 30 },
+          { wch: 15 },
+          { wch: 15 },
+          { wch: 25 },
+          { wch: 15 },
+          { wch: 10 },
+          { wch: 17 },
+        ],
+        freezeHeader: true,
+      },
+    ]);
     
     // Set response headers
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -986,13 +991,8 @@ export const bulkUploadStudents = async (req, res) => {
       });
     }
 
-    // Read the Excel file
-    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    
     // Convert to JSON
-    const data = xlsx.utils.sheet_to_json(worksheet);
+    const data = await readFirstWorksheetRows(req.file.buffer);
     
     if (data.length === 0) {
       return res.status(400).json({

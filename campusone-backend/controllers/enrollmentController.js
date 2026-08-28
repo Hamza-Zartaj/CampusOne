@@ -1,5 +1,5 @@
 import prisma from '../prisma/client.js';
-import xlsx from 'xlsx';
+import { createWorkbookBuffer, readFirstWorksheetRows } from '../utils/excelWorkbook.js';
 import {
   computeGradePointAverage,
   enrollmentStatusForGrade,
@@ -448,13 +448,18 @@ export const getStudentCGPA = async (req, res) => {
 // GET /api/enrollments/bulk-import/template — admin downloads XLSX template
 export const bulkImportTemplate = async (_req, res) => {
   try {
-    const wb = xlsx.utils.book_new();
-    const ws = xlsx.utils.json_to_sheet([
-      { studentId: 'CS-2023-001' },
-      { studentId: 'CS-2023-002' },
+    const buf = await createWorkbookBuffer([
+      {
+        name: 'Enrollments',
+        rows: [
+          { studentId: 'CS-2023-001' },
+          { studentId: 'CS-2023-002' },
+        ],
+        header: ['studentId'],
+        columns: [{ wch: 18 }],
+        freezeHeader: true,
+      },
     ]);
-    xlsx.utils.book_append_sheet(wb, ws, 'Enrollments');
-    const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename=enrollment_bulk_template.xlsx');
     res.send(buf);
@@ -482,9 +487,7 @@ export const bulkImport = async (req, res) => {
     }
     const remainingCapacity = offering.capacity - offering._count.enrollments;
 
-    const wb = xlsx.read(req.file.buffer, { type: 'buffer' });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = xlsx.utils.sheet_to_json(sheet);
+    const rows = await readFirstWorksheetRows(req.file.buffer);
 
     const studentIds = rows.map((r) => String(r.studentId || r.StudentID || '').trim()).filter(Boolean);
     if (studentIds.length === 0) {

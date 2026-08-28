@@ -1,4 +1,4 @@
-import xlsx from 'xlsx';
+import { createWorkbookBuffer, readFirstWorksheetRows } from './excelWorkbook.js';
 import { validateQuestions } from './quizValidation.js';
 
 export const QUIZ_EXCEL_COLUMNS = [
@@ -12,12 +12,8 @@ export const QUIZ_EXCEL_COLUMNS = [
   'marks',
 ];
 
-export const parseQuizQuestionsWorkbook = (buffer) => {
-  const workbook = xlsx.read(buffer, { type: 'buffer' });
-  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!firstSheet) throw new Error('The workbook does not contain a worksheet');
-
-  const rows = xlsx.utils.sheet_to_json(firstSheet, { defval: '' });
+export const parseQuizQuestionsWorkbook = async (buffer) => {
+  const rows = await readFirstWorksheetRows(buffer, { defval: '' });
   const parsedQuestions = rows.map((row, index) => {
     const type = String(row.type || row.Type || 'MCQ').trim().toUpperCase();
     const questionText = row.questionText || row.question || row.Question || '';
@@ -59,7 +55,7 @@ export const parseQuizQuestionsWorkbook = (buffer) => {
   return validateQuestions(parsedQuestions);
 };
 
-export const createQuizImportTemplate = () => {
+export const createQuizImportTemplate = async () => {
   const exampleRows = [
     {
       type: 'MCQ',
@@ -93,19 +89,6 @@ export const createQuizImportTemplate = () => {
     },
   ];
 
-  const questionSheet = xlsx.utils.json_to_sheet(exampleRows, { header: QUIZ_EXCEL_COLUMNS });
-  questionSheet['!cols'] = [
-    { wch: 14 },
-    { wch: 52 },
-    { wch: 24 },
-    { wch: 24 },
-    { wch: 24 },
-    { wch: 24 },
-    { wch: 24 },
-    { wch: 10 },
-  ];
-  questionSheet['!freeze'] = { xSplit: 0, ySplit: 1 };
-
   const instructionRows = [
     ['CampusOne Quiz Import Instructions'],
     ['Keep the column names in the Questions sheet unchanged. Delete the example rows before entering your own questions.'],
@@ -119,11 +102,27 @@ export const createQuizImportTemplate = () => {
     ['correctAnswer (SHORT)', 'Expected answer/reference text'],
     ['marks', 'A number greater than 0'],
   ];
-  const instructionSheet = xlsx.utils.aoa_to_sheet(instructionRows);
-  instructionSheet['!cols'] = [{ wch: 30 }, { wch: 90 }];
-
-  const workbook = xlsx.utils.book_new();
-  xlsx.utils.book_append_sheet(workbook, questionSheet, 'Questions');
-  xlsx.utils.book_append_sheet(workbook, instructionSheet, 'Instructions');
-  return xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  return createWorkbookBuffer([
+    {
+      name: 'Questions',
+      rows: exampleRows,
+      header: QUIZ_EXCEL_COLUMNS,
+      columns: [
+        { wch: 14 },
+        { wch: 52 },
+        { wch: 24 },
+        { wch: 24 },
+        { wch: 24 },
+        { wch: 24 },
+        { wch: 24 },
+        { wch: 10 },
+      ],
+      freezeHeader: true,
+    },
+    {
+      name: 'Instructions',
+      rows: instructionRows,
+      columns: [{ wch: 30 }, { wch: 90 }],
+    },
+  ]);
 };

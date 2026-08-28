@@ -46,30 +46,32 @@ npm run dev
 
 ## Environment Variables
 
-Create `campusone-backend/.env`:
+Copy `campusone-backend/.env.example` to `campusone-backend/.env` and fill in local credentials:
 
 ```
 PORT=5000
-DATABASE_URL=postgresql://...@...pooler.supabase.com:6543/postgres?pgbouncer=true
-DIRECT_URL=postgresql://...@...pooler.supabase.com:5432/postgres
-JWT_SECRET=your_jwt_secret
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public
+DIRECT_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public
+JWT_SECRET=replace-with-a-long-random-secret
 JWT_EXPIRE=1h
 NODE_ENV=development
 CLIENT_URL=http://localhost:5173
 
 # Resend (email provider) — see RESEND_SETUP.md
-RESEND_API_KEY=re_xxxxxxxxxxxx
-RESEND_FROM=CampusOne <onboarding@resend.dev>
-RESEND_FROM_ANNOUNCEMENT=CampusOne Announcement <onboarding@resend.dev>
+RESEND_API_KEY=re_your_resend_api_key
+RESEND_FROM=CampusOne <noreply@example.com>
+RESEND_FROM_ANNOUNCEMENT=CampusOne Announcement <announcements@example.com>
 
-SUPABASE_URL=https://<project>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=...
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+OPENAI_API_KEY=sk-your_openai_api_key
 ```
 
-Create `campusone-frontend/.env`:
+Copy `campusone-frontend/.env.example` to `campusone-frontend/.env`:
 
 ```
 VITE_API_URL=http://localhost:5000/api
+VITE_SOCKET_URL=http://localhost:5000
 ```
 
 ---
