@@ -28,16 +28,16 @@ const at = ({ days = 0, hours = 0, minutes = 0 } = {}) => new Date(
 );
 
 const STUDENTS = [
-  ['student01', 'Ayesha Khan', 'FA26-BSCS-001', 1, 'FA26'],
-  ['student02', 'Bilal Ahmed', 'FA26-BSCS-002', 1, 'FA26'],
-  ['student03', 'Fatima Noor', 'FA26-BSCS-003', 1, 'FA26'],
-  ['student04', 'Hamza Ali', 'FA26-BSCS-004', 1, 'FA26'],
-  ['student05', 'Iqra Malik', 'FA26-BSCS-005', 1, 'FA26'],
-  ['student06', 'Junaid Raza', 'FA25-BSCS-006', 3, 'FA25'],
-  ['student07', 'Komal Shah', 'FA25-BSCS-007', 3, 'FA25'],
-  ['student08', 'Mariam Tariq', 'FA25-BSCS-008', 3, 'FA25'],
-  ['student09', 'Saad Hussain', 'FA25-BSCS-009', 3, 'FA25'],
-  ['student10', 'Zara Siddiqui', 'FA25-BSCS-010', 3, 'FA25'],
+  ['student01', 'Student Seed 01', 'FA26-BSCS-001', 1, 'FA26'],
+  ['student02', 'Student Seed 02', 'FA26-BSCS-002', 1, 'FA26'],
+  ['student03', 'Student Seed 03', 'FA26-BSCS-003', 1, 'FA26'],
+  ['student04', 'Student Seed 04', 'FA26-BSCS-004', 1, 'FA26'],
+  ['student05', 'Student Seed 05', 'FA26-BSCS-005', 1, 'FA26'],
+  ['student06', 'Student Seed 06', 'FA25-BSCS-006', 3, 'FA25'],
+  ['student07', 'Student Seed 07', 'FA25-BSCS-007', 3, 'FA25'],
+  ['student08', 'Student Seed 08', 'FA25-BSCS-008', 3, 'FA25'],
+  ['student09', 'Student Seed 09', 'FA25-BSCS-009', 3, 'FA25'],
+  ['student10', 'Student Seed 10', 'FA25-BSCS-010', 3, 'FA25'],
 ];
 
 const clearDatabase = async () => {
@@ -172,7 +172,7 @@ async function main() {
 
   const teacherUser = await createUser({
     username: 'teacher',
-    name: 'Dr. Asad Khan',
+    name: 'Dr. Faculty Seed',
     role: 'teacher',
     password,
   });
@@ -338,7 +338,7 @@ async function main() {
         programId: program.id,
         curriculumId: curriculum.id,
         departmentId: department.id,
-        phone: `0300-00000${String(index + 1).padStart(2, '0')}`,
+        phone: `+1-555-20${String(index + 1).padStart(2, '0')}`,
       },
     });
     await prisma.enrollment.create({

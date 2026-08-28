@@ -66,6 +66,8 @@ CampusOne/
 |       |-- pages/         Role-based pages
 |       |-- styles/        Shared CSS
 |       `-- utils/         API client, cache, permissions, sockets
+|-- campusone-frontend-demo/
+|   `-- src/               Standalone mock-data demo frontend
 |-- supabase/              Local Supabase configuration
 |-- README.md              Setup and quick-start guide
 `-- Project_context.md     Canonical tracker and project reference
@@ -135,6 +137,7 @@ Status in this section means the relevant schema, backend route/controller, and 
 - [x] OTP-gated profile email changes
 - [x] Seven canonical admin permissions and permission presets
 - [x] Permission-aware admin navigation and dashboard content
+- [x] Standalone demo frontend uses local mock data with public-safe placeholder identities and Vercel SPA rewrites
 
 ### User and admission management
 
@@ -379,6 +382,7 @@ Checks run through July 11, 2026:
 - **Backend dependency audit cleanup:** `xlsx` was replaced with ExcelJS for student, enrollment, and quiz `.xlsx` imports/templates; uploads now accept modern `.xlsx` workbooks only. `npm install` applied overrides for Prisma's transitive `deepmerge-ts` and ExcelJS's transitive `uuid`; `npm audit` passes with **0 vulnerabilities**.
 - **Backend Excel import/template checks:** `node --check` passes for `utils/excelWorkbook.js`, `utils/quizExcel.js`, changed quiz/enrollment/user controllers, and changed quiz/enrollment/user routes. A generated quiz import workbook smoke test round-tripped successfully with 3 parsed questions, and `npx prisma validate` passes with the patched Prisma dependency graph.
 - **Repository credential cleanup:** backend and frontend `.env` files were replaced with placeholder-only values, and safe `campusone-backend/.env.example` and `campusone-frontend/.env.example` files were added for GitHub handoff.
+- **Public repository cleanup:** key rotation was confirmed before cleanup. Git history was rewritten to remove historical `.env` files and `campusone-backend/RESEND_SETUP.md`; `refs/original` backup refs are gone, and `git log --all --name-only` for those paths returns no entries. Ignore rules now block env, key, service-account, database dump, editor, build, Supabase runtime, and generated artifact paths while allowing `.env.example`. `AGENTS.md`, `.vscode/settings.json`, unused Vite/React template assets, local `node_modules`, frontend/demo `dist`, and `.agents` were removed. Demo and backend seed records now use placeholder identities; `campusone-frontend-demo/vercel.json` adds React Router SPA rewrites. `node --check` passes for changed demo/seed data files, and both frontend production builds pass before artifact removal; the main frontend still has the known mixed static/dynamic `socket.js` warning. Full reflog expiry/GC was not run because the approval layer rejected that command as too broad.
 
 Remaining lint warnings:
 

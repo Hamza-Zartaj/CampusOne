@@ -1,3 +1,24 @@
+# Environment files
+.env
+.env.*
+*.env
+!.env.example
+
+# Secrets / credentials
+*.pem
+*.key
+*.p12
+*.pfx
+service-account*.json
+*service-account*.json
+
+# Databases / dumps
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.bak
+
 # Logs
 logs
 *.log
@@ -72,13 +93,6 @@ web_modules/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variable files
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
-
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -87,9 +101,11 @@ web_modules/
 .next
 out
 
-# Nuxt.js build / generate output
+# Nuxt.js / Vite build output
 .nuxt
 dist
+dist-ssr
+build
 
 # Gatsby files
 .cache/
@@ -125,6 +141,10 @@ dist
 # TernJS port file
 .tern-port
 
+# IDE/editor state
+.vscode/
+.idea/
+
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
@@ -143,5 +163,10 @@ DATABASE_REPORT.md
 SUPABASE_STORAGE_SETUP.md
 TEST.md
 diagrams.md
-campusone-frontend/.env
-campusone-frontend/.env
+
+# Supabase local/runtime state
+supabase/.branches/
+supabase/.temp/
+supabase/.env
+supabase/.env.*
+!supabase/.env.example
