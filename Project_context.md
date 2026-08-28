@@ -2,7 +2,7 @@
 
 > **Canonical project tracker and source of truth**
 >
-> Last verified: **July 12, 2026**
+> Last verified: **August 28, 2026**
 >
 > Update this file whenever a feature, architectural rule, known issue, or future task changes. Do not create a separate audit or to-do document.
 
@@ -33,7 +33,7 @@ The application is a mature, feature-heavy codebase. Most major product areas ar
 - `node-cron`
 - Supabase Storage
 - Resend email
-- Multer and XLSX
+- Multer and ExcelJS for `.xlsx` workbook imports/templates
 - `pdf-parse` and Mammoth for assignment text extraction and similarity analysis
 
 ### Frontend
@@ -140,6 +140,7 @@ Status in this section means the relevant schema, backend route/controller, and 
 
 - [x] Create, edit, activate, deactivate, unlock, and delete users
 - [x] Excel student import and template download
+- [x] Excel student, enrollment, and quiz workbook imports/templates use ExcelJS `.xlsx` handling instead of the vulnerable SheetJS `xlsx` package
 - [x] Public multi-step admission application
 - [x] Duplicate email, CNIC, and phone checks
 - [x] Admission settings and application review
@@ -366,15 +367,18 @@ Checks run through July 11, 2026:
 - **Teacher quiz manual grading UX:** frontend production build passes after replacing per-answer save buttons with one modal-level Save grades action, sorting ungraded written short answers first, rendering blank short answers as automatic zero marks, and zeroing stale blank-answer marks on save. The existing Vite mixed static/dynamic `socket.js` import warning remains.
 - **Student My Courses created-assessment display:** `node --check controllers\studentController.js` passes and frontend production build passes after the course-detail bundle and My Courses page were changed to show only real published assignments/quizzes and teacher-created mark-only assessment rows. The existing Vite mixed static/dynamic `socket.js` import warning remains.
 - **Attendance policy settings:** Prisma format/validate/generate pass, local `npm.cmd run db:push` applied `AttendancePolicy` and course planned lecture count, changed leave/attendance/course/student/dashboard backend syntax checks pass, and frontend production build passes after adding the admin Attendance Policy page plus Course Management planned-lectures field. The existing Vite mixed static/dynamic `socket.js` import warning remains.
-- **Supabase pooler environment update:** `campusone-backend/.env` `DATABASE_URL` and `DIRECT_URL` were updated to the Supabase shared transaction/session pooler hosts with the database password URL-encoded; redacted key check passed.
+- **Supabase pooler environment update:** `campusone-backend/.env` `DATABASE_URL` and `DIRECT_URL` were previously configured for Supabase shared transaction/session pooler hosts; local env files are now sanitized placeholders for repository cleanup.
 - **Prisma Client regeneration:** `npx.cmd prisma generate` passes in `campusone-backend` after the environment update; `@prisma/client` now exports `PrismaClient`, and `node --check server.js` passes.
 - **Remote Supabase migration deploy:** `npx.cmd prisma migrate deploy` applied all 16 checked-in migrations to the Supabase database via `DIRECT_URL`. The initially failed `20260628170000_assignment_similarity_stage2` migration was marked rolled back, patched to create the missing base similarity report/match enum and tables before stage-2 semantic review changes, then redeployed successfully; `npx.cmd prisma migrate status` reports the database schema is up to date, and `npx.cmd prisma validate` passes.
 - **Remote schema catch-up and seed:** `npx.cmd prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script --output prisma/migrations/20260711120000_remote_schema_catchup/migration.sql` created a catch-up migration for schema objects present in `schema.prisma` but absent from the remote database, including `CourseGradeComponent`, `MarkComponent`, `Lecture`, and `ComponentKind`. `npx.cmd prisma migrate deploy` applied the 17th migration, `npx.cmd prisma migrate status` reports the database schema is up to date, `npx.cmd prisma validate` passes, and `npm.cmd run db:seed` passes against the remote Supabase database.
-- **Remote Supabase Storage URL:** backend `.env` `SUPABASE_URL` was updated from the local Supabase URL to `https://ypbsyppjrbvvyhvokwme.supabase.co` so assignment file uploads use the same remote Supabase project as the database. Temporary upload/delete checks passed for both `services/storageService.js` and the assignment controller's `utils/supabaseStorage.js` helper against the `assignments` bucket.
+- **Remote Supabase Storage URL:** backend `.env` `SUPABASE_URL` was previously updated from the local Supabase URL to the production Supabase project so assignment file uploads used the same remote project as the database. Temporary upload/delete checks passed for both `services/storageService.js` and the assignment controller's `utils/supabaseStorage.js` helper against the `assignments` bucket; local env files are now placeholder-only for repository cleanup.
 - **Vercel frontend SPA refresh routing:** `campusone-frontend/vercel.json` adds a fallback rewrite to `index.html` for React Router deep links such as `/teacher/dashboard`, and `index.html` now references a CampusOne `favicon.svg`; frontend production build passes with the existing mixed static/dynamic `socket.js` warning.
 - **Frontend production API/socket origin:** frontend API, Socket.IO, and admin admission document links now share `src/utils/env.js` URL derivation from `VITE_API_URL`, removing production `localhost:5000` socket attempts while keeping local dev fallback; frontend production build passes with the existing mixed static/dynamic `socket.js` warning.
 - **Mobile sidebar navigation UX:** frontend production build passes after the dashboard sidebar was changed to start closed on phone-sized screens and close after mobile sidebar navigation. The existing Vite mixed static/dynamic `socket.js` import warning remains.
 - **Narrow-phone responsive frontend pass:** frontend production build passes after tightening mobile shell spacing, preventing horizontal overflow, clamping the header controls, centering the notification dropdown on phone widths, equalizing dashboard stat cards, and improving wrapping/stacking for login, transcript, My Courses, assignments, attendance, leave, admin dashboard, and teacher dashboard surfaces. The full-screen quiz attempt UI was intentionally left unchanged. The existing Vite mixed static/dynamic `socket.js` import warning remains.
+- **Backend dependency audit cleanup:** `xlsx` was replaced with ExcelJS for student, enrollment, and quiz `.xlsx` imports/templates; uploads now accept modern `.xlsx` workbooks only. `npm install` applied overrides for Prisma's transitive `deepmerge-ts` and ExcelJS's transitive `uuid`; `npm audit` passes with **0 vulnerabilities**.
+- **Backend Excel import/template checks:** `node --check` passes for `utils/excelWorkbook.js`, `utils/quizExcel.js`, changed quiz/enrollment/user controllers, and changed quiz/enrollment/user routes. A generated quiz import workbook smoke test round-tripped successfully with 3 parsed questions, and `npx prisma validate` passes with the patched Prisma dependency graph.
+- **Repository credential cleanup:** backend and frontend `.env` files were replaced with placeholder-only values, and safe `campusone-backend/.env.example` and `campusone-frontend/.env.example` files were added for GitHub handoff.
 
 Remaining lint warnings:
 
@@ -461,15 +465,19 @@ SUPABASE_SERVICE_ROLE_KEY=...
 OPENAI_API_KEY=...
 OPENAI_QUIZ_MODEL=gpt-5.4-mini
 OPENAI_CHEAP_MODEL=gpt-5.4-nano
+OPENAI_SIMILARITY_MODEL=...
+OPENAI_SIMILARITY_REVIEW_MODEL=...
+AI_MAX_QUIZ_PROMPT_CHARS=12000
 ```
 
 Frontend:
 
 ```env
 VITE_API_URL=http://localhost:5000/api
+VITE_SOCKET_URL=http://localhost:5000
 ```
 
-`VITE_API_URL` is consumed by the frontend API client, with a same-origin `/api` fallback.
+`VITE_API_URL` is consumed by the frontend API client, with a same-origin `/api` fallback. `VITE_SOCKET_URL` is optional; when omitted, the frontend derives the Socket.IO origin from the API URL or current origin.
 
 ## 11. Common Commands
 

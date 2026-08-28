@@ -370,7 +370,7 @@ export const deleteQuiz = async (req, res) => {
 export const importQuestionsFromExcel = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'Excel file is required' });
-    const questions = parseQuizQuestionsWorkbook(req.file.buffer);
+    const questions = await parseQuizQuestionsWorkbook(req.file.buffer);
 
     res.json({ success: true, count: questions.length, data: questions });
   } catch (err) {
@@ -381,7 +381,7 @@ export const importQuestionsFromExcel = async (req, res) => {
 // GET /api/quizzes/import-excel/template — download a workbook matching the importer
 export const downloadQuizImportTemplate = async (req, res) => {
   try {
-    const buffer = createQuizImportTemplate();
+    const buffer = await createQuizImportTemplate();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename=campusone_quiz_import_template.xlsx');
     res.send(buffer);

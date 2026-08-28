@@ -26,6 +26,7 @@ import {
   getMyAttemptResult,
 } from '../controllers/quizAttemptController.js';
 import { generateAIQuizQuestions } from '../controllers/aiQuizController.js';
+import { XLSX_MIME_TYPE } from '../utils/excelWorkbook.js';
 
 const router = express.Router();
 
@@ -33,12 +34,8 @@ const excelUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel',
-    ];
-    if (allowed.includes(file.mimetype)) return cb(null, true);
-    cb(new Error('Only Excel files (.xlsx, .xls) are allowed'));
+    if (file.mimetype === XLSX_MIME_TYPE) return cb(null, true);
+    cb(new Error('Only Excel .xlsx files are allowed'));
   },
 });
 
