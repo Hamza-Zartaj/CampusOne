@@ -170,3 +170,5 @@ supabase/.temp/
 supabase/.env
 supabase/.env.*
 !supabase/.env.example
+campusone-frontend/.env
+campusone-frontend/.env
