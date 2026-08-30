@@ -241,7 +241,7 @@ export default function Login() {
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
       </div>
 
-      <div className="relative z-10 grid w-full max-w-5xl items-center gap-5 lg:grid-cols-[minmax(0,28rem)_minmax(20rem,24rem)] lg:justify-center">
+      <div className="relative z-10 grid w-full max-w-5xl items-center gap-5 lg:grid-cols-[repeat(2,minmax(0,28rem))] lg:justify-center">
       <div className="w-full">
         {/* Card with glass morphism effect */}
         <div className="animate-fade-in rounded-2xl border border-white/20 bg-white/95 p-8 shadow-2xl backdrop-blur-xl max-[380px]:p-5 sm:p-10">
