@@ -8,6 +8,7 @@ import ForgotPassword from './components/ForgotPassword';
 import PasswordReset from './components/PasswordReset';
 import SuperAdminRecovery from './components/SuperAdminRecovery';
 import clientLogger from '../../utils/clientLogger';
+import { demoCredentials } from '../../data/mockData';
 
 function getDashboardPathForRole(role) {
   const normalizedRole = String(role || '').toLowerCase();
@@ -38,6 +39,13 @@ export default function Login() {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleDemoCredentialSelect = (credential) => {
+    setFormData({
+      username: credential.email,
+      password: credential.password,
     });
   };
 
@@ -233,7 +241,8 @@ export default function Login() {
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
       </div>
 
-      <div className="relative z-10 w-full max-w-md">
+      <div className="relative z-10 grid w-full max-w-5xl items-center gap-5 lg:grid-cols-[minmax(0,28rem)_minmax(20rem,24rem)] lg:justify-center">
+      <div className="w-full">
         {/* Card with glass morphism effect */}
         <div className="animate-fade-in rounded-2xl border border-white/20 bg-white/95 p-8 shadow-2xl backdrop-blur-xl max-[380px]:p-5 sm:p-10">
           {/* Logo/Header */}
@@ -359,8 +368,48 @@ export default function Login() {
 
         {/* Footer */}
         <p className="mt-8 text-center text-sm text-white/90 font-medium">
-          © 2026 CampusOne. All rights reserved.
+          &copy; 2026 CampusOne. All rights reserved.
         </p>
+      </div>
+
+      <aside className="animate-fade-in rounded-2xl border border-white/20 bg-white/95 p-6 shadow-2xl backdrop-blur-xl max-[380px]:p-5 lg:-translate-y-6">
+        <div className="mb-5">
+          <p className="m-0 text-xs font-bold uppercase tracking-wide text-blue-600">Frontend demo</p>
+          <h2 className="m-0 mt-2 text-2xl font-bold text-slate-900">Demo logins</h2>
+        </div>
+
+        <div className="space-y-3">
+          {demoCredentials.map((credential) => (
+            <div
+              key={credential.role}
+              className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm"
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">
+                  {credential.role}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleDemoCredentialSelect(credential)}
+                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  Use
+                </button>
+              </div>
+              <dl className="m-0 space-y-2 text-sm">
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</dt>
+                  <dd className="m-0 break-all font-medium text-slate-800">{credential.email}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Password</dt>
+                  <dd className="m-0 font-medium text-slate-800">{credential.password}</dd>
+                </div>
+              </dl>
+            </div>
+          ))}
+        </div>
+      </aside>
       </div>
 
       </div>
